@@ -4,6 +4,8 @@
   const $$ = (s) => [...document.querySelectorAll(s)];
   let token = null, tokenClient = null, microsoftApp = null, microsoftAccount = null;
   const providerData = { google:{events:null,mails:null,tasks:null}, microsoft:{events:null,mails:null,tasks:null} };
+  let personalTasks = [];
+  try { personalTasks = JSON.parse(localStorage.getItem('daylight-personal-tasks') || '[]'); if (!Array.isArray(personalTasks)) personalTasks=[]; } catch { personalTasks=[]; }
   const scopes = [
     'https://www.googleapis.com/auth/calendar.events.readonly',
     'https://www.googleapis.com/auth/gmail.metadata',
@@ -44,8 +46,9 @@
         <label class="client-label" for="ms-client-id">Microsoft Application (client) ID</label><input class="client-input" id="ms-client-id" type="text" placeholder="00000000-0000-0000-0000-000000000000" value="${esc(localStorage.getItem('daylight-ms-client-id')||'')}">
         <div class="setup-note">In Microsoft Entra, register Daylight as a single-page application for work, school, and personal Microsoft accounts. Add the redirect URI <b>https://kratveer.github.io/Deshboard/</b>. Add delegated Microsoft Graph permissions <b>User.Read</b>, <b>Mail.ReadBasic</b>, <b>Calendars.ReadBasic</b>, and <b>Tasks.Read</b>. Do not create a client secret.</div>
       </details>
-      <div class="provider-card provider-later"><div class="provider-icon samsung-icon">S</div><div class="provider-copy"><b>Samsung Calendar</b><span>Calendar and reminders</span></div><span class="provider-status">Coming soon</span></div>
-      <div class="provider-card provider-later"><div class="provider-icon social-icon">◎</div><div class="provider-copy"><b>Social notifications</b><span>Only where providers support it</span></div><span class="provider-status">Coming soon</span></div>
+      <div class="provider-card provider-later"><div class="provider-icon apple-icon">A</div><div class="provider-copy"><b>Apple iCloud</b><span>Mail · Calendar · Reminders</span></div><span class="provider-status">Needs a secure Apple connection</span></div>
+      <div class="provider-card provider-later"><div class="provider-icon samsung-icon">S</div><div class="provider-copy"><b>Samsung Calendar</b><span>Calendar and reminders</span></div><span class="provider-status">Google sync may include events</span></div>
+      <div class="provider-card provider-later"><div class="provider-icon social-icon">◎</div><div class="provider-copy"><b>Social notifications</b><span>Provider by provider, when supported</span></div><span class="provider-status">Limited by platform APIs</span></div>
       <div id="connect-error" class="error" role="alert"></div><div class="modalfoot"><button class="close secondary" id="disconnect">Disconnect Google</button></div></div>`;
     $('#overlay').classList.add('show');
     $('#google-connect').onclick=connected?refreshAll:authorize;
@@ -109,10 +112,12 @@
     $('#mail-count').textContent=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length;
   }
   function renderTasks(){
-    const tasks=[...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].slice(0,10);
-    $('#task-count').textContent=tasks.length;$('#done-count').textContent=`${tasks.length} `;
-    $('.task-list').innerHTML=tasks.length?tasks.map(t=>`<div class="task"><span class="check" aria-hidden="true"></span><div class="task-text">${esc(t.title||'(Untitled task)')}<div class="task-meta">${esc(t.due||t.listName||t.source||'Task')}</div></div></div>`).join(''):'<div class="empty">${providerData.google.tasks||providerData.microsoft.tasks?'No open tasks. You’re all caught up.':'Connect Google Tasks or Microsoft To Do to view tasks.'}</div>';
+    const tasks=[...personalTasks.map(t=>({...t,personal:true,source:'Personal · this device'})),...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].slice(0,10);
+    $('#task-count').textContent=tasks.length;$('#done-count').textContent=tasks.length;
+    $('.task-list').innerHTML=tasks.length?tasks.map(t=>`<div class="task"><${t.personal?'button type="button" data-local-task="'+esc(t.id)+'" class="check local-check" aria-label="Complete '+esc(t.title)+'"':'span class="check" aria-hidden="true"'}></${t.personal?'button':'span'}><div class="task-text">${esc(t.title||'(Untitled task)')}<div class="task-meta">${esc(t.due||t.listName||t.source||'Task')}</div></div></div>`).join(''):'<div class="empty">${providerData.google.tasks||providerData.microsoft.tasks?'No open tasks. Add a personal task above.':'Add a personal task above or connect Google Tasks.'}</div>';
   }
+  $('#personal-task-form').addEventListener('submit',e=>{e.preventDefault();const input=$('#personal-task-input'),title=input.value.trim();if(!title)return;personalTasks.unshift({id:crypto.randomUUID?.()||String(Date.now()),title});localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks));input.value='';renderTasks();toast('Task added on this device');});
+  $('.task-list').addEventListener('click',e=>{const button=e.target.closest('[data-local-task]');if(!button)return;personalTasks=personalTasks.filter(t=>t.id!==button.dataset.localTask);localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks));renderTasks();toast('Personal task completed');});
   async function loadCalendar(){
     const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');u.searchParams.set('timeMin',iso(localMidnight));u.searchParams.set('timeMax',iso(tomorrow));u.searchParams.set('singleEvents','true');u.searchParams.set('orderBy','startTime');u.searchParams.set('maxResults','12');
     const data=await api(u);providerData.google.events=(data.items||[]).map(e=>({...e,source:'Google Calendar'}));renderCalendar();
