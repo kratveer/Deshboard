@@ -10,7 +10,7 @@
 //   GET  /health
 
 const GOOGLE_SCOPES = [
-  'openid', 'email',
+  'openid', 'email', 'profile',
   'https://www.googleapis.com/auth/calendar.events.readonly',
   'https://www.googleapis.com/auth/gmail.metadata',
   'https://www.googleapis.com/auth/tasks.readonly',

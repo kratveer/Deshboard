@@ -8,6 +8,7 @@
   let personalTasks = [];
   try { personalTasks = JSON.parse(localStorage.getItem('daylight-personal-tasks') || '[]'); if (!Array.isArray(personalTasks)) personalTasks=[]; } catch { personalTasks=[]; }
   const scopes = [
+    'openid','email','profile',
     'https://www.googleapis.com/auth/calendar.events.readonly',
     'https://www.googleapis.com/auth/gmail.metadata',
     'https://www.googleapis.com/auth/tasks.readonly',
@@ -30,37 +31,63 @@
   $('#connections').setAttribute('aria-label','Connect your apps');
   const weatherCard=document.createElement('article');
   weatherCard.className='card weather'; weatherCard.dataset.widget='weather';
-  weatherCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">☀</span>Local weather</div><button class="connect" id="weather-connect">Use my location</button></div><div id="weather-content" class="empty">Allow location access to see your forecast. Your coordinates are sent to Open-Meteo to retrieve it.</div>';
+  weatherCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">☀</span>Local weather</div><button class="connect" id="weather-connect">Use my location</button></div><div id="weather-content" class="empty">Share your location to see today’s weather.</div>';
   $('#layout').append(weatherCard);
 
   function connectDialog() {
-    const connected=Boolean(token), microsoftConnected=Boolean(microsoftAccount);
-    $('#overlay').innerHTML=`<div class="modal connections-modal"><div class="modal-top"><div><div class="eyebrow">Your connections</div><h3>Bring your apps together</h3></div><button class="modal-x" id="close-modal" aria-label="Close">×</button></div>
-      <p>Choose a service. Each provider asks you to approve access before Daylight reads anything. You can disconnect at any time.</p>
-      <div class="provider-card"><div class="provider-icon google-icon">G</div><div class="provider-copy"><b>Google</b><span>Calendar · Gmail · Tasks</span></div><span class="provider-status ${connected?'is-connected':''}">${connected?'Connected':'Not connected'}</span><button class="connect provider-action" id="google-connect">${connected?'Refresh':'Connect'}</button></div>
-      <div class="scope-note"><b>Google will ask to allow</b><br>• View calendar events<br>• View inbox message headers (no message bodies or email changes)<br>• View Google Tasks<br>• See names and dates of your Google Drive files (not their contents)<br>• View your contacts, to show upcoming birthdays<br><span class="privacy-line">Permission is granted on Google’s screen. Access tokens stay in this tab.</span></div>
-      <details class="setup-details" ${localStorage.getItem('daylight-client-id')?'':'open'}><summary>Set up Google access for this dashboard</summary>
-        <label class="client-label" for="client-id">Google OAuth Client ID</label><input class="client-input" id="client-id" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" value="${esc(localStorage.getItem('daylight-client-id')||'')}">
-        <div class="setup-note">Use a Google OAuth client ID for a Web application. Enable Calendar API, Gmail API, and Tasks API in Google Cloud. Add <b>https://kratveer.github.io</b> as an authorized JavaScript origin and your Google account as a test user. Keep the app in Testing for personal use.</div>
-      </details>
-      <div class="provider-card"><div class="provider-icon ms-icon">M</div><div class="provider-copy"><b>Microsoft 365</b><span>Outlook Mail · Calendar · To Do</span></div><span class="provider-status ${microsoftConnected?'is-connected':''}">${microsoftConnected?'Connected':'Not connected'}</span><button class="connect provider-action" id="microsoft-connect">${microsoftConnected?'Refresh':'Connect'}</button></div>
-      <div class="scope-note"><b>Microsoft will ask to allow</b><br>• Read basic Outlook mail details (no body or sending)<br>• Read calendar events<br>• Read To Do tasks<br><span class="privacy-line">Microsoft sign-in uses OAuth. Tokens stay in this browser session.</span></div>
-      <details class="setup-details" ${localStorage.getItem('daylight-ms-client-id')?'':'open'}><summary>Set up Microsoft access for this dashboard</summary>
-        <label class="client-label" for="ms-client-id">Microsoft Application (client) ID</label><input class="client-input" id="ms-client-id" type="text" placeholder="00000000-0000-0000-0000-000000000000" value="${esc(localStorage.getItem('daylight-ms-client-id')||'')}">
-        <div class="setup-note">In Microsoft Entra, register Daylight as a single-page application for work, school, and personal Microsoft accounts. Add the redirect URI <b>https://kratveer.github.io/Deshboard/</b>. Add delegated Microsoft Graph permissions <b>User.Read</b>, <b>Mail.ReadBasic</b>, <b>Calendars.ReadBasic</b>, and <b>Tasks.Read</b>. Do not create a client secret.</div>
-      </details>
-      <div class="provider-card provider-later"><div class="provider-icon apple-icon">A</div><div class="provider-copy"><b>Apple iCloud</b><span>Mail · Calendar · Reminders</span></div><span class="provider-status">Needs a secure Apple connection</span></div>
-      <div class="provider-card provider-later"><div class="provider-icon samsung-icon">S</div><div class="provider-copy"><b>Samsung Calendar</b><span>Calendar and reminders</span></div><span class="provider-status">Google sync may include events</span></div>
-      <div class="provider-card provider-later"><div class="provider-icon social-icon">◎</div><div class="provider-copy"><b>Social notifications</b><span>Provider by provider, when supported</span></div><span class="provider-status">Limited by platform APIs</span></div>
-      <div id="connect-error" class="error" role="alert"></div><div class="modalfoot"><button class="close secondary" id="disconnect">Disconnect Google</button></div></div>`;
+    const g=Boolean(token), ms=Boolean(microsoftAccount), staying=Boolean(serverSession), prof=readProfile();
+    const msReady=Boolean(localStorage.getItem('daylight-ms-client-id'));
+    const row=(id,icon,iconCls,name,sub,connected,btn)=>`<div class="conn-row${connected?' is-on':''}"><div class="provider-icon ${iconCls}">${icon}</div><div class="provider-copy"><b>${name}</b><span>${sub}</span></div>${btn}</div>`;
+    $('#overlay').innerHTML=`<div class="modal connections-modal" role="dialog" aria-label="Connections"><div class="modal-top"><h3>Connections</h3><button class="modal-x" id="close-modal" aria-label="Close">×</button></div>
+      ${row('google','G','google-icon','Google',g?`<span class="dot"></span>${staying?'Connected · stays signed in':'Connected for about an hour'}${prof.email?' · '+esc(prof.email):''}`:'Calendar · Gmail · Tasks · Drive · Contacts',g,g?'<button class="connect ghost" id="google-disconnect" type="button">Disconnect</button>':'<button class="connect primary" id="google-connect" type="button">Connect</button>')}
+      ${row('microsoft','M','ms-icon','Microsoft 365',ms?'<span class="dot"></span>Connected':'Outlook · Calendar · To Do',ms,ms?'<button class="connect ghost" id="microsoft-disconnect" type="button">Disconnect</button>':`<button class="connect ${msReady?'primary':''}" id="microsoft-connect" type="button">${msReady?'Connect':'Set up'}</button>`)}
+      <div id="connect-error" class="error" role="alert"></div>
+      <details class="conn-more"><summary>What Daylight can see</summary><ul class="conn-list"><li>Today’s calendar events</li><li>Sender and subject of recent emails, never the message text</li><li>Open tasks, recently opened Drive file names, and contact birthdays</li><li>Everything is read only. Data goes straight from Google or Microsoft to this page.</li></ul><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></details>
+      <details class="conn-more" id="conn-advanced"><summary>Advanced setup</summary>
+        <label class="client-label" for="server-url">Daylight server <small>keeps you signed in</small></label><input class="client-input" id="server-url" type="url" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
+        <label class="client-label" for="client-id">Google OAuth client ID <small>used when no server is set</small></label><input class="client-input" id="client-id" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" value="${esc(localStorage.getItem('daylight-client-id')||'')}">
+        <label class="client-label" for="ms-client-id">Microsoft application ID</label><input class="client-input" id="ms-client-id" type="text" placeholder="00000000-0000-0000-0000-000000000000" value="${esc(localStorage.getItem('daylight-ms-client-id')||'')}">
+        <div class="server-actions"><button class="connect" type="button" id="advanced-save">Save</button><a href="https://github.com/kratveer/Deshboard#readme" target="_blank" rel="noopener">Setup guide</a></div>
+      </details></div>`;
     $('#overlay').classList.add('show');
-    $('#google-connect').onclick=connected?refreshAll:authorize;
-    $('#microsoft-connect').onclick=authorizeMicrosoft;
+    const err=m=>{$('#connect-error').textContent=m};
+    const saveAdvanced=()=>{const u=$('#server-url').value.trim().replace(/\/+$/,'');if(u&&!/^https:\/\/[^/]+$|^http:\/\/localhost(:\d+)?$/.test(u)){err('The server address should look like https://daylight-api.your-name.workers.dev');return false}
+      setLS('daylight-api',u);serverUrl=u;const c=$('#client-id').value.trim();setLS('daylight-client-id',c);setLS('daylight-ms-client-id',$('#ms-client-id').value.trim());err('');return true};
     $('#close-modal').onclick=()=>$('#overlay').classList.remove('show');
-    $('#disconnect').onclick=()=>{token=null;providerData.google={events:null,mails:null,tasks:null};renderAll();$('#overlay').classList.remove('show');$('#sync-status').textContent=microsoftAccount?'Google disconnected · Microsoft remains connected':'Google disconnected · reconnect to refresh';$('#connections').classList.toggle('active',Boolean(microsoftAccount));toast('Google access cleared from this page')};
-    if(microsoftConnected) $('#microsoft-connect').onclick=async()=>{try{await refreshAll()}catch{} };
-    if(microsoftConnected) $('#microsoft-connect').textContent='Refresh';
-    if(microsoftConnected){const msDisconnect=document.createElement('button');msDisconnect.className='close secondary';msDisconnect.id='disconnect-microsoft';msDisconnect.textContent='Disconnect Microsoft';msDisconnect.onclick=async()=>{try{await microsoftApp?.clearCache({account:microsoftAccount})}catch{}microsoftAccount=null;microsoftApp=null;providerData.microsoft={events:null,mails:null,tasks:null};renderAll();connectDialog();toast('Microsoft access cleared from this browser session')};$('#disconnect').parentElement.insertBefore(msDisconnect,$('#disconnect'))}
+    $('#advanced-save').onclick=()=>{if(saveAdvanced()){toast('Settings saved on this device');connectDialog()}};
+    if($('#google-connect'))$('#google-connect').onclick=()=>{if(!saveAdvanced())return;
+      if(serverUrl){location.href=serverUrl+'/auth/google/start?return='+encodeURIComponent(location.origin+location.pathname);return}
+      if(!$('#client-id').value.trim()){$('#conn-advanced').open=true;err('Add your Daylight server or a Google client ID under Advanced setup.');return}
+      authorize()};
+    if($('#google-disconnect'))$('#google-disconnect').onclick=disconnectGoogle;
+    if($('#microsoft-connect'))$('#microsoft-connect').onclick=()=>{saveAdvanced();if(!$('#ms-client-id').value.trim()){$('#conn-advanced').open=true;err('Add your Microsoft application ID under Advanced setup first.');return}authorizeMicrosoft()};
+    if($('#microsoft-disconnect'))$('#microsoft-disconnect').onclick=async()=>{try{await microsoftApp?.clearCache({account:microsoftAccount})}catch{}microsoftAccount=null;microsoftApp=null;providerData.microsoft={events:null,mails:null,tasks:null};renderAll();$('#connections').classList.toggle('active',Boolean(token));connectDialog();toast('Microsoft disconnected')};
+  }
+  async function disconnectGoogle(){
+    if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)}
+    token=null;providerData.google={events:null,mails:null,tasks:null};renderAll();clearProfile();
+    $('#sync-status').textContent=microsoftAccount?'Google disconnected · Microsoft still connected':'Not connected';
+    $('#connections').classList.toggle('active',Boolean(microsoftAccount));
+    if($('#overlay').classList.contains('show'))connectDialog();toast('Google disconnected');
+  }
+  // ---- Profile photo + greeting ----
+  function readProfile(){try{return JSON.parse(localStorage.getItem('daylight-profile')||'{}')||{}}catch{return{}}}
+  function renderProfile(){
+    const p=readProfile(),el=$('#profile');const first=(p.name||'').trim().split(/\s+/)[0]||'';
+    const h=new Date().getHours(),part=h<5?'Good evening':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+    $('#greeting').innerHTML=esc(part)+(first?`, <span>${esc(first)}.</span>`:'.');
+    if(!el)return;el.title=p.name?`${p.name}${p.email?' · '+p.email:''}`:'Connections';
+    el.innerHTML=p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc((first[0]||'K').toUpperCase());
+    const img=el.querySelector('img');if(img)img.onerror=()=>{el.textContent=(first[0]||'K').toUpperCase()};
+  }
+  function clearProfile(){setLS('daylight-profile','');renderProfile()}
+  async function loadProfile(){
+    try{
+      if(token){const u=await api('https://www.googleapis.com/oauth2/v3/userinfo');if(u.name||u.picture){setLS('daylight-profile',JSON.stringify({name:u.name||'',picture:u.picture||'',email:u.email||''}));renderProfile();return}}
+      if(microsoftAccount){const me=await graph('/me?$select=displayName,mail,userPrincipalName');let picture='';
+        try{const t=await microsoftToken();const r=await fetch('https://graph.microsoft.com/v1.0/me/photos/96x96/$value',{headers:{Authorization:'Bearer '+t}});if(r.ok){const b=await r.blob();picture=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(b)})}}catch{}
+        setLS('daylight-profile',JSON.stringify({name:me.displayName||'',picture,email:me.mail||me.userPrincipalName||''}));renderProfile()}
+    }catch{/* older sign-ins may lack profile access; keep the letter */}
   }
   $('#connections').onclick=connectDialog;
   $('#close')?.addEventListener('click',()=>$('#overlay').classList.remove('show'));
@@ -117,7 +144,7 @@
     $('#mail-count').textContent=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length;
   }
   function renderTasks(){queueInsights();
-    const tasks=[...personalTasks.map(t=>({...t,personal:true,source:'Personal · this device'})),...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].slice(0,10);
+    const tasks=[...personalTasks.map(t=>({...t,personal:true,source:'Personal'})),...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].slice(0,10);
     $('#task-count').textContent=tasks.length;$('#done-count').textContent=tasks.length;
     $('.task-list').innerHTML=tasks.length?tasks.map(t=>`<div class="task"><${t.personal?'button type="button" data-local-task="'+esc(t.id)+'" class="check local-check" aria-label="Complete '+esc(t.title)+'"':'span class="check" aria-hidden="true"'}></${t.personal?'button':'span'}><div class="task-text">${esc(t.title||'(Untitled task)')}<div class="task-meta">${esc(t.due||t.listName||t.source||'Task')}</div></div></div>`).join(''):`<div class="empty">${providerData.google.tasks||providerData.microsoft.tasks?'No open tasks. Add a personal task above.':'Add a personal task above or connect Google Tasks.'}</div>`;
   }
@@ -163,7 +190,7 @@
   }
   async function refreshAll(){
     if(!token&&!microsoftAccount)return;$('#sync-status').textContent=`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · refreshing…`;
-    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays());if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
+    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays());loadProfile();if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
     const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();
     const eventCount=(providerData.google.events||[]).length+(providerData.microsoft.events||[]).length,mailCount=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length,taskCount=(providerData.google.tasks||[]).length+(providerData.microsoft.tasks||[]).length;
     $('#headline-note').innerHTML=`Today: <b>${eventCount} events</b> · <b>${mailCount} inbox messages</b> · <b>${taskCount} open tasks</b>`;
@@ -260,8 +287,8 @@
     a.innerHTML=`<div class="card-head"><div class="card-title"><span class="glyph ${glyph[0]}">${glyph[1]}</span>${title}</div>${right}</div>${body}`;
     $('#layout').append(a);return a;
   }
-  makeTile('drive','drive',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3h8l6 10-4 7H6l-4-7 6-10Z"/><path d="m8 3 6 10H2M16 3l-6 10M10 13h12"/></svg>'],'Recent files','<span class="tiny">Google Drive</span>','<div class="file-list" id="drive-list"><div class="empty">Connect Google to see files you opened recently.</div></div>');
-  makeTile('birthdays','birthdays',['g-rose','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21h16v-8H4v8Z"/><path d="M4 16c2 1.5 4 1.5 6 0s4-1.5 6 0 3 1 4 0M12 13V9M12 6.5c-.8-.8-.8-2 0-3 .8 1 .8 2.2 0 3Z"/></svg>'],'Upcoming birthdays','<span class="tiny">Next 60 days</span>','<div class="bday-list" id="bday-list"><div class="empty">Connect Google to see birthdays from your contacts.</div></div>');
+  makeTile('drive','drive',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3h8l6 10-4 7H6l-4-7 6-10Z"/><path d="m8 3 6 10H2M16 3l-6 10M10 13h12"/></svg>'],'Recent files','','<div class="file-list" id="drive-list"><div class="empty">Connect Google to see files you opened recently.</div></div>');
+  makeTile('birthdays','birthdays',['g-rose','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21h16v-8H4v8Z"/><path d="M4 16c2 1.5 4 1.5 6 0s4-1.5 6 0 3 1 4 0M12 13V9M12 6.5c-.8-.8-.8-2 0-3 .8 1 .8 2.2 0 3Z"/></svg>'],'Upcoming birthdays','','<div class="bday-list" id="bday-list"><div class="empty">Connect Google to see birthdays from your contacts.</div></div>');
   makeTile('markets','markets',['g-green','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'],'Markets','<button class="connect" id="markets-edit" type="button">Edit</button>','<form id="markets-form" class="quick-add markets-form" hidden><label class="sr-only" for="markets-input">Watchlist</label><input id="markets-input" maxlength="160" autocomplete="off"><button type="submit" aria-label="Save watchlist">✓</button></form><div class="market-list" id="market-list"><div class="empty">Loading rates…</div></div><div class="market-foot" id="market-foot"></div>');
   // re-apply any saved tile order now that the new tiles exist
   try{JSON.parse(localStorage.getItem('daylight-order')||'[]').forEach(id=>{const c=$('#layout').querySelector(`[data-widget="${id}"]`);if(c)$('#layout').append(c)})}catch{}
@@ -325,7 +352,7 @@
     const order=items.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym);rows.sort((a,b)=>order.indexOf(a.key)-order.indexOf(b.key));
     const fmt=v=>v>=1000?v.toLocaleString(undefined,{maximumFractionDigits:0}):v>=1?v.toLocaleString(undefined,{maximumFractionDigits:3}):v.toLocaleString(undefined,{maximumSignificantDigits:4});
     el.innerHTML=rows.length?rows.map(r=>`<div class="market"><span class="market-pair">${esc(r.label)}</span><span class="market-val">${esc(fmt(r.value))}</span><span class="market-chg ${r.change==null?'':r.change>=0?'up':'down'}">${r.change==null?'—':(r.change>=0?'▲ ':'▼ ')+Math.abs(r.change).toFixed(2)+'%'}</span></div>`).join(''):`<div class="empty">${items.length?'Rates are unavailable right now. Try refresh in a moment.':'Choose Edit to add currency pairs like EUR/CZK or coins like BTC.'}</div>`;
-    $('#market-foot').textContent=(rows.length?`Currencies: ECB daily reference rates · crypto: CoinGecko, 24h change · updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'')+(errors.length&&rows.length?' · some symbols could not load':'');
+    $('#market-foot').textContent=(rows.length?`Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'')+(errors.length&&rows.length?' · some symbols could not load':'');
   }
   $('#markets-edit').onclick=()=>{const f=$('#markets-form');f.hidden=!f.hidden;if(!f.hidden){$('#markets-input').value=readWatch();$('#markets-input').focus()}};
   $('#markets-form').addEventListener('submit',e=>{e.preventDefault();const v=$('#markets-input').value.trim()||DEFAULT_WATCH;const ok=parseWatch(v);if(!ok.length){toast('Use pairs like EUR/CZK or coins like BTC, ETH');return}try{localStorage.setItem('daylight-watchlist',ok.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym).join(', '))}catch{}$('#markets-form').hidden=true;$('#market-list').innerHTML='<div class="empty">Loading rates…</div>';loadMarkets();toast('Watchlist saved on this device')});
@@ -369,7 +396,7 @@
   // ---- Daylight server: stay signed in to Google ----
   const SERVER_ERRORS={account_not_allowed:'That Google account is not allowed on your Daylight server. Add it to ALLOWED_EMAILS.',access_denied:'Google sign-in was cancelled.',no_refresh_token:'Google did not grant offline access. Try “Stay signed in” again.',token_exchange_failed:'Google sign-in could not be completed. Check the server’s client ID, secret and redirect URI.'};
   const getLS=k=>{try{return localStorage.getItem(k)||''}catch{return''}},setLS=(k,v)=>{try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch{}};
-  let serverUrl=getLS('daylight-api').replace(/\/+$/,''),serverSession=getLS('daylight-session'),serverEmail='',serverRenew=null,serverTokenPromise=null;
+  let serverUrl=(getLS('daylight-api')||(location.hostname==='kratveer.github.io'?'https://daylight-api.kratveer050.workers.dev':'')).replace(/\/+$/,''),serverSession=getLS('daylight-session'),serverEmail='',serverRenew=null,serverTokenPromise=null;
   // Pick up the session (or an error) the server hands back after Google sign-in.
   (()=>{if(!location.hash.includes('daylight_'))return;const h=new URLSearchParams(location.hash.slice(1));
     if(h.get('daylight_session')){serverSession=h.get('daylight_session');setLS('daylight-session',serverSession);toast('Signed in · Daylight will keep you connected')}
@@ -388,21 +415,8 @@
     finally{serverTokenPromise=null}})();
     return serverTokenPromise;
   }
-  function enhanceDialog(){
-    const note=$('#overlay .scope-note');if(!note||$('#server-box'))return;
-    const box=document.createElement('details');box.id='server-box';box.className='setup-details';if(!serverUrl)box.open=false;
-    box.innerHTML=`<summary>${serverSession?'Staying signed in'+(serverEmail?' as '+esc(serverEmail):''):'Stay signed in (uses your Daylight server)'}</summary>
-      <label class="client-label" for="server-url">Daylight server address</label><input class="client-input" id="server-url" type="url" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
-      <div class="setup-note">Without a server, Google access lasts about an hour. Your own Daylight server keeps you connected: it stores Google’s long-term key encrypted and gives this page short-lived keys. See the README for setup.</div>
-      <div class="server-actions"><button class="connect" type="button" id="server-signin">${serverSession?'Sign in again':'Stay signed in'}</button>${serverSession?'<button class="connect" type="button" id="server-signout">Sign out everywhere</button>':''}</div>`;
-    note.after(box);
-    $('#server-signin').onclick=()=>{const u=$('#server-url').value.trim().replace(/\/+$/,'');if(!/^https:\/\/[^/]+$|^http:\/\/localhost(:\d+)?$/.test(u)){$('#connect-error').textContent='Enter your server address, like https://daylight-api.your-name.workers.dev';return}
-      setLS('daylight-api',u);serverUrl=u;location.href=u+'/auth/google/start?return='+encodeURIComponent(location.origin+location.pathname)};
-    if($('#server-signout'))$('#server-signout').onclick=async()=>{try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew);$('#disconnect').click()};
-    if(serverSession){const st=$('#google-connect')?.previousElementSibling;if(st&&token){st.textContent='Connected · stays signed in';st.classList.add('is-connected')}
-      const dc=$('#disconnect');if(dc)dc.addEventListener('click',()=>{serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)})}
-  }
-  $('#connections').onclick=()=>{connectDialog();enhanceDialog()};
+  renderProfile();$('#profile')?.addEventListener('click',connectDialog);
+  setInterval(renderProfile,10*60000);
   if(serverUrl&&serverSession)serverToken().then(ok=>{if(ok)refreshAll()});
 })();
 
