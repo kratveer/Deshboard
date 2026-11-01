@@ -33,4 +33,3 @@ Publish these files to a GitHub repository. Register the exact production URI wi
 ## Current boundaries
 
 Samsung Calendar is not connected. If it syncs to the same Google account, those events may already appear through Google Calendar. Apple Mail, Calendar, and Reminders need an Apple supported connection path; the web app does not ask for an Apple password. Social-media personal notifications are not included because there is no common notification API across platforms. The app does not yet support multiple accounts per provider, background sync, or user accounts for a public product.
-
