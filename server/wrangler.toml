@@ -1,0 +1,21 @@
+# Daylight server (Cloudflare Worker). Deploy from this folder with: npx wrangler deploy
+name = "daylight-api"
+main = "src/worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# Where the dashboard runs. Only these may receive sign-in sessions or call the API.
+ALLOWED_ORIGINS = "https://kratveer.github.io,http://localhost:8000"
+# Google accounts allowed to sign in (comma separated). Fill in your Gmail address before deploying.
+ALLOWED_EMAILS = ""
+# Your Google OAuth client ID (the same Web application client the dashboard uses).
+GOOGLE_CLIENT_ID = ""
+
+# Created with: npx wrangler kv namespace create SESSIONS  — then paste the id below.
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = ""
+
+# Secrets (never put these in this file):
+#   npx wrangler secret put GOOGLE_CLIENT_SECRET
+#   npx wrangler secret put TOKEN_KEY        (32 random bytes, base64 — see README)

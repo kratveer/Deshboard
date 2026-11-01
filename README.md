@@ -16,6 +16,10 @@ This personal build reads connected Google data in the browser after you authori
 - Weather: current conditions and today's high/low through Open-Meteo after you grant location access
 - Outlook Calendar, Outlook Mail, and Microsoft To Do: available after you register the Microsoft app and connect it
 
+## Stay signed in (optional server)
+
+Browser-only Google access lasts about an hour. To stay connected, deploy the small Cloudflare Worker in [`server/`](server/README.md) and choose **Stay signed in** in the connections panel. The server keeps Google's long-term token encrypted and hands the dashboard short-lived tokens; the dashboard still talks to Google directly for your data.
+
 ## Customize and install
 
 - Choose **Customize** to drag tiles into a new order, show or hide tiles, and set the working hours your timeline covers. These choices are saved in this browser.

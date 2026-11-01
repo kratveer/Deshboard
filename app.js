@@ -2,6 +2,7 @@
 (() => {
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
+  let tokenExpiry = 0;
   let token = null, tokenClient = null, microsoftApp = null, microsoftAccount = null;
   const providerData = { google:{events:null,mails:null,tasks:null}, microsoft:{events:null,mails:null,tasks:null} };
   let personalTasks = [];
@@ -95,8 +96,10 @@
       $('#connect-error').textContent='Microsoft authorization failed: '+(error.message||'Please check the app registration and try again.');
     }
   }
-  async function api(url) {
+  async function api(url, retried) {
+    if(serverSession&&Date.now()>tokenExpiry-60000)await serverToken();
     const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+    if(r.status===401&&serverSession&&!retried&&await serverToken())return api(url,true);
     if(!r.ok){let detail='';try{detail=(await r.json()).error?.message||''}catch{}throw new Error(detail||`Google API error (${r.status})`)}
     return r.json();
   }
@@ -363,5 +366,43 @@
   let installEvt=null;
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;let b=$('#install-app');if(!b){b=document.createElement('button');b.id='install-app';b.className='pillbtn';b.type='button';b.innerHTML='⤓ <span class="optional">Install</span>';b.title='Install Daylight as an app';$('.actions').prepend(b);b.onclick=async()=>{if(!installEvt)return;installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;b.remove();if(r.outcome==='accepted')toast('Daylight installed')}}});
   window.addEventListener('appinstalled',()=>{$('#install-app')?.remove()});
+  // ---- Daylight server: stay signed in to Google ----
+  const SERVER_ERRORS={account_not_allowed:'That Google account is not allowed on your Daylight server. Add it to ALLOWED_EMAILS.',access_denied:'Google sign-in was cancelled.',no_refresh_token:'Google did not grant offline access. Try “Stay signed in” again.',token_exchange_failed:'Google sign-in could not be completed. Check the server’s client ID, secret and redirect URI.'};
+  const getLS=k=>{try{return localStorage.getItem(k)||''}catch{return''}},setLS=(k,v)=>{try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch{}};
+  let serverUrl=getLS('daylight-api').replace(/\/+$/,''),serverSession=getLS('daylight-session'),serverEmail='',serverRenew=null,serverTokenPromise=null;
+  // Pick up the session (or an error) the server hands back after Google sign-in.
+  (()=>{if(!location.hash.includes('daylight_'))return;const h=new URLSearchParams(location.hash.slice(1));
+    if(h.get('daylight_session')){serverSession=h.get('daylight_session');setLS('daylight-session',serverSession);toast('Signed in · Daylight will keep you connected')}
+    if(h.get('daylight_error'))setTimeout(()=>{$('#sync-status').textContent=SERVER_ERRORS[h.get('daylight_error')]||'Server sign-in failed: '+h.get('daylight_error');toast('Google sign-in did not finish')},0);
+    history.replaceState(null,'',location.pathname+location.search)})();
+  async function serverToken(){
+    if(!serverUrl||!serverSession)return false;
+    if(serverTokenPromise)return serverTokenPromise;
+    serverTokenPromise=(async()=>{try{
+      const r=await fetch(serverUrl+'/api/google/token',{method:'POST',headers:{Authorization:'Bearer '+serverSession}});
+      if(r.status===401){serverSession='';setLS('daylight-session','');token=null;$('#connections').classList.toggle('active',Boolean(microsoftAccount));$('#sync-status').textContent='Google sign-in expired · open connections and choose Stay signed in';return false}
+      if(!r.ok)throw new Error('server '+r.status);
+      const d=await r.json();token=d.access_token;serverEmail=d.email||'';tokenExpiry=Date.now()+(Number(d.expires_in)||3600)*1000;
+      $('#connections').classList.add('active');clearTimeout(serverRenew);serverRenew=setTimeout(serverToken,Math.max(60,(Number(d.expires_in)||3600)-180)*1000);return true;
+    }catch(e){$('#sync-status').textContent='Could not reach your Daylight server · retrying soon';clearTimeout(serverRenew);serverRenew=setTimeout(serverToken,120000);return false}
+    finally{serverTokenPromise=null}})();
+    return serverTokenPromise;
+  }
+  function enhanceDialog(){
+    const note=$('#overlay .scope-note');if(!note||$('#server-box'))return;
+    const box=document.createElement('details');box.id='server-box';box.className='setup-details';if(!serverUrl)box.open=false;
+    box.innerHTML=`<summary>${serverSession?'Staying signed in'+(serverEmail?' as '+esc(serverEmail):''):'Stay signed in (uses your Daylight server)'}</summary>
+      <label class="client-label" for="server-url">Daylight server address</label><input class="client-input" id="server-url" type="url" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
+      <div class="setup-note">Without a server, Google access lasts about an hour. Your own Daylight server keeps you connected: it stores Google’s long-term key encrypted and gives this page short-lived keys. See the README for setup.</div>
+      <div class="server-actions"><button class="connect" type="button" id="server-signin">${serverSession?'Sign in again':'Stay signed in'}</button>${serverSession?'<button class="connect" type="button" id="server-signout">Sign out everywhere</button>':''}</div>`;
+    note.after(box);
+    $('#server-signin').onclick=()=>{const u=$('#server-url').value.trim().replace(/\/+$/,'');if(!/^https:\/\/[^/]+$|^http:\/\/localhost(:\d+)?$/.test(u)){$('#connect-error').textContent='Enter your server address, like https://daylight-api.your-name.workers.dev';return}
+      setLS('daylight-api',u);serverUrl=u;location.href=u+'/auth/google/start?return='+encodeURIComponent(location.origin+location.pathname)};
+    if($('#server-signout'))$('#server-signout').onclick=async()=>{try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew);$('#disconnect').click()};
+    if(serverSession){const st=$('#google-connect')?.previousElementSibling;if(st&&token){st.textContent='Connected · stays signed in';st.classList.add('is-connected')}
+      const dc=$('#disconnect');if(dc)dc.addEventListener('click',()=>{serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)})}
+  }
+  $('#connections').onclick=()=>{connectDialog();enhanceDialog()};
+  if(serverUrl&&serverSession)serverToken().then(ok=>{if(ok)refreshAll()});
 })();
 
