@@ -65,7 +65,7 @@
   }
   async function disconnectGoogle(){
     if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)}
-    token=null;providerData.google={events:null,mails:null,tasks:null};renderAll();clearProfile();
+    token=null;providerData.google={events:null,mails:null,tasks:null};loopsData=null;renderAll();clearProfile();
     $('#sync-status').textContent=microsoftAccount?'Google disconnected · Microsoft still connected':'Not connected';
     $('#connections').classList.toggle('active',Boolean(microsoftAccount));
     if($('#overlay').classList.contains('show'))connectDialog();toast('Google disconnected');
@@ -131,7 +131,7 @@
     return r.json();
   }
   const header=(headers,name)=>headers?.find(x=>x.name?.toLowerCase()===name.toLowerCase())?.value||'';
-  function renderAll(){renderCalendar();renderMail();renderTasks();renderInsights();renderDrive();renderBirthdays()}
+  function renderAll(){renderCalendar();renderMail();renderTasks();renderInsights();renderDrive();renderBirthdays();if(typeof renderLoops==='function'){renderLoops();renderUpNext()}}
   function renderCalendar(){queueInsights();
     const events=[...(providerData.google.events||[]),...(providerData.microsoft.events||[])].sort((a,b)=>new Date(a.start?.dateTime||a.start?.date||0)-new Date(b.start?.dateTime||b.start?.date||0));
     $('#caldate').textContent=date.toLocaleDateString(undefined,{month:'short',day:'numeric'});
@@ -190,14 +190,14 @@
   }
   async function refreshAll(){
     if(!token&&!microsoftAccount)return;$('#sync-status').textContent=`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · refreshing…`;
-    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays());loadProfile();if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
+    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays(),loadLoops(refreshAll.force));refreshAll.force=false;loadProfile();if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
     const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();
     const eventCount=(providerData.google.events||[]).length+(providerData.microsoft.events||[]).length,mailCount=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length,taskCount=(providerData.google.tasks||[]).length+(providerData.microsoft.tasks||[]).length;
     $('#headline-note').innerHTML=`Today: <b>${eventCount} events</b> · <b>${mailCount} inbox messages</b> · <b>${taskCount} open tasks</b>`;
     $('#sync-status').textContent=failed.length?`Some connected data could not load · ${failed.map(x=>x.reason.message).join('; ')}`:`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`;
     if(failed.length)toast('Some services need permission or API setup; check the status line.');
   }
-  $('#refresh').onclick=()=>token||microsoftAccount?refreshAll():toast('Connect an app first to refresh live data.');
+  $('#refresh').onclick=()=>{if(token||microsoftAccount){refreshAll.force=true;refreshAll()}else toast('Connect an app first to refresh live data.')};
   $('#weather-connect').onclick=()=>{
     if(!navigator.geolocation){$('#weather-content').textContent='Location is unavailable in this browser.';return}
     $('#weather-content').textContent='Waiting for location permission…';navigator.geolocation.getCurrentPosition(async pos=>{try{const {latitude,longitude}=pos.coords;const u=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;const w=await(await fetch(u)).json();const names={0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',71:'Snow',80:'Showers',95:'Thunderstorm'};$('#weather-content').innerHTML=`<div class="weather-temp">${Math.round(w.current.temperature_2m)}°</div><div class="weather-label">${esc(names[w.current.weather_code]||'Current conditions')}</div><div class="weather-range">Feels like ${Math.round(w.current.apparent_temperature)}° · H ${Math.round(w.daily.temperature_2m_max[0])}° / L ${Math.round(w.daily.temperature_2m_min[0])}°</div>`;$('#weather-connect').textContent='Refresh';}catch(e){$('#weather-content').textContent='Weather could not be loaded. Try again.'}},()=>{$('#weather-content').textContent='Location permission was not granted. You can allow it in browser settings.'},{enableHighAccuracy:false,timeout:10000});
@@ -253,7 +253,7 @@
       const blocks=timed.filter(e=>e.end>dayStart&&e.start<dayEnd).map(e=>`<div class="tl-event${clashes.some(c=>c.includes(e))?' clash lane'+Math.min(e.lane,1):''}" style="left:${pct(e.start)}%;width:${Math.max(.8,pct(e.end)-pct(e.start))}%" title="${esc(hm(e.start)+'–'+hm(e.end)+' · '+e.title)}"><span>${esc(e.title)}</span></div>`).join('');
       const free=gaps.map(g=>`<div class="tl-free" style="left:${pct(g.start)}%;width:${pct(g.end)-pct(g.start)}%" title="Free ${esc(hm(g.start)+'–'+hm(g.end))}"></div>`).join('');
       const nowLine=now>=dayStart&&now<=dayEnd?`<div class="tl-now" style="left:${pct(now)}%"></div>`:'';
-      const chips=[...allDay.map(t=>`<span class="tl-chip">All day · ${esc(t)}</span>`),...due.map(t=>`<span class="tl-chip due">Due today · ${esc(t.title)}</span>`),...clashes.slice(0,2).map(([a,b])=>`<span class="tl-chip warn">Overlap · ${esc(a.title)} & ${esc(b.title)}</span>`)];
+      const chips=[...allDay.map(t=>`<span class="tl-chip">All day · ${esc(t)}</span>`),...due.map(t=>{const d=new Date(t.dueDate),day=/T00:00:00(\.000)?Z$/.test(t.dueDate)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):d,late=day<localMidnight;return `<span class="tl-chip ${late?'warn':'due'}">${late?'Overdue':'Due today'} · ${esc(t.title)}</span>`}),...clashes.slice(0,2).map(([a,b])=>`<span class="tl-chip warn">Overlap · ${esc(a.title)} & ${esc(b.title)}</span>`)];
       const summary=!connected?'Connect a calendar to see your day mapped out.':timed.length?`${gaps.reduce((n,g)=>n+g.min,0)} min free before ${DAY_END}:00`+(gaps[0]?` · next gap ${hm(gaps[0].start)}`:''):'No timed events today — the whole day is open.';
       tl.innerHTML=`<div class="tl-head"><span class="eyebrow">Today’s timeline</span><span class="tl-sum">${esc(summary)}</span></div><div class="tl-track">${free}${blocks}${nowLine}</div><div class="tl-hours">${hours.join('')}</div>${chips.length?`<div class="tl-chips">${chips.join('')}</div>`:''}`;
     }
@@ -267,7 +267,7 @@
       else{suggest=g.min>=90?50:g.min>=50?45:25;const startsNow=g.start-now<5*60000;label=startsNow?'Free right now':`Next free slot · ${hm(g.start)}`;
         text=`${startsNow?'You have':'You will have'} ${g.min} min free until ${hm(g.end)}${g.end>=dayEnd?' (end of day)':''}.`+(due[0]?` Good time for “${due[0].title}”.`:'')}
     }
-    if(btn&&btn.dataset.running!=='1'){
+    if(btn&&btn.dataset.running!=='1'&&!focusOverride){
       mins.innerHTML=suggest?`${suggest}<span style="font-size:17px;letter-spacing:0"> min</span>`:'—';p.textContent=text;eb.textContent=label;
       btn.disabled=!suggest;btn.dataset.minutes=suggest||25;btn.textContent=suggest?`Start ${suggest}-min focus`:'No free slot';
     }
@@ -367,7 +367,7 @@
     $$('.layout>.card').forEach(c=>c.classList.toggle('tile-hidden',hiddenTiles.includes(c.dataset.widget)));
     // on tablet, a lone last tile spans the full row
     $$('.layout>.card').forEach(c=>c.classList.remove('span-last'));
-    const vis=$$('.layout>.card').filter(c=>!c.classList.contains('tile-hidden')&&!c.classList.contains('hero'));
+    const vis=$$('.layout>.card').filter(c=>!c.classList.contains('tile-hidden')&&!c.classList.contains('hero')&&!c.classList.contains('wide'));
     if(vis.length%2===1)vis.at(-1).classList.add('span-last');
   }
   const hourOpts=(sel,from,to)=>{let o='';for(let h=from;h<=to;h++)o+=`<option value="${h}"${h===sel?' selected':''}>${String(h).padStart(2,'0')}:00</option>`;return o};
@@ -391,7 +391,7 @@
   // Install as an app (PWA)
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
   let installEvt=null;
-  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;let b=$('#install-app');if(!b){b=document.createElement('button');b.id='install-app';b.className='pillbtn';b.type='button';b.innerHTML='⤓ <span class="optional">Install</span>';b.title='Install Daylight as an app';$('.actions').prepend(b);b.onclick=async()=>{if(!installEvt)return;installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;b.remove();if(r.outcome==='accepted')toast('Daylight installed')}}});
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;let b=$('#install-app');if(!b){b=document.createElement('button');b.id='install-app';b.className='menu-item';b.type='button';b.innerHTML='<span class="mi-icon">⤓</span>Install as app';($('#drawer-install')||$('.actions')).append(b);b.onclick=async()=>{if(!installEvt)return;installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;b.remove();if(r.outcome==='accepted')toast('Daylight installed')}}});
   window.addEventListener('appinstalled',()=>{$('#install-app')?.remove()});
   // ---- Daylight server: stay signed in to Google ----
   const SERVER_ERRORS={account_not_allowed:'That Google account is not allowed on your Daylight server. Add it to ALLOWED_EMAILS.',access_denied:'Google sign-in was cancelled.',no_refresh_token:'Google did not grant offline access. Try “Stay signed in” again.',token_exchange_failed:'Google sign-in could not be completed. Check the server’s client ID, secret and redirect URI.'};
@@ -418,5 +418,160 @@
   renderProfile();$('#profile')?.addEventListener('click',connectDialog);
   setInterval(renderProfile,10*60000);
   if(serverUrl&&serverSession)serverToken().then(ok=>{if(ok)refreshAll()});
+  // ---- Open Loops: things you started but haven't finished (Google data, worked out in this browser) ----
+  const LOOP_TYPES={
+    reply:{label:'Reply',cls:'t-reply',icon:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v3"/>'},
+    followup:{label:'Follow up',cls:'t-follow',icon:'<path d="M15 10l5 5-5 5"/><path d="M20 15H10a6 6 0 0 1-6-6V6"/>'},
+    prepare:{label:'Prepare',cls:'t-prepare',icon:'<rect x="4" y="4" width="16" height="17" rx="3"/><path d="M8 2v4M16 2v4M8 12h8M8 16h5"/>'},
+    overdue:{label:'Reschedule',cls:'t-overdue',icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'},
+    deadline:{label:'Due soon',cls:'t-deadline',icon:'<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'},
+    renewal:{label:'Renewal',cls:'t-renewal',icon:'<path d="M20 12a8 8 0 1 1-2.3-5.6L20 9"/><path d="M20 4v5h-5"/>'},
+    travel:{label:'Trip',cls:'t-travel',icon:'<path d="M3 13h18M6 13l2-6h8l2 6M6 17h.01M18 17h.01"/><rect x="3" y="13" width="18" height="5" rx="2"/>'}};
+  const AUTOMATED=/(no-?reply|do-?not-?reply|notification|newsletter|mailer|bounce|^updates?@|^news@|^info@|marketing|^hello@|^team@|^support@|^billing@|^receipts?@|^account@|^alerts?@)/i;
+  const RENEWAL=/\b(renew(al|s|ing)?|subscription|trial (ends|ending|expires)|expir(es|ing|ation)|payment (due|failed|reminder)|invoice|bill(ing)? (due|reminder)|auto-?renew)/i;
+  const TRAVEL=/\b(booking|reservation|itinerary|e-?ticket|boarding pass|flight|train|check-?in|hotel|airbnb)\b/i;
+  const DEADLINE=/\b(deadline|due|submit|submission)\b/i;
+  var loopsData=null,loopsFetched=0,loopsShowAll=false;
+  const loopState=()=>readJSON('daylight-loops',{});
+  const saveLoopState=s=>{const now=Date.now();Object.keys(s).forEach(k=>{if(s[k].t&&now-s[k].t>30*86400000)delete s[k]});writeJSON('daylight-loops',s)};
+  const parseFrom=v=>{const m=/^\s*"?([^"<]*)"?\s*<([^>]+)>/.exec(v||'');return m?{name:m[1].trim()||m[2],email:m[2].toLowerCase()}:{name:(v||'').trim(),email:(v||'').trim().toLowerCase()}};
+  const gmailLink=id=>`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
+  async function loadLoops(force){
+    if(!token)return 0;
+    if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();return 0}
+    const G='https://gmail.googleapis.com/gmail/v1/users/me';
+    const meta=id=>api(`${G}/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`);
+    const inbox=await api(`${G}/messages?labelIds=INBOX&maxResults=25`).then(r=>Promise.all((r.messages||[]).map(m=>meta(m.id)))).catch(()=>[]);
+    const sent=await api(`${G}/messages?labelIds=SENT&maxResults=15`).catch(()=>({messages:[]}));
+    const threadIds=[...new Set((sent.messages||[]).map(m=>m.threadId))].slice(0,12);
+    const threads=await Promise.all(threadIds.map(t=>api(`${G}/threads/${encodeURIComponent(t)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`).catch(()=>null)));
+    const calU=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+    calU.searchParams.set('timeMin',new Date().toISOString());calU.searchParams.set('timeMax',new Date(localMidnight.getTime()+8*86400000).toISOString());calU.searchParams.set('singleEvents','true');calU.searchParams.set('orderBy','startTime');calU.searchParams.set('maxResults','40');
+    const upcoming=await api(calU).then(r=>r.items||[]).catch(()=>[]);
+    loopsData={inbox,threads:threads.filter(Boolean),upcoming,files:{}};
+    // look for a related Drive file for the next few meetings
+    const meetings=upcoming.filter(e=>(e.attendees||[]).length>1&&e.start?.dateTime&&new Date(e.start.dateTime)<new Date(localMidnight.getTime()+2*86400000)).slice(0,3);
+    await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
+      try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${word.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','1');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,webViewLink)');
+        const f=(await api(u)).files?.[0];if(f)loopsData.files[e.id]=f}catch{}}));
+    loopsFetched=Date.now();renderLoops();return computeLoops().length;
+  }
+  function computeLoops(){
+    const out=[],now=Date.now(),day=86400000;
+    const add=(type,id,title,detail,meta,href,extra={})=>out.push({type,id:type+':'+id,title,detail,meta,href,...extra});
+    if(loopsData){
+      loopsData.inbox.forEach(m=>{const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1),age=now-when,labels=m.labelIds||[];
+        const primary=labels.includes('CATEGORY_PERSONAL')||!labels.some(l=>/^CATEGORY_(PROMOTIONS|SOCIAL|UPDATES|FORUMS)$/.test(l));
+        if(RENEWAL.test(subject)&&age<30*day){add('renewal',m.threadId,`Review: ${subject}`,`From ${from.name}`,ago(when),gmailLink(m.threadId));return}
+        if(TRAVEL.test(subject)&&age<21*day){add('travel',m.threadId,subject,`From ${from.name} · check dates, tickets and where you’re staying`,ago(when),gmailLink(m.threadId));return}
+        if(primary&&!AUTOMATED.test(from.email)&&(labels.includes('UNREAD')||labels.includes('IMPORTANT')||labels.includes('STARRED'))&&age>2*3600000&&age<14*day)
+          add('reply',m.threadId,`Reply to ${from.name}`,subject,`waiting ${ago(when).replace(' ago','')}`,gmailLink(m.threadId),{weight:labels.includes('IMPORTANT')||labels.includes('STARRED')?2:1});
+      });
+      loopsData.threads.forEach(t=>{const msgs=t.messages||[],last=msgs.at(-1);if(!last||!(last.labelIds||[]).includes('SENT'))return;
+        const h=last.payload?.headers||[],when=new Date(header(h,'Date')||last.internalDate*1),age=now-when;if(age<3*day||age>14*day)return;
+        const to=parseFrom((header(h,'To')||'').split(',')[0]);if(!to.email||AUTOMATED.test(to.email))return;
+        add('followup',t.id,`Follow up with ${to.name}`,header(h,'Subject')||'(No subject)',`no reply for ${Math.floor(age/day)} days`,gmailLink(t.id))});
+      loopsData.upcoming.forEach(e=>{const st=new Date(e.start?.dateTime||e.start?.date),title=e.summary||'(No title)',days=Math.floor((st-localMidnight)/day);
+        const when=days===0?'Today':days===1?'Tomorrow':st.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+        const time=e.start?.dateTime?' · '+hm(st):'';
+        if((e.attendees||[]).length>1&&e.start?.dateTime&&days<=1&&st>now){const f=loopsData.files[e.id];
+          add('prepare',e.id,`Prepare for ${title}`,`${when}${time} · ${(e.attendees||[]).length} people`,'',e.htmlLink,f?{related:f}:{})}
+        if(DEADLINE.test(title)&&days<=3)add('deadline',e.id,title,`${when}${time}`,'',e.htmlLink);
+        if(TRAVEL.test(title+' '+(e.location||''))&&days<=7)add('travel',e.id,title,`${when}${time}${e.location?' · '+e.location:''} · tickets and accommodation sorted?`,'',e.htmlLink);
+      });
+    }
+    const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+    [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].forEach((t,i)=>{if(!t.dueDate)return;const d=dueDay(t.dueDate),href=t.source==='Microsoft To Do'?'https://to-do.office.com/':'https://tasks.google.com/';
+      if(d<localMidnight)add('overdue',t.title+i,`Reschedule: ${t.title}`,`Was due ${d.toLocaleDateString(undefined,{day:'numeric',month:'short'})}`,'',href);
+      else if(d<new Date(localMidnight.getTime()+2*day))add('deadline',t.title+i,t.title,d<tomorrow?'Due today':'Due tomorrow','',href)});
+    const st=loopState(),order={overdue:0,deadline:1,reply:2,prepare:3,followup:4,renewal:5,travel:6};
+    const seen=new Set();
+    return out.filter(l=>{if(seen.has(l.id))return false;seen.add(l.id);const s=st[l.id];return !(s&&(s.done||(s.snooze&&s.snooze>now)))})
+      .sort((a,b)=>(order[a.type]-order[b.type])||((b.weight||0)-(a.weight||0)));
+  }
+  const loopsTile=document.createElement('article');loopsTile.className='card loops wide';loopsTile.dataset.widget='loops';
+  loopsTile.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 12a5 5 0 1 1 5 5"/><path d="M12 17H5m0 0 3-3m-3 3 3 3"/></svg></span>Open loops <span class="loop-count" id="loop-total"></span></div><span class="tiny loops-hint">Things you started but haven’t finished</span></div><div class="loop-grid" id="loop-grid"></div><div class="loops-foot" id="loops-foot"></div>';
+  { const ord=readJSON('daylight-order',[]);const hero=$('.hero');
+    if(ord.includes('loops'))ord.forEach(id=>{const c=$('#layout').querySelector(`[data-widget="${id}"]`)||(id==='loops'?loopsTile:null);if(c)$('#layout').append(c)});else if(hero)hero.after(loopsTile);else $('#layout').prepend(loopsTile) }
+  TILE_NAMES.loops='Open loops';
+  function renderLoops(){
+    const grid=$('#loop-grid');if(!grid)return;const loops=computeLoops();
+    $('#loop-total').textContent=loops.length?loops.length:'';if($('#loop-count'))$('#loop-count').textContent=token?loops.length:'—';
+    if(!token&&!microsoftAccount){grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';$('#loops-foot').innerHTML='';renderSummary(null);return}
+    if(!loopsData&&token){grid.innerHTML='<div class="empty">Looking through your inbox, calendar and tasks…</div>';return}
+    const shown=loopsShowAll?loops:loops.slice(0,6);
+    grid.innerHTML=loops.length?shown.map(l=>{const t=LOOP_TYPES[l.type];return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}">
+      <div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div>
+      <div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>
+      ${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}
+      <div class="loop-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></div></div>`}).join('')
+      :'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>';
+    $('#loops-foot').innerHTML=loops.length>6?`<button class="connect" type="button" id="loops-more">${loopsShowAll?'Show fewer':`Show all ${loops.length}`}</button>`:'';
+    if($('#loops-more'))$('#loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
+    renderSummary(loops.length);
+  }
+  $('#loop-grid').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const id=b.closest('[data-loop]').dataset.loop,s=loopState();
+    s[id]=b.dataset.act==='done'?{done:true,t:Date.now()}:{snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);renderLoops();
+    toast(b.dataset.act==='done'?'Marked as done':'Snoozed until tomorrow')});
+  // ---- Greeting summary + Up next ----
+  function renderSummary(loopCount){
+    const el=$('#day-summary');if(!el)return;const {timed}=todayEvents(),now=new Date();
+    const left=timed.filter(e=>e.end>now).length;
+    const parts=[];if(providerData.google.events||providerData.microsoft.events)parts.push(left?`${left} event${left>1?'s':''} left today`:'No more events today');
+    if(loopCount!=null&&token)parts.push(loopCount?`${loopCount} open loop${loopCount>1?'s':''}`:'nothing waiting on you');
+    el.textContent=parts.join(' · ');
+  }
+  function renderUpNext(){
+    const box=$('#up-next');if(!box)return;const {timed,connected}=todayEvents(),now=new Date();
+    const next=timed.find(e=>e.end>now);
+    if(!connected){box.hidden=true;return}box.hidden=false;
+    if(!next){box.innerHTML='<div class="eyebrow">Up next</div><div class="un-title">Nothing else today</div>';return}
+    const mins=Math.round((next.start-now)/60000);
+    box.innerHTML=`<div class="eyebrow">${mins<=0?'Happening now':'Up next'}</div><div class="un-title">${esc(next.title)}</div><div class="un-time">${hm(next.start)}–${hm(next.end)}${mins>0?` · in ${mins<60?mins+' min':Math.floor(mins/60)+' h '+(mins%60?mins%60+' min':'')}`:''}</div>`;
+  }
+  // ---- Focus timer: adjust minutes ----
+  var focusOverride=0;
+  { const f=$('.focus .minutes');if(f){const wrap=document.createElement('div');wrap.className='focus-adjust';wrap.innerHTML='<button type="button" class="adj" id="focus-minus" aria-label="Five minutes less">−</button><button type="button" class="adj" id="focus-plus" aria-label="Five minutes more">+</button>';f.after(wrap);
+    const step=d=>{const btn=$('#focus-start');if(btn.dataset.running==='1')return;const cur=focusOverride||+btn.dataset.minutes||25;focusOverride=Math.min(120,Math.max(5,cur+d));btn.dataset.minutes=focusOverride;f.innerHTML=`${focusOverride}<span style="font-size:17px;letter-spacing:0"> min</span>`;btn.textContent=`Start ${focusOverride}-min focus`;btn.disabled=false};
+    $('#focus-minus').onclick=()=>step(-5);$('#focus-plus').onclick=()=>step(5)} }
+  // ---- Menu (hamburger) ----
+  const drawer=$('#drawer'),scrim=$('#drawer-scrim');
+  const openMenu=o=>{if(!drawer)return;drawer.hidden=!o;scrim.hidden=!o;document.body.classList.toggle('menu-open',o);$('#menu-btn').setAttribute('aria-expanded',String(o));if(o){renderDrawerAccount();drawer.querySelector('.menu-item')?.focus()}};
+  $('#menu-btn')?.addEventListener('click',()=>openMenu(drawer.hidden));
+  $('#drawer-close')?.addEventListener('click',()=>openMenu(false));scrim?.addEventListener('click',()=>openMenu(false));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){openMenu(false);$('#overlay').classList.remove('show')}});
+  ['#connections','#refresh','#customize'].forEach(s=>$(s)?.addEventListener('click',()=>openMenu(false)));
+  function renderDrawerAccount(){const p=readProfile(),el=$('#drawer-account');if(!el)return;
+    el.innerHTML=p.name||p.email?`<div class="da-avatar">${p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc((p.name||'?')[0])}</div><div><b>${esc(p.name||'')}</b><span>${esc(p.email||'')}</span></div>`:'<div><b>Not connected</b><span>Open Connections to sign in</span></div>';
+    $('#conn-state').textContent=token||microsoftAccount?'Connected':'';}
+  // ---- Theme: follow the system unless you choose ----
+  const darkMq=matchMedia('(prefers-color-scheme: dark)');
+  const syncTheme=()=>{const dark=document.body.classList.contains('dark');$('#theme-label')&&($('#theme-label').textContent=dark?'Light mode':'Dark mode');document.querySelector('meta[name=theme-color]')?.setAttribute('content',dark?'#151a25':'#eef2f7')};
+  if(!getLS('daylight-theme'))document.body.classList.toggle('dark',darkMq.matches);
+  darkMq.addEventListener?.('change',e=>{if(!getLS('daylight-theme')){document.body.classList.toggle('dark',e.matches);syncTheme()}});
+  $('#theme')?.addEventListener('click',syncTheme);syncTheme();
+  // ---- Notification bell ----
+  const bellIcon={meeting:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/>'};
+  function bellItems(){
+    const items=[],now=new Date();
+    todayEvents().timed.filter(e=>e.start>now&&e.start-now<=30*60000).forEach(e=>items.push({id:'meet:'+e.title+e.start.getTime(),cls:'t-prepare',icon:bellIcon.meeting,label:'Starting soon',title:e.title,meta:`${hm(e.start)} · in ${Math.max(1,Math.round((e.start-now)/60000))} min`,href:''}));
+    if(token||microsoftAccount)computeLoops().forEach(l=>{const t=LOOP_TYPES[l.type];items.push({id:l.id,cls:t.cls,icon:t.icon,label:t.label,title:l.title,meta:l.meta||l.detail,href:l.href})});
+    return items;
+  }
+  function renderBell(){
+    const items=bellItems(),seen=readJSON('daylight-seen',[]),unseen=items.filter(i=>!seen.includes(i.id)).length,badge=$('#bell-badge');if(!badge)return;
+    badge.hidden=!unseen;badge.textContent=unseen>9?'9+':unseen;$('#bell').setAttribute('aria-label',unseen?`Notifications, ${unseen} new`:'Notifications');
+    const panel=$('#notif-panel');if(panel.hidden)return;
+    $('#notif-list').innerHTML=items.length?items.slice(0,12).map(i=>`<${i.href?`a href="${esc(i.href)}" target="_blank" rel="noopener"`:'div'} class="notif ${i.cls}${seen.includes(i.id)?'':' is-new'}"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${i.icon}</svg></span><span class="notif-body"><span class="loop-type">${esc(i.label)}</span><b>${esc(i.title)}</b><small>${esc(i.meta||'')}</small></span></${i.href?'a':'div'}>`).join(''):`<div class="empty">${token||microsoftAccount?'You’re all caught up.':'Connect Google to get notified about replies, meetings and deadlines.'}</div>`;
+  }
+  function toggleBell(open){const panel=$('#notif-panel');panel.hidden=!open;$('#bell').setAttribute('aria-expanded',String(open));
+    if(open){renderBell();writeJSON('daylight-seen',bellItems().map(i=>i.id).concat(readJSON('daylight-seen',[])).slice(0,300));$('#bell-badge').hidden=true}}
+  $('#bell')?.addEventListener('click',e=>{e.stopPropagation();toggleBell($('#notif-panel').hidden)});
+  $('#notif-close')?.addEventListener('click',()=>toggleBell(false));
+  document.addEventListener('click',e=>{const p=$('#notif-panel');if(p&&!p.hidden&&!p.contains(e.target)&&e.target.closest('#bell')==null)toggleBell(false)});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#notif-panel').hidden)toggleBell(false)});
+  { const orig=renderLoops;renderLoops=function(){orig();renderBell()} }
+  renderBell();setInterval(renderBell,60000);
+  renderLoops();renderUpNext();applyVisibility();setInterval(()=>{renderUpNext();renderSummary(token?computeLoops().length:null)},60000);
 })();
 

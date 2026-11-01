@@ -16,6 +16,19 @@ This personal build reads connected Google data in the browser after you authori
 - Weather: current conditions and today's high/low through Open-Meteo after you grant location access
 - Outlook Calendar, Outlook Mail, and Microsoft To Do: available after you register the Microsoft app and connect it
 
+## Open loops
+
+Daylight looks for things you started but haven't finished and shows them as action cards, worked out in your browser from data it already reads:
+
+- **Reply**: unread or important personal emails in Primary, older than 2 hours, from real people (not no-reply senders)
+- **Follow up**: emails you sent 3–14 days ago where the conversation ends with your message
+- **Prepare**: meetings with other people today or tomorrow, with a related Drive file when one matches
+- **Reschedule / Due soon**: overdue tasks, tasks due today or tomorrow, and calendar entries mentioning a deadline
+- **Renewal**: subscription, renewal, trial or payment emails
+- **Trip**: booking and ticket emails, and travel events in the next week
+
+Each card has **Open** (straight to Gmail, Calendar or Tasks), **Snooze** (one day) and **Done**; these choices are saved in this browser. The bell next to your photo lists meetings starting within 30 minutes and new open loops.
+
 ## Stay signed in (optional server)
 
 Browser-only Google access lasts about an hour. To stay connected, deploy the small Cloudflare Worker in [`server/`](server/README.md) and choose **Stay signed in** in the connections panel. The server keeps Google's long-term token encrypted and hands the dashboard short-lived tokens; the dashboard still talks to Google directly for your data.
