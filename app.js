@@ -9,7 +9,9 @@
   const scopes = [
     'https://www.googleapis.com/auth/calendar.events.readonly',
     'https://www.googleapis.com/auth/gmail.metadata',
-    'https://www.googleapis.com/auth/tasks.readonly'
+    'https://www.googleapis.com/auth/tasks.readonly',
+    'https://www.googleapis.com/auth/drive.metadata.readonly',
+    'https://www.googleapis.com/auth/contacts.readonly'
   ].join(' ');
   const esc = (s='') => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (s) => { const e=$('#toast'); e.textContent=s; e.classList.add('show'); setTimeout(()=>e.classList.remove('show'),2800); };
@@ -35,7 +37,7 @@
     $('#overlay').innerHTML=`<div class="modal connections-modal"><div class="modal-top"><div><div class="eyebrow">Your connections</div><h3>Bring your apps together</h3></div><button class="modal-x" id="close-modal" aria-label="Close">×</button></div>
       <p>Choose a service. Each provider asks you to approve access before Daylight reads anything. You can disconnect at any time.</p>
       <div class="provider-card"><div class="provider-icon google-icon">G</div><div class="provider-copy"><b>Google</b><span>Calendar · Gmail · Tasks</span></div><span class="provider-status ${connected?'is-connected':''}">${connected?'Connected':'Not connected'}</span><button class="connect provider-action" id="google-connect">${connected?'Refresh':'Connect'}</button></div>
-      <div class="scope-note"><b>Google will ask to allow</b><br>• View calendar events<br>• View inbox message headers (no message bodies or email changes)<br>• View Google Tasks<br><span class="privacy-line">Permission is granted on Google’s screen. Access tokens stay in this tab.</span></div>
+      <div class="scope-note"><b>Google will ask to allow</b><br>• View calendar events<br>• View inbox message headers (no message bodies or email changes)<br>• View Google Tasks<br>• See names and dates of your Google Drive files (not their contents)<br>• View your contacts, to show upcoming birthdays<br><span class="privacy-line">Permission is granted on Google’s screen. Access tokens stay in this tab.</span></div>
       <details class="setup-details" ${localStorage.getItem('daylight-client-id')?'':'open'}><summary>Set up Google access for this dashboard</summary>
         <label class="client-label" for="client-id">Google OAuth Client ID</label><input class="client-input" id="client-id" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" value="${esc(localStorage.getItem('daylight-client-id')||'')}">
         <div class="setup-note">Use a Google OAuth client ID for a Web application. Enable Calendar API, Gmail API, and Tasks API in Google Cloud. Add <b>https://kratveer.github.io</b> as an authorized JavaScript origin and your Google account as a test user. Keep the app in Testing for personal use.</div>
@@ -99,7 +101,7 @@
     return r.json();
   }
   const header=(headers,name)=>headers?.find(x=>x.name?.toLowerCase()===name.toLowerCase())?.value||'';
-  function renderAll(){renderCalendar();renderMail();renderTasks();renderInsights()}
+  function renderAll(){renderCalendar();renderMail();renderTasks();renderInsights();renderDrive();renderBirthdays()}
   function renderCalendar(){queueInsights();
     const events=[...(providerData.google.events||[]),...(providerData.microsoft.events||[])].sort((a,b)=>new Date(a.start?.dateTime||a.start?.date||0)-new Date(b.start?.dateTime||b.start?.date||0));
     $('#caldate').textContent=date.toLocaleDateString(undefined,{month:'short',day:'numeric'});
@@ -158,7 +160,7 @@
   }
   async function refreshAll(){
     if(!token&&!microsoftAccount)return;$('#sync-status').textContent=`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · refreshing…`;
-    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks());if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
+    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays());if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
     const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();
     const eventCount=(providerData.google.events||[]).length+(providerData.microsoft.events||[]).length,mailCount=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length,taskCount=(providerData.google.tasks||[]).length+(providerData.microsoft.tasks||[]).length;
     $('#headline-note').innerHTML=`Today: <b>${eventCount} events</b> · <b>${mailCount} inbox messages</b> · <b>${taskCount} open tasks</b>`;
@@ -246,5 +248,84 @@
   };
   renderInsights();
   setInterval(renderInsights,60000);
+  // ---- Step 2 tiles: Google Drive, birthdays, markets ----
+  const ago=d=>{const m=Math.round((Date.now()-d)/60000);if(m<1)return'just now';if(m<60)return m+' min ago';const h=Math.round(m/60);if(h<24)return h+' h ago';const dd=Math.round(h/24);return dd<7?dd+' d ago':d.toLocaleDateString(undefined,{month:'short',day:'numeric'})};
+  const initials=n=>String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';
+  function makeTile(id,cls,glyph,title,right,body){
+    const a=document.createElement('article');a.className='card '+cls;a.dataset.widget=id;
+    a.innerHTML=`<div class="card-head"><div class="card-title"><span class="glyph ${glyph[0]}">${glyph[1]}</span>${title}</div>${right}</div>${body}`;
+    $('#layout').append(a);return a;
+  }
+  makeTile('drive','drive',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3h8l6 10-4 7H6l-4-7 6-10Z"/><path d="m8 3 6 10H2M16 3l-6 10M10 13h12"/></svg>'],'Recent files','<span class="tiny">Google Drive</span>','<div class="file-list" id="drive-list"><div class="empty">Connect Google to see files you opened recently.</div></div>');
+  makeTile('birthdays','birthdays',['g-rose','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21h16v-8H4v8Z"/><path d="M4 16c2 1.5 4 1.5 6 0s4-1.5 6 0 3 1 4 0M12 13V9M12 6.5c-.8-.8-.8-2 0-3 .8 1 .8 2.2 0 3Z"/></svg>'],'Upcoming birthdays','<span class="tiny">Next 60 days</span>','<div class="bday-list" id="bday-list"><div class="empty">Connect Google to see birthdays from your contacts.</div></div>');
+  makeTile('markets','markets',['g-green','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'],'Markets','<button class="connect" id="markets-edit" type="button">Edit</button>','<form id="markets-form" class="quick-add markets-form" hidden><label class="sr-only" for="markets-input">Watchlist</label><input id="markets-input" maxlength="160" autocomplete="off"><button type="submit" aria-label="Save watchlist">✓</button></form><div class="market-list" id="market-list"><div class="empty">Loading rates…</div></div><div class="market-foot" id="market-foot"></div>');
+  // re-apply any saved tile order now that the new tiles exist
+  try{JSON.parse(localStorage.getItem('daylight-order')||'[]').forEach(id=>{const c=$('#layout').querySelector(`[data-widget="${id}"]`);if(c)$('#layout').append(c)})}catch{}
+
+  // Google Drive (file names and dates only)
+  const kind=m=>({'application/vnd.google-apps.document':['Doc','k-doc'],'application/vnd.google-apps.spreadsheet':['Sheet','k-sheet'],'application/vnd.google-apps.presentation':['Slides','k-slides'],'application/pdf':['PDF','k-pdf'],'application/vnd.google-apps.folder':['Folder','k-folder']}[m]||[(m||'').startsWith('image/')?'Image':'File','k-file']);
+  async function loadDrive(){
+    const u=new URL('https://www.googleapis.com/drive/v3/files');
+    u.searchParams.set('q','trashed=false and mimeType!=\'application/vnd.google-apps.folder\'');u.searchParams.set('orderBy','viewedByMeTime desc');u.searchParams.set('pageSize','6');u.searchParams.set('fields','files(id,name,mimeType,modifiedTime,viewedByMeTime,webViewLink)');
+    try{const data=await api(u);providerData.google.files=data.files||[];providerData.google.filesError='';}
+    catch(e){providerData.google.files=null;providerData.google.filesError=/not been used|disabled/i.test(e.message)?'Turn on the Google Drive API in Google Cloud Console, then refresh.':/insufficient|scope/i.test(e.message)?'Reconnect Google and allow Drive file access.':'Could not load Drive files.';renderDrive();throw new Error('Drive: '+e.message)}
+    renderDrive();return providerData.google.files.length;
+  }
+  function renderDrive(){
+    const files=providerData.google.files,el=$('#drive-list');if(!el)return;
+    if(providerData.google.filesError){el.innerHTML=`<div class="empty">${esc(providerData.google.filesError)}</div>`;return}
+    if(!files){el.innerHTML='<div class="empty">Connect Google to see files you opened recently.</div>';return}
+    el.innerHTML=files.length?files.map(f=>{const [label,cls]=kind(f.mimeType);const when=f.viewedByMeTime||f.modifiedTime;return `<a class="file-item" href="${esc(f.webViewLink||'#')}" target="_blank" rel="noopener noreferrer"><span class="file-kind ${cls}">${label}</span><span class="file-name">${esc(f.name)}</span><span class="file-time">${when?esc(ago(new Date(when))):''}</span></a>`}).join(''):'<div class="empty">No recent files in Drive.</div>';
+  }
+
+  // Birthdays from Google Contacts
+  async function loadBirthdays(){
+    try{
+      let people=[],pageToken='';
+      for(let i=0;i<5;i++){const u=new URL('https://people.googleapis.com/v1/people/me/connections');u.searchParams.set('personFields','names,birthdays');u.searchParams.set('pageSize','1000');if(pageToken)u.searchParams.set('pageToken',pageToken);
+        const d=await api(u);people=people.concat(d.connections||[]);pageToken=d.nextPageToken;if(!pageToken)break}
+      const today=localMidnight,list=[];
+      people.forEach(p=>{const name=p.names?.[0]?.displayName;const b=(p.birthdays||[]).find(x=>x.date?.month&&x.date?.day);if(!name||!b)return;
+        let next=new Date(today.getFullYear(),b.date.month-1,b.date.day);if(next<today)next=new Date(today.getFullYear()+1,b.date.month-1,b.date.day);
+        const days=Math.round((next-today)/86400000);if(days<=60)list.push({name,next,days,turns:b.date.year?next.getFullYear()-b.date.year:null})});
+      providerData.google.birthdays=list.sort((a,b)=>a.days-b.days);providerData.google.bdayError='';
+    }catch(e){providerData.google.birthdays=null;providerData.google.bdayError=/not been used|disabled/i.test(e.message)?'Turn on the People API in Google Cloud Console, then refresh.':/insufficient|scope/i.test(e.message)?'Reconnect Google and allow contacts access.':'Could not load birthdays.';renderBirthdays();throw new Error('Birthdays: '+e.message)}
+    renderBirthdays();return providerData.google.birthdays.length;
+  }
+  function renderBirthdays(){
+    const list=providerData.google.birthdays,el=$('#bday-list');if(!el)return;
+    if(providerData.google.bdayError){el.innerHTML=`<div class="empty">${esc(providerData.google.bdayError)}</div>`;return}
+    if(!list){el.innerHTML='<div class="empty">Connect Google to see birthdays from your contacts.</div>';return}
+    el.innerHTML=list.length?list.slice(0,5).map(b=>`<div class="bday${b.days===0?' is-today':''}"><div class="avatar">${esc(initials(b.name))}</div><div><div class="sender">${esc(b.name)}</div><div class="snippet">${esc(b.next.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))}${b.turns?` · turns ${b.turns}`:''}</div></div><span class="badge">${b.days===0?'Today':b.days===1?'Tomorrow':'in '+b.days+' d'}</span></div>`).join(''):'<div class="empty">No birthdays in the next 60 days. Add birthdays to your Google contacts to see them here.</div>';
+  }
+
+  // Markets: currency pairs (ECB rates via Frankfurter) and crypto (CoinGecko). No account needed.
+  const CRYPTO={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin',BNB:'binancecoin',LTC:'litecoin',DOT:'polkadot',AVAX:'avalanche-2'};
+  const DEFAULT_WATCH='EUR/CZK, CZK/INR, USD/CZK, BTC, ETH';
+  const readWatch=()=>{try{return localStorage.getItem('daylight-watchlist')||DEFAULT_WATCH}catch{return DEFAULT_WATCH}};
+  const parseWatch=s=>s.toUpperCase().split(/[,;\s]+/).filter(Boolean).slice(0,8).map(x=>x.includes('/')?{type:'fx',base:x.split('/')[0],quote:x.split('/')[1]}:{type:'crypto',sym:x}).filter(x=>x.type==='crypto'?CRYPTO[x.sym]:/^[A-Z]{3}$/.test(x.base)&&/^[A-Z]{3}$/.test(x.quote)&&x.base!==x.quote);
+  async function fxSeries(base,quotes){
+    const start=new Date(Date.now()-10*86400000).toISOString().slice(0,10),sym=quotes.join(',');
+    const tries=[`https://api.frankfurter.dev/v1/${start}..?base=${base}&symbols=${sym}`,`https://api.frankfurter.app/${start}..?from=${base}&to=${sym}`];
+    let last;for(const u of tries){try{const r=await fetch(u);if(r.ok)return r.json();last=new Error('HTTP '+r.status)}catch(e){last=e}}throw last;
+  }
+  async function loadMarkets(){
+    const el=$('#market-list');if(!el)return;
+    const items=parseWatch(readWatch());const rows=[];const errors=[];
+    const byBase={};items.filter(i=>i.type==='fx').forEach(i=>(byBase[i.base]=byBase[i.base]||[]).push(i.quote));
+    await Promise.all(Object.entries(byBase).map(async([base,quotes])=>{try{const d=await fxSeries(base,[...new Set(quotes)]);const dates=Object.keys(d.rates||{}).sort();const cur=d.rates[dates.at(-1)]||{},prev=d.rates[dates.at(-2)]||{};
+      quotes.forEach(q=>{if(cur[q]!=null)rows.push({key:base+'/'+q,label:`${base} → ${q}`,value:cur[q],change:prev[q]?(cur[q]-prev[q])/prev[q]*100:null,note:dates.at(-1)})})}catch{errors.push(base)}}));
+    const cs=items.filter(i=>i.type==='crypto');
+    if(cs.length){try{const ids=cs.map(c=>CRYPTO[c.sym]).join(',');const d=await(await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`)).json();
+      cs.forEach(c=>{const v=d[CRYPTO[c.sym]];if(v?.usd!=null)rows.push({key:c.sym,label:`${c.sym} → USD`,value:v.usd,change:v.usd_24h_change??null,note:'24h'})})}catch{errors.push('crypto')}}
+    const order=items.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym);rows.sort((a,b)=>order.indexOf(a.key)-order.indexOf(b.key));
+    const fmt=v=>v>=1000?v.toLocaleString(undefined,{maximumFractionDigits:0}):v>=1?v.toLocaleString(undefined,{maximumFractionDigits:3}):v.toLocaleString(undefined,{maximumSignificantDigits:4});
+    el.innerHTML=rows.length?rows.map(r=>`<div class="market"><span class="market-pair">${esc(r.label)}</span><span class="market-val">${esc(fmt(r.value))}</span><span class="market-chg ${r.change==null?'':r.change>=0?'up':'down'}">${r.change==null?'—':(r.change>=0?'▲ ':'▼ ')+Math.abs(r.change).toFixed(2)+'%'}</span></div>`).join(''):`<div class="empty">${items.length?'Rates are unavailable right now. Try refresh in a moment.':'Choose Edit to add currency pairs like EUR/CZK or coins like BTC.'}</div>`;
+    $('#market-foot').textContent=(rows.length?`Currencies: ECB daily reference rates · crypto: CoinGecko, 24h change · updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'')+(errors.length&&rows.length?' · some symbols could not load':'');
+  }
+  $('#markets-edit').onclick=()=>{const f=$('#markets-form');f.hidden=!f.hidden;if(!f.hidden){$('#markets-input').value=readWatch();$('#markets-input').focus()}};
+  $('#markets-form').addEventListener('submit',e=>{e.preventDefault();const v=$('#markets-input').value.trim()||DEFAULT_WATCH;const ok=parseWatch(v);if(!ok.length){toast('Use pairs like EUR/CZK or coins like BTC, ETH');return}try{localStorage.setItem('daylight-watchlist',ok.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym).join(', '))}catch{}$('#markets-form').hidden=true;$('#market-list').innerHTML='<div class="empty">Loading rates…</div>';loadMarkets();toast('Watchlist saved on this device')});
+  $('#refresh').addEventListener('click',()=>loadMarkets());
+  loadMarkets();setInterval(()=>{if(document.visibilityState==='visible')loadMarkets()},10*60000);
 })();
 

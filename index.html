@@ -36,6 +36,17 @@
 .tl-hours{position:relative;height:14px;margin-top:4px;font-size:9px;color:#8a95a7}.tl-hours span{position:absolute;transform:translateX(-50%)}.tl-hours span:first-child{transform:none}.tl-hours span:last-child{transform:translateX(-100%)}
 .tl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.tl-chip{font-size:9px;font-weight:700;color:#5e76c1;background:#e8eeff;border-radius:20px;padding:5px 9px}.tl-chip.due{color:#3f8a70;background:#e1f1eb}.tl-chip.warn{color:#b0583f;background:#fbe9e2}
 body.dark .timeline{border-top-color:#ffffff14}body.dark .tl-track{background:#1c2536a8}body.dark .tl-sum{color:#b6c1d1}body.dark .tl-hours{color:#9aa7ba}
+/* Step 2 tiles: Drive, birthdays, markets */
+@media(min-width:681px) and (max-width:1100px){.layout>.card:last-child:nth-child(even){grid-column:1/-1}}
+.file-list,.bday-list,.market-list{display:flex;flex-direction:column}
+.file-item{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #ffffff82;color:inherit;text-decoration:none}.file-item:first-child{border-top:0;padding-top:0}.file-item:hover .file-name{color:#4569d0}
+.file-kind{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;text-align:center;border-radius:7px;padding:5px 0;background:#edf1fb;color:#6079c9}.k-doc{background:#e7edff;color:#4a6fd8}.k-sheet{background:#e1f1eb;color:#3f8a70}.k-slides{background:#f8edda;color:#b07a2a}.k-pdf{background:#f8e8eb;color:#b85a6e}
+.file-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.file-time{font-size:9px;color:#8d97a7}
+.bday{display:grid;grid-template-columns:31px 1fr auto;gap:11px;align-items:center;padding:9px 0;border-top:1px solid #ffffff82}.bday:first-child{border-top:0;padding-top:0}.bday .avatar{background:linear-gradient(135deg,#e7a4b4,#c46f86)}.bday.is-today .badge{background:#f8e1e7;color:#b8566f}
+.market{display:grid;grid-template-columns:1fr auto 74px;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #ffffff82}.market:first-child{border-top:0;padding-top:0}
+.market-pair{font-size:11px;font-weight:700}.market-val{font:700 13px Manrope,sans-serif;font-variant-numeric:tabular-nums}.market-chg{font-size:9px;font-weight:700;text-align:right;color:#8d97a7;font-variant-numeric:tabular-nums}.market-chg.up{color:#2f8a68}.market-chg.down{color:#c0536a}
+.market-foot{font-size:9px;color:#8d97a7;margin-top:8px;line-height:1.5}.markets-form{margin-bottom:10px}.markets-form[hidden]{display:none}
+body.dark .file-time,body.dark .market-foot{color:#9aa7ba}body.dark .file-kind{background:#35425c;color:#c9d4f5}body.dark .market-chg.up{color:#74c5a4}body.dark .market-chg.down{color:#ef8fa3}body.dark .file-item,body.dark .bday,body.dark .market{border-top-color:#ffffff12}
 
 .apple-icon{background:#f2f0f7;color:#292336;font-family:Manrope,sans-serif}.provider-status{white-space:normal;text-align:right;max-width:42%;line-height:1.35}
 </style>
@@ -64,7 +75,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="app.js?v=4" defer></script></body></html>
+<script src="app.js?v=5" defer></script></body></html>
 
 
 

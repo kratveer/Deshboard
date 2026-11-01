@@ -7,6 +7,10 @@ This personal build reads connected Google data in the browser after you authori
 - Google Calendar: today's primary calendar events (read only)
 - Gmail: up to six inbox message headers (sender, subject, date, unread status); no email body, send, or delete access
 - Google Tasks: open tasks in up to three task lists (read only)
+- Google Drive: names, types and dates of your six most recently viewed files, linking to Drive (no file contents)
+- Birthdays: upcoming birthdays (next 60 days) from your Google Contacts (read only)
+- Markets: a watchlist of currency pairs (ECB daily reference rates via Frankfurter) and crypto prices (CoinGecko); no account needed, saved in this browser
+- Today's timeline and focus suggestions: worked out in the browser from the calendar and tasks already loaded
 - Personal tasks: add and complete tasks saved only in this browser
 - Daily notes: one note per date saved only in this browser
 - Weather: current conditions and today's high/low through Open-Meteo after you grant location access
@@ -18,7 +22,7 @@ Register a Microsoft Entra single-page application that accepts work/school and 
 
 ## Google setup
 
-1. In Google Cloud Console, enable Google Calendar API, Gmail API, and Google Tasks API.
+1. In Google Cloud Console, enable Google Calendar API, Gmail API, Google Tasks API, Google Drive API, and People API.
 2. Configure the OAuth consent screen as **External** and keep it in **Testing** for personal use. Add the Google account you will connect as a test user.
 3. Create an OAuth client ID of type **Web application**. Add the exact site origin under Authorized JavaScript origins. For local development use `http://localhost:8000`; for GitHub Pages use `https://YOUR-USERNAME.github.io`.
 4. Serve this folder over localhost or HTTPS. For example, from this directory run `python -m http.server 8000`, then visit `http://localhost:8000`.
