@@ -139,7 +139,7 @@
     $('#event-count').textContent=(providerData.google.events||[]).length+(providerData.microsoft.events||[]).length;
   }
   function renderMail(){
-    const msgs=[...(providerData.google.mails||[]),...(providerData.microsoft.mails||[])].sort((a,b)=>(b.sortDate||0)-(a.sortDate||0)).slice(0,8);
+    const msgs=[...(providerData.google.mails||[]),...(providerData.microsoft.mails||[])].sort((a,b)=>(b.sortDate||0)-(a.sortDate||0)).filter(m=>wset('mail').only!=='Unread only'||m.unread).slice(0,+(wset('mail').count||8));
     $('#mail-list').innerHTML=msgs.length?msgs.map(m=>`<div class="mail-item"><div class="avatar">${esc(m.initials||'M')}</div><div><div class="sender">${esc(m.sender||'')}</div><div class="subject">${esc(m.subject||'(No subject)')}</div><div class="snippet">${m.unread?'Unread · ':''}${esc(m.time||m.source||'Inbox')}</div></div><span class="mail-time">${m.unread?'NEW':''}</span></div>`).join(''):`<div class="empty">${providerData.google.mails||providerData.microsoft.mails?'Your inbox is clear.':'Connect Gmail or Outlook to view inbox messages.'}</div>`;
     $('#mail-count').textContent=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length;
   }
@@ -157,7 +157,7 @@
     return providerData.google.events.length;
   }
   async function loadMail(){
-    const list=await api('https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=6');const items=list.messages||[];
+    const list=await api('https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=10');const items=list.messages||[];
     const msgs=await Promise.all(items.map(m=>api(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(m.id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`)));
     providerData.google.mails=msgs.map(m=>{const h=m.payload?.headers||[];const from=header(h,'From');const sender=from.replace(/<.*?>/,'').replace(/"/g,'').trim()||from;const when=header(h,'Date');const d=when?new Date(when):null;return {sender,subject:header(h,'Subject')||'(No subject)',time:d?d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'',sortDate:d?.getTime()||0,unread:m.labelIds?.includes('UNREAD'),initials:sender.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'G',source:'Gmail'}});renderMail();
     return providerData.google.mails.length;
@@ -260,7 +260,7 @@
     // Focus tile: suggest the next real free slot
     const focus=$('.focus');if(!focus)return;
     const mins=focus.querySelector('.minutes'),p=focus.querySelector('p'),eb=focus.querySelector('.eyebrow'),btn=$('#focus-start');
-    let suggest=25,text='Protect a little quiet time for your most important task.',label='Suggested session';
+    let suggest=+(wset('focus').len||25),text='Protect a little quiet time for your most important task.',label='Suggested session';
     if(connected){
       const g=gaps[0];
       if(!g){suggest=0;label='No free slot';text=now>=dayEnd?'Your planned day is over. Rest up for tomorrow.':`Your calendar is full until ${DAY_END}:00. Try a short break between meetings.`}
@@ -289,7 +289,6 @@
   }
   makeTile('drive','drive',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3h8l6 10-4 7H6l-4-7 6-10Z"/><path d="m8 3 6 10H2M16 3l-6 10M10 13h12"/></svg>'],'Recent files','','<div class="file-list" id="drive-list"><div class="empty">Connect Google to see files you opened recently.</div></div>');
   makeTile('birthdays','birthdays',['g-rose','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21h16v-8H4v8Z"/><path d="M4 16c2 1.5 4 1.5 6 0s4-1.5 6 0 3 1 4 0M12 13V9M12 6.5c-.8-.8-.8-2 0-3 .8 1 .8 2.2 0 3Z"/></svg>'],'Upcoming birthdays','','<div class="bday-list" id="bday-list"><div class="empty">Connect Google to see birthdays from your contacts.</div></div>');
-  makeTile('markets','markets',['g-green','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'],'Markets','<button class="connect" id="markets-edit" type="button">Edit</button>','<form id="markets-form" class="quick-add markets-form" hidden><label class="sr-only" for="markets-input">Watchlist</label><input id="markets-input" maxlength="160" autocomplete="off"><button type="submit" aria-label="Save watchlist">✓</button></form><div class="market-list" id="market-list"><div class="empty">Loading rates…</div></div><div class="market-foot" id="market-foot"></div>');
   // re-apply any saved tile order now that the new tiles exist
   try{JSON.parse(localStorage.getItem('daylight-order')||'[]').forEach(id=>{const c=$('#layout').querySelector(`[data-widget="${id}"]`);if(c)$('#layout').append(c)})}catch{}
 
@@ -297,7 +296,7 @@
   const kind=m=>({'application/vnd.google-apps.document':['Doc','k-doc'],'application/vnd.google-apps.spreadsheet':['Sheet','k-sheet'],'application/vnd.google-apps.presentation':['Slides','k-slides'],'application/pdf':['PDF','k-pdf'],'application/vnd.google-apps.folder':['Folder','k-folder']}[m]||[(m||'').startsWith('image/')?'Image':'File','k-file']);
   async function loadDrive(){
     const u=new URL('https://www.googleapis.com/drive/v3/files');
-    u.searchParams.set('q','trashed=false and mimeType!=\'application/vnd.google-apps.folder\'');u.searchParams.set('orderBy','viewedByMeTime desc');u.searchParams.set('pageSize','6');u.searchParams.set('fields','files(id,name,mimeType,modifiedTime,viewedByMeTime,webViewLink)');
+    u.searchParams.set('q','trashed=false and mimeType!=\'application/vnd.google-apps.folder\'');u.searchParams.set('orderBy','viewedByMeTime desc');u.searchParams.set('pageSize','10');u.searchParams.set('fields','files(id,name,mimeType,modifiedTime,viewedByMeTime,webViewLink)');
     try{const data=await api(u);providerData.google.files=data.files||[];providerData.google.filesError='';}
     catch(e){providerData.google.files=null;providerData.google.filesError=/not been used|disabled/i.test(e.message)?'Turn on the Google Drive API in Google Cloud Console, then refresh.':/insufficient|scope/i.test(e.message)?'Reconnect Google and allow Drive file access.':'Could not load Drive files.';renderDrive();throw new Error('Drive: '+e.message)}
     renderDrive();return providerData.google.files.length;
@@ -306,7 +305,7 @@
     const files=providerData.google.files,el=$('#drive-list');if(!el)return;
     if(providerData.google.filesError){el.innerHTML=`<div class="empty">${esc(providerData.google.filesError)}</div>`;return}
     if(!files){el.innerHTML='<div class="empty">Connect Google to see files you opened recently.</div>';return}
-    el.innerHTML=files.length?files.map(f=>{const [label,cls]=kind(f.mimeType);const when=f.viewedByMeTime||f.modifiedTime;return `<a class="file-item" href="${esc(f.webViewLink||'#')}" target="_blank" rel="noopener noreferrer"><span class="file-kind ${cls}">${label}</span><span class="file-name">${esc(f.name)}</span><span class="file-time">${when?esc(ago(new Date(when))):''}</span></a>`}).join(''):'<div class="empty">No recent files in Drive.</div>';
+    el.innerHTML=files.length?files.slice(0,+(wset('drive').count||6)).map(f=>{const [label,cls]=kind(f.mimeType);const when=f.viewedByMeTime||f.modifiedTime;return `<a class="file-item" href="${esc(f.webViewLink||'#')}" target="_blank" rel="noopener noreferrer"><span class="file-kind ${cls}">${label}</span><span class="file-name">${esc(f.name)}</span><span class="file-time">${when?esc(ago(new Date(when))):''}</span></a>`}).join(''):'<div class="empty">No recent files in Drive.</div>';
   }
 
   // Birthdays from Google Contacts
@@ -318,76 +317,65 @@
       const today=localMidnight,list=[];
       people.forEach(p=>{const name=p.names?.[0]?.displayName;const b=(p.birthdays||[]).find(x=>x.date?.month&&x.date?.day);if(!name||!b)return;
         let next=new Date(today.getFullYear(),b.date.month-1,b.date.day);if(next<today)next=new Date(today.getFullYear()+1,b.date.month-1,b.date.day);
-        const days=Math.round((next-today)/86400000);if(days<=60)list.push({name,next,days,turns:b.date.year?next.getFullYear()-b.date.year:null})});
+        const days=Math.round((next-today)/86400000);if(days<=366)list.push({name,next,days,turns:b.date.year?next.getFullYear()-b.date.year:null})});
       providerData.google.birthdays=list.sort((a,b)=>a.days-b.days);providerData.google.bdayError='';
     }catch(e){providerData.google.birthdays=null;providerData.google.bdayError=/not been used|disabled/i.test(e.message)?'Turn on the People API in Google Cloud Console, then refresh.':/insufficient|scope/i.test(e.message)?'Reconnect Google and allow contacts access.':'Could not load birthdays.';renderBirthdays();throw new Error('Birthdays: '+e.message)}
     renderBirthdays();return providerData.google.birthdays.length;
   }
   function renderBirthdays(){
-    const list=providerData.google.birthdays,el=$('#bday-list');if(!el)return;
+    let list=providerData.google.birthdays,el=$('#bday-list');if(!el)return;
     if(providerData.google.bdayError){el.innerHTML=`<div class="empty">${esc(providerData.google.bdayError)}</div>`;return}
     if(!list){el.innerHTML='<div class="empty">Connect Google to see birthdays from your contacts.</div>';return}
-    el.innerHTML=list.length?list.slice(0,5).map(b=>`<div class="bday${b.days===0?' is-today':''}"><div class="avatar">${esc(initials(b.name))}</div><div><div class="sender">${esc(b.name)}</div><div class="snippet">${esc(b.next.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))}${b.turns?` · turns ${b.turns}`:''}</div></div><span class="badge">${b.days===0?'Today':b.days===1?'Tomorrow':'in '+b.days+' d'}</span></div>`).join(''):'<div class="empty">No birthdays in the next 60 days. Add birthdays to your Google contacts to see them here.</div>';
+    const lim=+(wset('birthdays').days||60);list=list.filter(b=>b.days<=lim);el.innerHTML=list.length?list.slice(0,8).map(b=>`<div class="bday${b.days===0?' is-today':''}"><div class="avatar">${esc(initials(b.name))}</div><div><div class="sender">${esc(b.name)}</div><div class="snippet">${esc(b.next.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))}${b.turns?` · turns ${b.turns}`:''}</div></div><span class="badge">${b.days===0?'Today':b.days===1?'Tomorrow':'in '+b.days+' d'}</span></div>`).join(''):'<div class="empty">No birthdays in the next '+lim+' days.</div>';
   }
 
-  // Markets: currency pairs (ECB rates via Frankfurter) and crypto (CoinGecko). No account needed.
+  // Markets: currency pairs (ECB rates via Frankfurter) and crypto (CoinGecko). No account needed. One card per watchlist.
   const CRYPTO={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',XRP:'ripple',ADA:'cardano',DOGE:'dogecoin',BNB:'binancecoin',LTC:'litecoin',DOT:'polkadot',AVAX:'avalanche-2'};
   const DEFAULT_WATCH='EUR/CZK, CZK/INR, USD/CZK, BTC, ETH';
-  const readWatch=()=>{try{return localStorage.getItem('daylight-watchlist')||DEFAULT_WATCH}catch{return DEFAULT_WATCH}};
+  const readWatch=id=>{const s=wset(id).watch;if(s)return s;if(id==='markets'){try{return localStorage.getItem('daylight-watchlist')||DEFAULT_WATCH}catch{}}return DEFAULT_WATCH};
   const parseWatch=s=>s.toUpperCase().split(/[,;\s]+/).filter(Boolean).slice(0,8).map(x=>x.includes('/')?{type:'fx',base:x.split('/')[0],quote:x.split('/')[1]}:{type:'crypto',sym:x}).filter(x=>x.type==='crypto'?CRYPTO[x.sym]:/^[A-Z]{3}$/.test(x.base)&&/^[A-Z]{3}$/.test(x.quote)&&x.base!==x.quote);
   async function fxSeries(base,quotes){
     const start=new Date(Date.now()-10*86400000).toISOString().slice(0,10),sym=quotes.join(',');
     const tries=[`https://api.frankfurter.dev/v1/${start}..?base=${base}&symbols=${sym}`,`https://api.frankfurter.app/${start}..?from=${base}&to=${sym}`];
     let last;for(const u of tries){try{const r=await fetch(u);if(r.ok)return r.json();last=new Error('HTTP '+r.status)}catch(e){last=e}}throw last;
   }
-  async function loadMarkets(){
-    const el=$('#market-list');if(!el)return;
-    const items=parseWatch(readWatch());const rows=[];const errors=[];
+  function marketsCard(id){
+    const c=document.createElement('article');c.className='card markets';c.dataset.widget=id;
+    c.innerHTML=`<div class="card-head"><div class="card-title"><span class="glyph g-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span class="m-title">${esc(wset(id).title||'Markets')}</span></div><button class="connect m-edit" type="button">Edit</button></div><form class="quick-add markets-form m-form" hidden><label class="sr-only">Watchlist</label><input class="m-input" maxlength="160" autocomplete="off" aria-label="Watchlist"><button type="submit" aria-label="Save watchlist">✓</button></form><div class="market-list"><div class="empty">Loading rates…</div></div><div class="market-foot"></div>`;
+    $('#layout').append(c);
+    c.querySelector('.m-edit').onclick=()=>{const f=c.querySelector('.m-form');f.hidden=!f.hidden;if(!f.hidden){c.querySelector('.m-input').value=readWatch(id);c.querySelector('.m-input').focus()}};
+    c.querySelector('.m-form').addEventListener('submit',e=>{e.preventDefault();const ok=parseWatch(c.querySelector('.m-input').value.trim()||DEFAULT_WATCH);if(!ok.length){toast('Use pairs like EUR/CZK or coins like BTC, ETH');return}
+      wsave(id,{watch:ok.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym).join(', ')});c.querySelector('.m-form').hidden=true;c.querySelector('.market-list').innerHTML='<div class="empty">Loading rates…</div>';loadMarkets(c);toast('Watchlist saved on this device')});
+    loadMarkets(c);return c;
+  }
+  async function loadMarkets(card){
+    const el=card.querySelector('.market-list'),id=card.dataset.widget;
+    const items=parseWatch(readWatch(id));const rows=[];const errors=[];
     const byBase={};items.filter(i=>i.type==='fx').forEach(i=>(byBase[i.base]=byBase[i.base]||[]).push(i.quote));
     await Promise.all(Object.entries(byBase).map(async([base,quotes])=>{try{const d=await fxSeries(base,[...new Set(quotes)]);const dates=Object.keys(d.rates||{}).sort();const cur=d.rates[dates.at(-1)]||{},prev=d.rates[dates.at(-2)]||{};
-      quotes.forEach(q=>{if(cur[q]!=null)rows.push({key:base+'/'+q,label:`${base} → ${q}`,value:cur[q],change:prev[q]?(cur[q]-prev[q])/prev[q]*100:null,note:dates.at(-1)})})}catch{errors.push(base)}}));
+      quotes.forEach(q=>{if(cur[q]!=null)rows.push({key:base+'/'+q,label:`${base} → ${q}`,value:cur[q],change:prev[q]?(cur[q]-prev[q])/prev[q]*100:null})})}catch{errors.push(base)}}));
     const cs=items.filter(i=>i.type==='crypto');
     if(cs.length){try{const ids=cs.map(c=>CRYPTO[c.sym]).join(',');const d=await(await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`)).json();
-      cs.forEach(c=>{const v=d[CRYPTO[c.sym]];if(v?.usd!=null)rows.push({key:c.sym,label:`${c.sym} → USD`,value:v.usd,change:v.usd_24h_change??null,note:'24h'})})}catch{errors.push('crypto')}}
+      cs.forEach(c=>{const v=d[CRYPTO[c.sym]];if(v?.usd!=null)rows.push({key:c.sym,label:`${c.sym} → USD`,value:v.usd,change:v.usd_24h_change??null})})}catch{errors.push('crypto')}}
     const order=items.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym);rows.sort((a,b)=>order.indexOf(a.key)-order.indexOf(b.key));
     const fmt=v=>v>=1000?v.toLocaleString(undefined,{maximumFractionDigits:0}):v>=1?v.toLocaleString(undefined,{maximumFractionDigits:3}):v.toLocaleString(undefined,{maximumSignificantDigits:4});
     el.innerHTML=rows.length?rows.map(r=>`<div class="market"><span class="market-pair">${esc(r.label)}</span><span class="market-val">${esc(fmt(r.value))}</span><span class="market-chg ${r.change==null?'':r.change>=0?'up':'down'}">${r.change==null?'—':(r.change>=0?'▲ ':'▼ ')+Math.abs(r.change).toFixed(2)+'%'}</span></div>`).join(''):`<div class="empty">${items.length?'Rates are unavailable right now. Try refresh in a moment.':'Choose Edit to add currency pairs like EUR/CZK or coins like BTC.'}</div>`;
-    $('#market-foot').textContent=(rows.length?`Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'')+(errors.length&&rows.length?' · some symbols could not load':'');
+    card.querySelector('.market-foot').textContent=(rows.length?`Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'')+(errors.length&&rows.length?' · some symbols could not load':'');
   }
-  $('#markets-edit').onclick=()=>{const f=$('#markets-form');f.hidden=!f.hidden;if(!f.hidden){$('#markets-input').value=readWatch();$('#markets-input').focus()}};
-  $('#markets-form').addEventListener('submit',e=>{e.preventDefault();const v=$('#markets-input').value.trim()||DEFAULT_WATCH;const ok=parseWatch(v);if(!ok.length){toast('Use pairs like EUR/CZK or coins like BTC, ETH');return}try{localStorage.setItem('daylight-watchlist',ok.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym).join(', '))}catch{}$('#markets-form').hidden=true;$('#market-list').innerHTML='<div class="empty">Loading rates…</div>';loadMarkets();toast('Watchlist saved on this device')});
-  $('#refresh').addEventListener('click',()=>loadMarkets());
-  loadMarkets();setInterval(()=>{if(document.visibilityState==='visible')loadMarkets()},10*60000);
-  // ---- Customize panel: show/hide tiles + working hours; install as app ----
-  const TILE_NAMES={overview:'Day at a glance',calendar:'Calendar',tasks:'Tasks',mail:'Mail',focus:'Focus time',notes:'Daily notes',weather:'Weather',drive:'Recent files',birthdays:'Birthdays',markets:'Markets'};
+  const loadAllMarkets=()=>$$('.card.markets').forEach(c=>loadMarkets(c));
+  marketsCard('markets');
+  $('#refresh').addEventListener('click',loadAllMarkets);
+  setInterval(()=>{if(document.visibilityState==='visible')loadAllMarkets()},10*60000);
+  // Per-widget settings, stored apart from the layout
+  function wsetAll(){try{return JSON.parse(localStorage.getItem('daylight-widget-settings')||'{}')||{}}catch{return{}}}
+  function wset(id){return wsetAll()[id]||{}}
+  function wsave(id,patch){const all=wsetAll();all[id]={...(all[id]||{}),...patch};try{localStorage.setItem('daylight-widget-settings',JSON.stringify(all))}catch{}}
+  // ---- Helpers shared by the widget framework ----
+  const TILE_NAMES={};
   const readJSON=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v??d}catch{return d}};
   const writeJSON=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
-  let hiddenTiles=readJSON('daylight-hidden',[]);if(!Array.isArray(hiddenTiles))hiddenTiles=[];
-  function applyVisibility(){
-    $$('.layout>.card').forEach(c=>c.classList.toggle('tile-hidden',hiddenTiles.includes(c.dataset.widget)));
-    // on tablet, a lone last tile spans the full row
-    $$('.layout>.card').forEach(c=>c.classList.remove('span-last'));
-    const vis=$$('.layout>.card').filter(c=>!c.classList.contains('tile-hidden')&&!c.classList.contains('hero')&&!c.classList.contains('wide'));
-    if(vis.length%2===1)vis.at(-1).classList.add('span-last');
-  }
+  function applyVisibility(){}
   const hourOpts=(sel,from,to)=>{let o='';for(let h=from;h<=to;h++)o+=`<option value="${h}"${h===sel?' selected':''}>${String(h).padStart(2,'0')}:00</option>`;return o};
-  const panel=document.createElement('section');panel.id='settings-panel';panel.className='settings-panel';panel.hidden=true;panel.setAttribute('aria-label','Customize dashboard');
-  function renderPanel(){
-    const tiles=$$('.layout>.card').map(c=>c.dataset.widget).filter(id=>TILE_NAMES[id]);
-    panel.innerHTML=`<div class="settings-row"><div><div class="eyebrow">Customize</div><div class="settings-hint">Drag tiles to reorder. Choose which tiles to show and the hours your timeline covers. Saved on this device.</div></div><button class="close" type="button" id="settings-done">Done</button></div>
-      <div class="settings-grid"><fieldset class="settings-tiles"><legend>Tiles</legend>${tiles.map(id=>`<label class="toggle"><input type="checkbox" data-tile="${id}"${hiddenTiles.includes(id)?'':' checked'}><span>${TILE_NAMES[id]}</span></label>`).join('')}</fieldset>
-      <fieldset class="settings-hours"><legend>Working hours</legend><label>From <select id="hours-start">${hourOpts(DAY_START,0,22)}</select></label><label>To <select id="hours-end">${hourOpts(DAY_END,1,23)}</select></label></fieldset></div>`;
-  }
-  $('#layout').before(panel);
-  panel.addEventListener('change',e=>{
-    const t=e.target;
-    if(t.dataset.tile){hiddenTiles=t.checked?hiddenTiles.filter(x=>x!==t.dataset.tile):[...new Set([...hiddenTiles,t.dataset.tile])];writeJSON('daylight-hidden',hiddenTiles);applyVisibility()}
-    if(t.id==='hours-start'||t.id==='hours-end'){let s=+$('#hours-start').value,en=+$('#hours-end').value;if(en<=s){en=Math.min(23,s+1);$('#hours-end').value=en}DAY_START=s;DAY_END=en;writeJSON('daylight-hours',{start:s,end:en});renderInsights()}
-  });
-  panel.addEventListener('click',e=>{if(e.target.id==='settings-done')$('#customize').click()});
-  $('#customize').addEventListener('click',()=>{const on=$('#customize').classList.contains('active');if(on)renderPanel();panel.hidden=!on;$$('.layout>.card').forEach(c=>c.classList.toggle('editing',on))});
-  applyVisibility();
-
   // Install as an app (PWA)
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
   let installEvt=null;
@@ -495,18 +483,18 @@
     if(ord.includes('loops'))ord.forEach(id=>{const c=$('#layout').querySelector(`[data-widget="${id}"]`)||(id==='loops'?loopsTile:null);if(c)$('#layout').append(c)});else if(hero)hero.after(loopsTile);else $('#layout').prepend(loopsTile) }
   TILE_NAMES.loops='Open loops';
   function renderLoops(){
-    const grid=$('#loop-grid');if(!grid)return;const loops=computeLoops();
+    const grid=$('#loop-grid');if(!grid)return;const WORK=['reply','followup','prepare','overdue','deadline'],loops=computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type));
     $('#loop-total').textContent=loops.length?loops.length:'';if($('#loop-count'))$('#loop-count').textContent=token?loops.length:'—';
     if(!token&&!microsoftAccount){grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';$('#loops-foot').innerHTML='';renderSummary(null);return}
     if(!loopsData&&token){grid.innerHTML='<div class="empty">Looking through your inbox, calendar and tasks…</div>';return}
-    const shown=loopsShowAll?loops:loops.slice(0,6);
+    const lmax=+(wset('loops').max||6),shown=loopsShowAll?loops:loops.slice(0,lmax);
     grid.innerHTML=loops.length?shown.map(l=>{const t=LOOP_TYPES[l.type];return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}">
       <div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div>
       <div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>
       ${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}
       <div class="loop-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></div></div>`}).join('')
       :'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>';
-    $('#loops-foot').innerHTML=loops.length>6?`<button class="connect" type="button" id="loops-more">${loopsShowAll?'Show fewer':`Show all ${loops.length}`}</button>`:'';
+    $('#loops-foot').innerHTML=loops.length>lmax?`<button class="connect" type="button" id="loops-more">${loopsShowAll?'Show fewer':`Show all ${loops.length}`}</button>`:'';
     if($('#loops-more'))$('#loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
     renderSummary(loops.length);
   }
@@ -573,5 +561,139 @@
   { const orig=renderLoops;renderLoops=function(){orig();renderBell()} }
   renderBell();setInterval(renderBell,60000);
   renderLoops();renderUpNext();applyVisibility();setInterval(()=>{renderUpNext();renderSummary(token?computeLoops().length:null)},60000);
+  // ======== Daylight 2.0: every tile is a widget on one GridStack layout ========
+  // Layout (which widgets, where, how big) is stored in 'daylight-layout-v2'; settings in 'daylight-widget-settings'.
+  const WIDGETS={
+    summary:{name:'Smart summary',desc:'Your day in a sentence or two',size:{w:12,h:3},min:{w:3,h:2},settings:{detail:{label:'Detail',options:['Short','Detailed']}}},
+    overview:{name:'Day at a glance',desc:'Counts, up next and today’s timeline',size:{w:12,h:4},min:{w:4,h:3}},
+    loops:{name:'Open loops',desc:'Things you started but haven’t finished',size:{w:12,h:5},min:{w:3,h:3},settings:{max:{label:'Cards shown',options:['3','6','9','12']},include:{label:'Include',options:['Everything','Work only']}}},
+    calendar:{name:'Calendar',desc:'Today’s events',size:{w:4,h:5},min:{w:3,h:3}},
+    tasks:{name:'Tasks',desc:'Google Tasks and personal tasks',size:{w:4,h:5},min:{w:3,h:3}},
+    mail:{name:'Mail',desc:'Recent inbox messages',size:{w:4,h:5},min:{w:3,h:3},settings:{count:{label:'Emails shown',options:['3','5','8']},only:{label:'Show',options:['All','Unread only']}}},
+    focus:{name:'Focus time',desc:'Timer that uses your free slots',size:{w:4,h:4},min:{w:3,h:3},settings:{len:{label:'Default length (min)',options:['25','45','50','60']}}},
+    notes:{name:'Daily notes',desc:'A private note for today',size:{w:4,h:4},min:{w:3,h:3}},
+    weather:{name:'Weather',desc:'Today’s forecast',size:{w:4,h:4},min:{w:2,h:3}},
+    drive:{name:'Recent files',desc:'Google Drive files you opened',size:{w:4,h:4},min:{w:3,h:3},settings:{count:{label:'Files shown',options:['3','6','10']}}},
+    birthdays:{name:'Birthdays',desc:'From your Google contacts',size:{w:4,h:4},min:{w:3,h:3},settings:{days:{label:'Look ahead (days)',options:['30','60','90','365']}}},
+    markets:{name:'Markets',desc:'Currencies and crypto · add as many lists as you like',size:{w:4,h:4},min:{w:3,h:3},multi:true,settings:{title:{label:'Name',type:'text'}}}};
+  const typeOf=id=>String(id).split('~')[0];
+  const cardOf=id=>document.querySelector(`.card[data-widget="${CSS.escape(id)}"]`);
+  const P=(id,x,y,w,h)=>({id,x,y,w,h});
+  const PRESETS={
+    'Default':[P('summary',0,0,12,3),P('overview',0,3,12,4),P('loops',0,7,12,5),P('calendar',0,12,4,5),P('tasks',4,12,4,5),P('mail',8,12,4,5),P('focus',0,17,4,4),P('notes',4,17,4,4),P('weather',8,17,4,4),P('drive',0,21,4,4),P('birthdays',4,21,4,4),P('markets',8,21,4,4)],
+    'Work focus':[P('overview',0,0,8,4),P('focus',8,0,4,4),P('loops',0,4,12,5),P('calendar',0,9,6,5),P('tasks',6,9,6,5),P('drive',0,14,6,4),P('notes',6,14,6,4)],
+    'Inbox zero':[P('summary',0,0,12,3),P('loops',0,3,12,6),P('mail',0,9,8,6),P('tasks',8,9,4,6)],
+    'Minimal':[P('summary',0,0,12,3),P('calendar',0,3,6,5),P('tasks',6,3,6,5),P('weather',0,8,6,4),P('markets',6,8,6,4)]};
+
+  // Smart summary (rules for now; an AI-written version can replace renderSmart later)
+  const sumCard=document.createElement('article');sumCard.className='card summary-w';sumCard.dataset.widget='summary';
+  sumCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">✦</span>Smart summary</div></div><div class="smart" id="smart-summary"></div><div class="smart-chips" id="smart-chips"></div>';
+  $('#layout').prepend(sumCard);
+  function renderSmart(){
+    const el=$('#smart-summary');if(!el)return;const chips=$('#smart-chips');
+    if(!token&&!microsoftAccount){el.innerHTML='Connect Google and Daylight will sum up your day here: meetings, people waiting on you and your best time to focus.';chips.innerHTML='';return}
+    const now=new Date(),{timed,connected}=todayEvents(),detailed=wset('summary').detail==='Detailed';
+    const loops=computeLoops(),n=t=>loops.filter(l=>l.type===t).length,pl=(k,one,many)=>k===1?one:many;
+    const s=[];
+    if(connected){const left=timed.filter(e=>e.end>now),next=left[0];
+      if(!left.length)s.push('No more meetings today.');
+      else{const mins=Math.round((next.start-now)/60000);s.push(`${left.length} ${pl(left.length,'meeting','meetings')} left today${next.start<=now?`; <em>${esc(next.title)}</em> is on now`:`; next is <em>${esc(next.title)}</em> ${mins<60?`in ${mins} min`:'at '+hm(next.start)}`}.`)}}
+    const bits=[];if(n('reply'))bits.push(`<em>${n('reply')} ${pl(n('reply'),'person is','people are')}</em> waiting for your reply`);if(n('overdue'))bits.push(`<em>${n('overdue')} ${pl(n('overdue'),'task is','tasks are')} overdue</em>`);if(n('deadline'))bits.push(`${n('deadline')} due soon`);
+    if(bits.length)s.push(bits.join(', ').replace(/, ([^,]*)$/,' and $1')+'.');
+    const dayEnd=new Date(localMidnight.getTime()+DAY_END*3600000),dayStart=new Date(localMidnight.getTime()+DAY_START*3600000);
+    const slot=connected&&freeGaps(timed,new Date(Math.max(now,dayStart)),dayEnd).find(g=>g.min>=45);
+    if(slot)s.push(`Best time to focus: <em>${hm(slot.start)}–${hm(slot.end)}</em>.`);
+    if(detailed){const extra=[];if(n('followup'))extra.push(`${n('followup')} ${pl(n('followup'),'conversation needs','conversations need')} a follow-up`);if(n('prepare'))extra.push(`${n('prepare')} ${pl(n('prepare'),'meeting','meetings')} to prepare`);if(n('renewal'))extra.push(`${n('renewal')} ${pl(n('renewal'),'renewal','renewals')} to review`);
+      const bday=(providerData.google.birthdays||[]).filter(b=>b.days===0).map(b=>b.name);if(bday.length)extra.push(`it’s ${esc(bday.join(' and '))}’s birthday`);if(extra.length)s.push(extra.join(', ').replace(/^./,c=>c.toUpperCase())+'.')}
+    el.innerHTML=s.length?s.join(' '):'Nothing pressing right now. A good moment to plan ahead.';
+    chips.innerHTML=loops.slice(0,3).map(l=>l.href?`<a class="tl-chip" href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.title)}</a>`:`<span class="tl-chip">${esc(l.title)}</span>`).join('');
+  }
+  { const o=renderLoops;renderLoops=function(){o();renderSmart()} }
+  setInterval(renderSmart,60000);
+
+  // Grid
+  const STORE=document.createElement('div');STORE.id='widget-store';STORE.hidden=true;document.body.append(STORE);
+  let grid=null,editing2=false;
+  const presetItems=name=>PRESETS[name].map(i=>({...i}));
+  const toolsHTML=id=>`<div class="wtools"><button class="wt-btn" type="button" data-wset="${esc(id)}" aria-label="Widget settings" title="Settings">⚙</button><button class="wt-btn" type="button" data-wdel="${esc(id)}" aria-label="Remove widget" title="Remove">×</button></div>`;
+  function placeItem(it){
+    const card=cardOf(it.id);if(!card||!grid)return;const def=WIDGETS[typeOf(it.id)]||{size:{w:4,h:4}};
+    const el=document.createElement('div');el.className='grid-stack-item';el.setAttribute('gs-id',it.id);
+    const pos={w:it.w||def.size.w,h:it.h||def.size.h,x:it.x,y:it.y};Object.entries(pos).forEach(([k,v])=>{if(v!=null)el.setAttribute('gs-'+k,v)});
+    if(it.x==null||it.y==null)el.setAttribute('gs-auto-position','true');
+    if(def.min){el.setAttribute('gs-min-w',def.min.w);el.setAttribute('gs-min-h',def.min.h)}
+    const content=document.createElement('div');content.className='grid-stack-item-content';content.append(card);content.insertAdjacentHTML('beforeend',toolsHTML(it.id));el.append(content);
+    $('#layout').append(el);grid.makeWidget(el);return el;
+  }
+  function saveLayout(){if(!grid||grid.getColumn()!==12)return;writeJSON('daylight-layout-v2',grid.save(false).map(n=>({id:n.id,x:n.x,y:n.y,w:n.w,h:n.h})))}
+  function loadItems(items){
+    if(!grid)return;$$('#layout .card').forEach(c=>STORE.append(c));grid.removeAll();
+    items.forEach(it=>{if(typeOf(it.id)==='markets'&&!cardOf(it.id))marketsCard(it.id);placeItem(it)});saveLayout();
+  }
+  function initGrid(){
+    if(!window.GridStack){$('#layout').classList.add('no-grid');return false}
+    let items=readJSON('daylight-layout-v2',null);
+    if(!Array.isArray(items)||!items.length){const hidden=readJSON('daylight-hidden',[]);items=presetItems('Default').filter(i=>!hidden.includes(i.id))}
+    items.forEach(it=>{if(typeOf(it.id)==='markets'&&!cardOf(it.id))marketsCard(it.id)});
+    $$('#layout > .card').forEach(c=>STORE.append(c));
+    $('#layout').classList.add('grid-stack');
+    grid=GridStack.init({column:12,cellHeight:64,margin:8,float:false,animate:true,staticGrid:true,resizable:{handles:'e,se,s,sw,w'},
+      columnOpts:{breakpoints:[{w:680,c:1},{w:1100,c:6}],layout:'moveScale'}},'#layout');
+    items.forEach(placeItem);
+    grid.on('change',saveLayout);grid.on('added',saveLayout);grid.on('removed',saveLayout);
+    return true;
+  }
+  const gridOK=initGrid();
+
+  // Edit bar, gallery and per-widget settings
+  const bar=document.createElement('div');bar.id='edit-bar';bar.className='edit-bar';bar.hidden=true;
+  bar.innerHTML=`<div class="eb-text"><b>Customize</b><span>Drag a widget to move it, drag its edges to resize. ⚙ settings, × remove.</span></div>
+    <div class="eb-actions"><button class="connect primary" type="button" id="eb-add">+ Add widget</button>
+    <label class="eb-field">Layout <select id="eb-preset"><option value="">Choose…</option>${Object.keys(PRESETS).map(p=>`<option>${p}</option>`).join('')}</select></label>
+    <label class="eb-field">Day <select id="hours-start">${hourOpts(DAY_START,0,22)}</select>–<select id="hours-end">${hourOpts(DAY_END,1,23)}</select></label>
+    <button class="connect ghost" type="button" id="eb-reset">Reset</button><button class="connect" type="button" id="eb-done">Done</button></div>`;
+  $('#layout').before(bar);
+  const wpanel=document.createElement('aside');wpanel.id='wpanel';wpanel.className='wpanel';wpanel.hidden=true;wpanel.setAttribute('role','dialog');document.body.append(wpanel);
+  const closePanel=()=>{wpanel.hidden=true};
+  function toggleEdit(on){
+    if(!gridOK){toast('Moving and resizing widgets needs an internet connection to load the layout tools.');return}
+    editing2=on??!editing2;grid.setStatic(!editing2);document.body.classList.toggle('editing',editing2);bar.hidden=!editing2;$('#customize')?.classList.toggle('active',editing2);
+    if(editing2){$('#hours-start').value=DAY_START;$('#hours-end').value=DAY_END;bar.scrollIntoView({behavior:'smooth',block:'nearest'})}else closePanel();
+  }
+  $('#customize').onclick=()=>toggleEdit();
+  $('#eb-done').onclick=()=>toggleEdit(false);
+  $('#eb-preset').onchange=e=>{if(!e.target.value)return;loadItems(presetItems(e.target.value));toast(`Layout: ${e.target.value}`);e.target.value=''};
+  $('#eb-reset').onclick=()=>{loadItems(presetItems('Default'));toast('Layout reset')};
+  bar.addEventListener('change',e=>{if(e.target.id==='hours-start'||e.target.id==='hours-end'){let s=+$('#hours-start').value,en=+$('#hours-end').value;if(en<=s){en=Math.min(23,s+1);$('#hours-end').value=en}DAY_START=s;DAY_END=en;writeJSON('daylight-hours',{start:s,end:en});renderInsights();renderSmart()}});
+  function openGallery(){
+    const placed=new Set(grid?grid.save(false).map(n=>n.id):[]);
+    wpanel.innerHTML=`<div class="wp-head"><b>Add widget</b><button class="modal-x" type="button" data-close aria-label="Close">×</button></div><div class="wp-list">${Object.entries(WIDGETS).map(([k,w])=>{const on=!w.multi&&placed.has(k);
+      return `<button class="wp-item" type="button" data-addw="${k}"${on?' disabled':''}><b>${esc(w.name)}</b><span>${esc(w.desc)}</span><i>${on?'On your dashboard':w.multi&&placed.has(k)?'Add another':'Add'}</i></button>`}).join('')}</div>`;
+    wpanel.hidden=false;
+  }
+  function openSettings(id){
+    const def=WIDGETS[typeOf(id)]||{},cur=wset(id),keys=Object.keys(def.settings||{});
+    wpanel.innerHTML=`<div class="wp-head"><b>${esc(cur.title||def.name||'Widget')}</b><button class="modal-x" type="button" data-close aria-label="Close">×</button></div>
+      ${keys.length?`<div class="wp-settings">${keys.map(k=>{const f=def.settings[k];return `<label>${esc(f.label)}${f.type==='text'?`<input data-wk="${k}" value="${esc(cur[k]||'')}" placeholder="${esc(def.name)}" maxlength="40">`:`<select data-wk="${k}">${f.options.map(o=>`<option${String(cur[k]||f.options[0])===o?' selected':''}>${esc(o)}</option>`).join('')}</select>`}</label>`}).join('')}</div>`:'<p class="muted-note">This widget has no settings yet.</p>'}
+      ${typeOf(id)==='markets'?'<p class="muted-note">Change the coins and currency pairs with Edit on the widget itself.</p>':''}`;
+    wpanel.hidden=false;wpanel.dataset.for=id;
+  }
+  const rerender={summary:renderSmart,loops:renderLoops,mail:renderMail,drive:renderDrive,birthdays:renderBirthdays,focus:renderInsights};
+  wpanel.addEventListener('click',e=>{
+    if(e.target.closest('[data-close]'))return closePanel();
+    const add=e.target.closest('[data-addw]');if(!add||add.disabled)return;const type=add.dataset.addw;let id=type;
+    if(WIDGETS[type].multi&&cardOf(type)&&grid.save(false).some(n=>n.id===type)){let i=2;while(cardOf(`${type}~${i}`)||grid.save(false).some(n=>n.id===`${type}~${i}`))i++;id=`${type}~${i}`;marketsCard(id)}
+    const el=placeItem({id});closePanel();el?.scrollIntoView({behavior:'smooth',block:'center'});toast(`${WIDGETS[type].name} added`);saveLayout()});
+  wpanel.addEventListener('input',e=>{const k=e.target.dataset.wk;if(!k)return;const id=wpanel.dataset.for;wsave(id,{[k]:e.target.value});
+    (rerender[typeOf(id)]||(()=>{}))();if(typeOf(id)==='markets'){const c=cardOf(id);if(c)c.querySelector('.m-title').textContent=e.target.value||'Markets'}});
+  $('#layout').addEventListener('click',e=>{
+    const s=e.target.closest('[data-wset]'),d=e.target.closest('[data-wdel]');
+    if(s)openSettings(s.dataset.wset);
+    if(d&&grid){const id=d.dataset.wdel,item=d.closest('.grid-stack-item'),card=cardOf(id);
+      if(card){if(id.includes('~')){card.remove();const all=wsetAll();delete all[id];writeJSON('daylight-widget-settings',all)}else STORE.append(card)}
+      grid.removeWidget(item);saveLayout();toast(`${(WIDGETS[typeOf(id)]||{}).name||'Widget'} removed · add it back from + Add widget`)}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!wpanel.hidden)closePanel()});
+  $('#eb-add').onclick=openGallery;
+  renderSmart();
 })();
 

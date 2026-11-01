@@ -33,9 +33,16 @@ Each card has **Open** (straight to Gmail, Calendar or Tasks), **Snooze** (one d
 
 Browser-only Google access lasts about an hour. To stay connected, deploy the small Cloudflare Worker in [`server/`](server/README.md) and choose **Stay signed in** in the connections panel. The server keeps Google's long-term token encrypted and hands the dashboard short-lived tokens; the dashboard still talks to Google directly for your data.
 
-## Customize and install
+## Widgets (Daylight 2.0)
 
-- Choose **Customize** to drag tiles into a new order, show or hide tiles, and set the working hours your timeline covers. These choices are saved in this browser.
+Every tile is a widget on one [GridStack](https://gridstackjs.com/) layout (loaded from jsDelivr; without it the dashboard falls back to a simple 3/2/1 grid).
+
+- Menu → **Customize** to drag widgets, resize them from any edge, open ⚙ settings or remove them with ×.
+- **+ Add widget** opens the gallery. Markets can be added several times, each with its own name and watchlist.
+- **Layout** presets: Default, Work focus, Inbox zero and Minimal. **Reset** returns to Default.
+- **Smart summary** describes your day from your calendar, open loops and free time.
+- The layout is saved as `daylight-layout-v2` and widget settings as `daylight-widget-settings`, both in this browser.
+
 - Daylight can be installed as an app. In Chrome or Edge, use the **Install** button that appears in the top bar (or the install icon in the address bar). On iPhone, open it in Safari and choose Share → Add to Home Screen. A service worker keeps the app's own files available offline; it never caches your Google, Microsoft or market data.
 
 ## Microsoft setup

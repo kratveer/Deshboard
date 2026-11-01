@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#eef2f7"><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#eef2f7"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-extra.min.css"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes">
 <title>Daylight — your day, in one place</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js" defer></script>
@@ -134,6 +134,42 @@ body.dark .card-title,body.dark h1,body.dark .menu-item{color:var(--ink)}body.da
 .notif{display:flex;gap:11px;align-items:flex-start;padding:10px;border-radius:12px;color:var(--ink);text-decoration:none}.notif:hover{background:var(--card2)}.notif.is-new{background:#eef2ff}.notif-body{display:flex;flex-direction:column;gap:2px;min-width:0}.notif-body b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notif-body small{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notif .loop-type{font-size:10px}
 body.dark .notif-panel{background:#1b2333;box-shadow:0 24px 60px #00000066}body.dark .notif.is-new{background:#25304a}body.dark .bell-badge{box-shadow:0 0 0 2px #171e2c}
 body.dark .badge{background:#2c3a57;color:#b9c8ff}body.dark .tl-chip{background:#2c3a57;color:#b9c8ff}body.dark .tl-chip.due{background:#22413a;color:#8fdcbe}body.dark .tl-chip.warn{background:#4a2a33;color:#f3a7b6}body.dark .tag{background:#2c3a57;color:#b9c8ff}body.dark .file-kind.k-doc{background:#2c3a57;color:#b9c8ff}body.dark .k-sheet{background:#22413a;color:#8fdcbe}body.dark .k-slides{background:#4a3a22;color:#efc98a}body.dark .k-pdf{background:#4a2a33;color:#f3a7b6}body.dark .bday.is-today .badge{background:#4a2a33;color:#f3a7b6}body.dark .profile{box-shadow:0 0 0 2px #2a3550}
+/* ---- Daylight 2.0: GridStack widgets ---- */
+.layout.grid-stack{display:block;margin:0 -8px}
+.layout .grid-stack-item-content{inset:8px!important;overflow:visible!important}
+.layout .grid-stack-item-content>.card{height:100%;margin:0;overflow:auto;scrollbar-width:thin}
+.layout .grid-stack-item-content>.card.hero{overflow:auto}
+.layout.no-grid>.summary-w{grid-column:1/-1}
+.wtools{position:absolute;top:10px;right:10px;display:none;gap:5px;z-index:3}body.editing .wtools{display:flex}
+.wt-btn{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);color:#5f6b80;font:700 14px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 10px #27324d1a}.wt-btn:hover{color:var(--ink);border-color:#9fb2ec}
+body.editing .layout .grid-stack-item-content>.card{outline:2px dashed #9fb2ec;outline-offset:-2px;cursor:move}
+body.editing .layout .card input,body.editing .layout .card textarea,body.editing .layout .card button{cursor:auto}
+.grid-stack-placeholder>.placeholder-content{background:#5879df22!important;border:2px dashed #5879df;border-radius:var(--radius)}
+.layout .ui-resizable-handle{opacity:0}body.editing .layout .ui-resizable-handle{opacity:1}
+.layout .ui-resizable-se{width:16px!important;height:16px!important;right:14px!important;bottom:14px!important;background:none!important;border-right:3px solid #5879df;border-bottom:3px solid #5879df;border-radius:0 0 7px 0;transform:none!important}
+.edit-bar{position:sticky;top:10px;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding:12px 16px;border-radius:16px;background:var(--bg2);border:1px solid #c9d5f5;box-shadow:0 10px 30px #27324d1f}.edit-bar[hidden]{display:none}
+.eb-text b{display:block;font:700 15px Manrope,sans-serif}.eb-text span{font-size:12.5px;color:var(--muted)}
+.eb-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.eb-field{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#5f6b80}
+.eb-field select{font:inherit;font-size:12.5px;padding:6px 8px;border-radius:9px;border:1px solid #d5ddeb;background:var(--card2);color:var(--ink)}
+.wpanel{position:fixed;top:16px;right:16px;bottom:16px;width:min(360px,calc(100% - 32px));z-index:12;background:var(--bg2);border:1px solid var(--line);border-radius:20px;box-shadow:0 30px 80px #1b264040;padding:16px;overflow:auto}.wpanel[hidden]{display:none}
+.wp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.wp-head b{font:700 18px Manrope,sans-serif}
+.wp-list{display:grid;gap:8px}.wp-item{display:grid;grid-template-columns:1fr auto;gap:2px 10px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:11px 13px;cursor:pointer;color:var(--ink);font:inherit}.wp-item:hover:not(:disabled){border-color:#9fb2ec}.wp-item:disabled{opacity:.55;cursor:default}
+.wp-item b{font-size:14px}.wp-item span{grid-column:1;font-size:12.5px;color:var(--muted)}.wp-item i{grid-row:1/3;grid-column:2;align-self:center;font-style:normal;font-size:12px;font-weight:700;color:#4569d0}
+.wp-settings label{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line);font-size:14px;font-weight:600}.wp-settings select,.wp-settings input{font:inherit;font-weight:500;font-size:13.5px;padding:7px 9px;border-radius:9px;border:1px solid #d5ddeb;background:var(--card2);color:var(--ink);max-width:180px}
+.muted-note{font-size:13px;color:var(--muted)}
+.smart{font:600 17px/1.5 Manrope,sans-serif;letter-spacing:-.2px}.smart em{font-style:normal;color:#4569d0}.smart-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.smart-chips:empty{display:none}.smart-chips a{text-decoration:none}
+.summary-w.card{padding:16px 20px}.summary-w .card-head{margin-bottom:6px}body.editing .layout .card-head,body.editing .layout .hero-row{padding-right:76px}
+/* Open loops: tighter */
+.loops.card{padding:14px 16px}.loops .card-head{margin-bottom:10px}
+.loop-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.loop{padding:9px 11px;gap:2px;border-radius:12px;border-top-width:2px}
+.loop-top{gap:6px}.loop-icon{width:22px;height:22px;border-radius:7px}.loop-icon svg{width:12px;height:12px}.loop-type{font-size:10px}
+.loop-title{font-size:14px;line-height:1.3}.loop-detail{font-size:12.5px;-webkit-line-clamp:1}
+.loop-related{font-size:12px}.loop-actions{gap:4px;padding-top:5px}.loop-actions .connect{padding:4px 9px;font-size:11.5px;border-radius:8px}
+.loops-foot{margin-top:8px}
+@media(max-width:680px){.edit-bar{top:6px}.eb-field{flex:1}}
+body.dark .edit-bar{background:#1b2333;border-color:#3b4b72}body.dark .wpanel{background:#1b2333}body.dark .wt-btn{background:#263247;color:#c2cde0}body.dark .smart em{color:#9bb0ff}body.dark .eb-field select,body.dark .wp-settings select,body.dark .wp-settings input{background:#263247;border-color:#46536b}
+.notif-panel{z-index:20}
 </style>
 </head>
 <body>
@@ -171,7 +207,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="app.js?v=9" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="app.js?v=10" defer></script></body></html>
 
 
 
