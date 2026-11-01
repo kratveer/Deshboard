@@ -25,6 +25,18 @@
 .layout>.hero{grid-column:1/-1}
 @media(max-width:1100px){.layout{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.layout{grid-template-columns:minmax(0,1fr)}.hero-art{display:none}}
+/* Today timeline inside the overview banner */
+.hero{flex-wrap:wrap;row-gap:4px}.timeline{flex:1 0 100%;margin-top:14px;padding-top:14px;border-top:1px solid #ffffff90}
+.tl-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.tl-head .eyebrow{margin:0}.tl-sum{font-size:11px;color:#5f6f8c;font-weight:600}
+.tl-track{position:relative;height:30px;border-radius:10px;background:#e9eef6a8;overflow:hidden}
+.tl-free{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,#56a98b22 0 6px,#56a98b12 6px 12px);border-left:1px solid #56a98b55;border-right:1px solid #56a98b55}
+.tl-event{position:absolute;top:4px;bottom:4px;border-radius:7px;background:linear-gradient(135deg,#7f9aea,#5b7bdc);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;box-shadow:0 3px 8px #5b7bdc33}.tl-event span{overflow:hidden;text-overflow:ellipsis}
+.tl-event.clash.lane0{bottom:auto;height:10px;top:3px}.tl-event.clash.lane1{top:auto;height:12px;bottom:3px}.tl-event.clash.lane0 span{display:none}.tl-event.clash{background:linear-gradient(135deg,#e39a6f,#cf6f57)}
+.tl-now{position:absolute;top:0;bottom:0;width:2px;background:#d4556b;box-shadow:0 0 0 2px #d4556b22}
+.tl-hours{position:relative;height:14px;margin-top:4px;font-size:9px;color:#8a95a7}.tl-hours span{position:absolute;transform:translateX(-50%)}.tl-hours span:first-child{transform:none}.tl-hours span:last-child{transform:translateX(-100%)}
+.tl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.tl-chip{font-size:9px;font-weight:700;color:#5e76c1;background:#e8eeff;border-radius:20px;padding:5px 9px}.tl-chip.due{color:#3f8a70;background:#e1f1eb}.tl-chip.warn{color:#b0583f;background:#fbe9e2}
+body.dark .timeline{border-top-color:#ffffff14}body.dark .tl-track{background:#1c2536a8}body.dark .tl-sum{color:#b6c1d1}body.dark .tl-hours{color:#9aa7ba}
+
 .apple-icon{background:#f2f0f7;color:#292336;font-family:Manrope,sans-serif}.provider-status{white-space:normal;text-align:right;max-width:42%;line-height:1.35}
 </style>
 </head>
@@ -52,7 +64,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="app.js?v=3" defer></script></body></html>
+<script src="app.js?v=4" defer></script></body></html>
 
 
 
