@@ -16,6 +16,11 @@ This personal build reads connected Google data in the browser after you authori
 - Weather: current conditions and today's high/low through Open-Meteo after you grant location access
 - Outlook Calendar, Outlook Mail, and Microsoft To Do: available after you register the Microsoft app and connect it
 
+## Customize and install
+
+- Choose **Customize** to drag tiles into a new order, show or hide tiles, and set the working hours your timeline covers. These choices are saved in this browser.
+- Daylight can be installed as an app. In Chrome or Edge, use the **Install** button that appears in the top bar (or the install icon in the address bar). On iPhone, open it in Safari and choose Share → Add to Home Screen. A service worker keeps the app's own files available offline; it never caches your Google, Microsoft or market data.
+
 ## Microsoft setup
 
 Register a Microsoft Entra single-page application that accepts work/school and personal Microsoft accounts. Set its redirect URI to `https://kratveer.github.io/Deshboard/` using the **Single-page application** platform. Add only delegated Microsoft Graph permissions `User.Read`, `Mail.ReadBasic`, `Calendars.ReadBasic`, and `Tasks.Read`. Do not create a client secret. Enter the application (client) ID in Daylight's Connections panel. Microsoft will ask the user to sign in and consent before any data loads.

@@ -175,7 +175,8 @@
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&(token||microsoftAccount))refreshAll()});
   const clientId=localStorage.getItem('daylight-client-id');if(clientId){$('#sync-status').textContent='Google setup saved · connect to grant access';}
   // ---- Today timeline + free-time finder (runs on data already loaded; nothing leaves the browser) ----
-  const DAY_START=8, DAY_END=20, MIN_GAP=25;
+  let DAY_START=8, DAY_END=20;const MIN_GAP=25;
+  try{const h=JSON.parse(localStorage.getItem('daylight-hours')||'null');if(h&&h.end>h.start&&h.start>=0&&h.end<=23){DAY_START=h.start;DAY_END=h.end}}catch{}
   var insightsQueued=false;
   function queueInsights(){if(insightsQueued)return;insightsQueued=true;setTimeout(()=>{insightsQueued=false;renderInsights()},0)}
   const hm=d=>d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -217,7 +218,7 @@
     const clashes=overlaps(timed),due=dueToday();
     const tl=ensureTimeline();
     if(tl){
-      const hours=[];for(let h=DAY_START;h<=DAY_END;h+=2)hours.push(`<span style="left:${(h-DAY_START)/(DAY_END-DAY_START)*100}%">${String(h).padStart(2,'0')}</span>`);
+      const hours=[];const stepH=DAY_END-DAY_START>12?3:DAY_END-DAY_START>6?2:1;for(let h=DAY_START;h<=DAY_END;h+=stepH)hours.push(`<span style="left:${(h-DAY_START)/(DAY_END-DAY_START)*100}%">${String(h).padStart(2,'0')}</span>`);
       const laneEnd=[];timed.forEach(e=>{let l=laneEnd.findIndex(t=>t<=e.start);if(l<0){l=laneEnd.length;laneEnd.push(e.end)}else laneEnd[l]=e.end;e.lane=l});
       const blocks=timed.filter(e=>e.end>dayStart&&e.start<dayEnd).map(e=>`<div class="tl-event${clashes.some(c=>c.includes(e))?' clash lane'+Math.min(e.lane,1):''}" style="left:${pct(e.start)}%;width:${Math.max(.8,pct(e.end)-pct(e.start))}%" title="${esc(hm(e.start)+'–'+hm(e.end)+' · '+e.title)}"><span>${esc(e.title)}</span></div>`).join('');
       const free=gaps.map(g=>`<div class="tl-free" style="left:${pct(g.start)}%;width:${pct(g.end)-pct(g.start)}%" title="Free ${esc(hm(g.start)+'–'+hm(g.end))}"></div>`).join('');
@@ -327,5 +328,40 @@
   $('#markets-form').addEventListener('submit',e=>{e.preventDefault();const v=$('#markets-input').value.trim()||DEFAULT_WATCH;const ok=parseWatch(v);if(!ok.length){toast('Use pairs like EUR/CZK or coins like BTC, ETH');return}try{localStorage.setItem('daylight-watchlist',ok.map(i=>i.type==='fx'?i.base+'/'+i.quote:i.sym).join(', '))}catch{}$('#markets-form').hidden=true;$('#market-list').innerHTML='<div class="empty">Loading rates…</div>';loadMarkets();toast('Watchlist saved on this device')});
   $('#refresh').addEventListener('click',()=>loadMarkets());
   loadMarkets();setInterval(()=>{if(document.visibilityState==='visible')loadMarkets()},10*60000);
+  // ---- Customize panel: show/hide tiles + working hours; install as app ----
+  const TILE_NAMES={overview:'Day at a glance',calendar:'Calendar',tasks:'Tasks',mail:'Mail',focus:'Focus time',notes:'Daily notes',weather:'Weather',drive:'Recent files',birthdays:'Birthdays',markets:'Markets'};
+  const readJSON=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v??d}catch{return d}};
+  const writeJSON=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+  let hiddenTiles=readJSON('daylight-hidden',[]);if(!Array.isArray(hiddenTiles))hiddenTiles=[];
+  function applyVisibility(){
+    $$('.layout>.card').forEach(c=>c.classList.toggle('tile-hidden',hiddenTiles.includes(c.dataset.widget)));
+    // on tablet, a lone last tile spans the full row
+    $$('.layout>.card').forEach(c=>c.classList.remove('span-last'));
+    const vis=$$('.layout>.card').filter(c=>!c.classList.contains('tile-hidden')&&!c.classList.contains('hero'));
+    if(vis.length%2===1)vis.at(-1).classList.add('span-last');
+  }
+  const hourOpts=(sel,from,to)=>{let o='';for(let h=from;h<=to;h++)o+=`<option value="${h}"${h===sel?' selected':''}>${String(h).padStart(2,'0')}:00</option>`;return o};
+  const panel=document.createElement('section');panel.id='settings-panel';panel.className='settings-panel';panel.hidden=true;panel.setAttribute('aria-label','Customize dashboard');
+  function renderPanel(){
+    const tiles=$$('.layout>.card').map(c=>c.dataset.widget).filter(id=>TILE_NAMES[id]);
+    panel.innerHTML=`<div class="settings-row"><div><div class="eyebrow">Customize</div><div class="settings-hint">Drag tiles to reorder. Choose which tiles to show and the hours your timeline covers. Saved on this device.</div></div><button class="close" type="button" id="settings-done">Done</button></div>
+      <div class="settings-grid"><fieldset class="settings-tiles"><legend>Tiles</legend>${tiles.map(id=>`<label class="toggle"><input type="checkbox" data-tile="${id}"${hiddenTiles.includes(id)?'':' checked'}><span>${TILE_NAMES[id]}</span></label>`).join('')}</fieldset>
+      <fieldset class="settings-hours"><legend>Working hours</legend><label>From <select id="hours-start">${hourOpts(DAY_START,0,22)}</select></label><label>To <select id="hours-end">${hourOpts(DAY_END,1,23)}</select></label></fieldset></div>`;
+  }
+  $('#layout').before(panel);
+  panel.addEventListener('change',e=>{
+    const t=e.target;
+    if(t.dataset.tile){hiddenTiles=t.checked?hiddenTiles.filter(x=>x!==t.dataset.tile):[...new Set([...hiddenTiles,t.dataset.tile])];writeJSON('daylight-hidden',hiddenTiles);applyVisibility()}
+    if(t.id==='hours-start'||t.id==='hours-end'){let s=+$('#hours-start').value,en=+$('#hours-end').value;if(en<=s){en=Math.min(23,s+1);$('#hours-end').value=en}DAY_START=s;DAY_END=en;writeJSON('daylight-hours',{start:s,end:en});renderInsights()}
+  });
+  panel.addEventListener('click',e=>{if(e.target.id==='settings-done')$('#customize').click()});
+  $('#customize').addEventListener('click',()=>{const on=$('#customize').classList.contains('active');if(on)renderPanel();panel.hidden=!on;$$('.layout>.card').forEach(c=>c.classList.toggle('editing',on))});
+  applyVisibility();
+
+  // Install as an app (PWA)
+  if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+  let installEvt=null;
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;let b=$('#install-app');if(!b){b=document.createElement('button');b.id='install-app';b.className='pillbtn';b.type='button';b.innerHTML='⤓ <span class="optional">Install</span>';b.title='Install Daylight as an app';$('.actions').prepend(b);b.onclick=async()=>{if(!installEvt)return;installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;b.remove();if(r.outcome==='accepted')toast('Daylight installed')}}});
+  window.addEventListener('appinstalled',()=>{$('#install-app')?.remove()});
 })();
 

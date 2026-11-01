@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#eef2f7">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#eef2f7"><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes">
 <title>Daylight — your day, in one place</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://alcdn.msauth.net/browser/2.35.0/js/msal-browser.min.js" defer></script>
@@ -36,8 +36,16 @@
 .tl-hours{position:relative;height:14px;margin-top:4px;font-size:9px;color:#8a95a7}.tl-hours span{position:absolute;transform:translateX(-50%)}.tl-hours span:first-child{transform:none}.tl-hours span:last-child{transform:translateX(-100%)}
 .tl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.tl-chip{font-size:9px;font-weight:700;color:#5e76c1;background:#e8eeff;border-radius:20px;padding:5px 9px}.tl-chip.due{color:#3f8a70;background:#e1f1eb}.tl-chip.warn{color:#b0583f;background:#fbe9e2}
 body.dark .timeline{border-top-color:#ffffff14}body.dark .tl-track{background:#1c2536a8}body.dark .tl-sum{color:#b6c1d1}body.dark .tl-hours{color:#9aa7ba}
+/* Customize panel, hidden tiles */
+.layout>.card.tile-hidden{display:none}.layout>.card.editing{outline:1px dashed #7892e6;cursor:grab}
+@media(min-width:681px) and (max-width:1100px){.layout>.card.span-last{grid-column:1/-1}}
+.settings-panel{margin-bottom:17px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:21px 22px;box-shadow:var(--shadow),inset 0 1px 0 #ffffffa3;backdrop-filter:blur(24px)}.settings-panel[hidden]{display:none}.settings-row{display:flex;justify-content:space-between;align-items:start;gap:14px}.settings-hint{font-size:11px;color:#7e899a;line-height:1.5;max-width:520px}
+.settings-grid{display:grid;grid-template-columns:1fr auto;gap:22px;margin-top:14px}.settings-panel fieldset{border:0;padding:0;margin:0;min-width:0}.settings-panel legend{font:700 12px Manrope,sans-serif;margin-bottom:9px;padding:0}
+.settings-tiles{display:flex;flex-wrap:wrap;gap:7px}.toggle{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;padding:7px 11px;border-radius:11px;background:#ffffff90;border:1px solid #e1e7f0;cursor:pointer}.toggle input{accent-color:#5879df;margin:0}
+.settings-hours{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.settings-hours label{font-size:11px;font-weight:600;color:#5f6f8c;display:flex;flex-direction:column;gap:5px}.settings-hours select{font:inherit;font-size:12px;padding:8px 10px;border-radius:10px;border:1px solid #d5ddeb;background:#ffffffaa;color:var(--ink)}
+@media(max-width:680px){.settings-grid{grid-template-columns:1fr}.settings-panel{margin-bottom:12px}}
+body.dark .toggle{background:#263247;border-color:#3b4861}body.dark .settings-hours select{background:#263247;border-color:#46536b}body.dark .settings-hint,body.dark .settings-hours label{color:#a4b0c2}
 /* Step 2 tiles: Drive, birthdays, markets */
-@media(min-width:681px) and (max-width:1100px){.layout>.card:last-child:nth-child(even){grid-column:1/-1}}
 .file-list,.bday-list,.market-list{display:flex;flex-direction:column}
 .file-item{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid #ffffff82;color:inherit;text-decoration:none}.file-item:first-child{border-top:0;padding-top:0}.file-item:hover .file-name{color:#4569d0}
 .file-kind{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;text-align:center;border-radius:7px;padding:5px 0;background:#edf1fb;color:#6079c9}.k-doc{background:#e7edff;color:#4a6fd8}.k-sheet{background:#e1f1eb;color:#3f8a70}.k-slides{background:#f8edda;color:#b07a2a}.k-pdf{background:#f8e8eb;color:#b85a6e}
@@ -75,7 +83,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="app.js?v=5" defer></script></body></html>
+<script src="app.js?v=6" defer></script></body></html>
 
 
 
