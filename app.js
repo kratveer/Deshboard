@@ -144,7 +144,7 @@
     $('#mail-count').textContent=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length;
   }
   function renderTasks(){queueInsights();
-    const tasks=[...personalTasks.map(t=>({...t,personal:true,source:'Personal'})),...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].slice(0,10);
+    const tasks=[...personalTasks.map(t=>({...t,personal:true,source:[fmtDue(t),t.project].filter(Boolean).join(' · ')||'Personal'})),...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].slice(0,10);
     $('#task-count').textContent=tasks.length;$('#done-count').textContent=tasks.length;
     $('.task-list').innerHTML=tasks.length?tasks.map(t=>`<div class="task"><${t.personal?'button type="button" data-local-task="'+esc(t.id)+'" class="check local-check" aria-label="Complete '+esc(t.title)+'"':'span class="check" aria-hidden="true"'}></${t.personal?'button':'span'}><div class="task-text">${esc(t.title||'(Untitled task)')}<div class="task-meta">${esc(t.due||t.listName||t.source||'Task')}</div></div></div>`).join(''):`<div class="empty">${providerData.google.tasks||providerData.microsoft.tasks?'No open tasks. Add a personal task above.':'Add a personal task above or connect Google Tasks.'}</div>`;
   }
@@ -469,7 +469,7 @@
       });
     }
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
-    [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].forEach((t,i)=>{if(!t.dueDate)return;const d=dueDay(t.dueDate),href=t.source==='Microsoft To Do'?'https://to-do.office.com/':'https://tasks.google.com/';
+    [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks.filter(t=>t.dueDate).map(t=>({...t,source:'Daylight'}))].forEach((t,i)=>{if(!t.dueDate)return;const d=dueDay(t.dueDate),href=t.source==='Daylight'?'':t.source==='Microsoft To Do'?'https://to-do.office.com/':'https://tasks.google.com/';
       if(d<localMidnight)add('overdue',t.title+i,`Reschedule: ${t.title}`,`Was due ${d.toLocaleDateString(undefined,{day:'numeric',month:'short'})}`,'',href);
       else if(d<new Date(localMidnight.getTime()+2*day))add('deadline',t.title+i,t.title,d<tomorrow?'Due today':'Due tomorrow','',href)});
     const st=loopState(),order={overdue:0,deadline:1,reply:2,prepare:3,followup:4,renewal:5,travel:6};
@@ -485,14 +485,10 @@
   function renderLoops(){
     const grid=$('#loop-grid');if(!grid)return;const WORK=['reply','followup','prepare','overdue','deadline'],loops=computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type));
     $('#loop-total').textContent=loops.length?loops.length:'';if($('#loop-count'))$('#loop-count').textContent=token?loops.length:'—';
-    if(!token&&!microsoftAccount){grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';$('#loops-foot').innerHTML='';renderSummary(null);return}
+    if(!token&&!microsoftAccount&&!loops.length){grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';$('#loops-foot').innerHTML='';renderSummary(null);return}
     if(!loopsData&&token){grid.innerHTML='<div class="empty">Looking through your inbox, calendar and tasks…</div>';return}
     const lmax=+(wset('loops').max||6),shown=loopsShowAll?loops:loops.slice(0,lmax);
-    grid.innerHTML=loops.length?shown.map(l=>{const t=LOOP_TYPES[l.type];return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}">
-      <div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div>
-      <div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>
-      ${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}
-      <div class="loop-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></div></div>`}).join('')
+    grid.classList.toggle('as-list',(wset('loops').view||'List')==='List');grid.innerHTML=loops.length?shown.map(loopHTML).join('')
       :'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>';
     $('#loops-foot').innerHTML=loops.length>lmax?`<button class="connect" type="button" id="loops-more">${loopsShowAll?'Show fewer':`Show all ${loops.length}`}</button>`:'';
     if($('#loops-more'))$('#loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
@@ -542,6 +538,7 @@
   const bellIcon={meeting:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/>'};
   function bellItems(){
     const items=[],now=new Date();
+    personalTasks.filter(t=>t.hasTime&&t.dueDate&&new Date(t.dueDate)-now<=30*60000&&now-new Date(t.dueDate)<6*3600000).forEach(t=>items.push({id:'rem:'+t.id,cls:'t-deadline',icon:LOOP_TYPES.deadline.icon,label:new Date(t.dueDate)<=now?'Reminder now':'Reminder soon',title:t.title,meta:fmtDue(t)+(t.project?' · '+t.project:''),href:''}));
     todayEvents().timed.filter(e=>e.start>now&&e.start-now<=30*60000).forEach(e=>items.push({id:'meet:'+e.title+e.start.getTime(),cls:'t-prepare',icon:bellIcon.meeting,label:'Starting soon',title:e.title,meta:`${hm(e.start)} · in ${Math.max(1,Math.round((e.start-now)/60000))} min`,href:''}));
     if(token||microsoftAccount)computeLoops().forEach(l=>{const t=LOOP_TYPES[l.type];items.push({id:l.id,cls:t.cls,icon:t.icon,label:t.label,title:l.title,meta:l.meta||l.detail,href:l.href})});
     return items;
@@ -566,7 +563,7 @@
   const WIDGETS={
     summary:{name:'Smart summary',desc:'Your day in a sentence or two',size:{w:12,h:3},min:{w:3,h:2},settings:{detail:{label:'Detail',options:['Short','Detailed']}}},
     overview:{name:'Day at a glance',desc:'Counts, up next and today’s timeline',size:{w:12,h:4},min:{w:4,h:3}},
-    loops:{name:'Open loops',desc:'Things you started but haven’t finished',size:{w:12,h:5},min:{w:3,h:3},settings:{max:{label:'Cards shown',options:['3','6','9','12']},include:{label:'Include',options:['Everything','Work only']}}},
+    loops:{name:'Open loops',desc:'Things you started but haven’t finished',size:{w:12,h:5},min:{w:3,h:3},settings:{view:{label:'View',options:['List','Cards']},max:{label:'Items shown',options:['3','6','9','12']},include:{label:'Include',options:['Everything','Work only']}}},
     calendar:{name:'Calendar',desc:'Today’s events',size:{w:4,h:5},min:{w:3,h:3}},
     tasks:{name:'Tasks',desc:'Google Tasks and personal tasks',size:{w:4,h:5},min:{w:3,h:3}},
     mail:{name:'Mail',desc:'Recent inbox messages',size:{w:4,h:5},min:{w:3,h:3},settings:{count:{label:'Emails shown',options:['3','5','8']},only:{label:'Show',options:['All','Unread only']}}},
@@ -578,7 +575,7 @@
     markets:{name:'Markets',desc:'Currencies and crypto · add as many lists as you like',size:{w:4,h:4},min:{w:3,h:3},multi:true,settings:{title:{label:'Name',type:'text'}}}};
   const typeOf=id=>String(id).split('~')[0];
   const cardOf=id=>document.querySelector(`.card[data-widget="${CSS.escape(id)}"]`);
-  const P=(id,x,y,w,h)=>({id,x,y,w,h});
+  const U=8,P=(id,x,y,w,h)=>({id,x,y:y*U,w,h:h*U});
   const PRESETS={
     'Default':[P('summary',0,0,12,3),P('overview',0,3,12,4),P('loops',0,7,12,5),P('calendar',0,12,4,5),P('tasks',4,12,4,5),P('mail',8,12,4,5),P('focus',0,17,4,4),P('notes',4,17,4,4),P('weather',8,17,4,4),P('drive',0,21,4,4),P('birthdays',4,21,4,4),P('markets',8,21,4,4)],
     'Work focus':[P('overview',0,0,8,4),P('focus',8,0,4,4),P('loops',0,4,12,5),P('calendar',0,9,6,5),P('tasks',6,9,6,5),P('drive',0,14,6,4),P('notes',6,14,6,4)],
@@ -617,27 +614,27 @@
   const presetItems=name=>PRESETS[name].map(i=>({...i}));
   const toolsHTML=id=>`<div class="wtools"><button class="wt-btn" type="button" data-wset="${esc(id)}" aria-label="Widget settings" title="Settings">⚙</button><button class="wt-btn" type="button" data-wdel="${esc(id)}" aria-label="Remove widget" title="Remove">×</button></div>`;
   function placeItem(it){
-    const card=cardOf(it.id);if(!card||!grid)return;const def=WIDGETS[typeOf(it.id)]||{size:{w:4,h:4}};
+    const card=cardOf(it.id);if(!card||!grid)return;const def=WIDGETS[typeOf(it.id)]||{size:{w:4,h:4}};it={...it,h:it.h||def.size.h*U};
     const el=document.createElement('div');el.className='grid-stack-item';el.setAttribute('gs-id',it.id);
     const pos={w:it.w||def.size.w,h:it.h||def.size.h,x:it.x,y:it.y};Object.entries(pos).forEach(([k,v])=>{if(v!=null)el.setAttribute('gs-'+k,v)});
     if(it.x==null||it.y==null)el.setAttribute('gs-auto-position','true');
-    if(def.min){el.setAttribute('gs-min-w',def.min.w);el.setAttribute('gs-min-h',def.min.h)}
+    if(def.min)el.setAttribute('gs-min-w',def.min.w);
     const content=document.createElement('div');content.className='grid-stack-item-content';content.append(card);content.insertAdjacentHTML('beforeend',toolsHTML(it.id));el.append(content);
     $('#layout').append(el);grid.makeWidget(el);return el;
   }
-  function saveLayout(){if(!grid||grid.getColumn()!==12)return;writeJSON('daylight-layout-v2',grid.save(false).map(n=>({id:n.id,x:n.x,y:n.y,w:n.w,h:n.h})))}
+  function saveLayout(){if(!grid||grid.getColumn()!==12)return;writeJSON('daylight-layout-v3',grid.save(false).map(n=>({id:n.id,x:n.x,y:n.y,w:n.w,h:n.h})))}
   function loadItems(items){
     if(!grid)return;$$('#layout .card').forEach(c=>STORE.append(c));grid.removeAll();
     items.forEach(it=>{if(typeOf(it.id)==='markets'&&!cardOf(it.id))marketsCard(it.id);placeItem(it)});saveLayout();
   }
   function initGrid(){
     if(!window.GridStack){$('#layout').classList.add('no-grid');return false}
-    let items=readJSON('daylight-layout-v2',null);
+    let items=readJSON('daylight-layout-v3',null);if(!Array.isArray(items)){const v2=readJSON('daylight-layout-v2',null);if(Array.isArray(v2))items=v2.map(i=>({...i,y:i.y*U,h:i.h*U}))}
     if(!Array.isArray(items)||!items.length){const hidden=readJSON('daylight-hidden',[]);items=presetItems('Default').filter(i=>!hidden.includes(i.id))}
     items.forEach(it=>{if(typeOf(it.id)==='markets'&&!cardOf(it.id))marketsCard(it.id)});
     $$('#layout > .card').forEach(c=>STORE.append(c));
     $('#layout').classList.add('grid-stack');
-    grid=GridStack.init({column:12,cellHeight:64,margin:8,float:false,animate:true,staticGrid:true,resizable:{handles:'e,se,s,sw,w'},
+    grid=GridStack.init({column:12,cellHeight:U,margin:8,float:false,animate:true,staticGrid:true,resizable:{handles:'e,w'},
       columnOpts:{breakpoints:[{w:680,c:1},{w:1100,c:6}],layout:'moveScale'}},'#layout');
     items.forEach(placeItem);
     grid.on('change',saveLayout);grid.on('added',saveLayout);grid.on('removed',saveLayout);
@@ -645,9 +642,22 @@
   }
   const gridOK=initGrid();
 
+  // No scrolling inside widgets: each widget's height follows its content
+  const CELL=U;
+  function fitItem(item){
+    const card=item.querySelector('.grid-stack-item-content>.card');if(!card||!grid)return;
+    card.style.height='auto';const need=card.offsetHeight;card.style.height='';
+    const rows=Math.max(4,Math.ceil((need+16)/CELL)),cur=item.gridstackNode?.h??+item.getAttribute('gs-h');
+    if(rows!==cur)grid.update(item,{h:rows});
+  }
+  let fitTimer=null;
+  function fitAll(){clearTimeout(fitTimer);fitTimer=setTimeout(()=>{if(grid)$$('#layout .grid-stack-item').forEach(fitItem)},50)}
+  if(grid){new MutationObserver(fitAll).observe($('#layout'),{subtree:true,childList:true,characterData:true});
+    addEventListener('resize',fitAll);grid.on('resizestop',fitAll);grid.on('added',fitAll);document.fonts?.ready?.then(fitAll);fitAll()}
+
   // Edit bar, gallery and per-widget settings
   const bar=document.createElement('div');bar.id='edit-bar';bar.className='edit-bar';bar.hidden=true;
-  bar.innerHTML=`<div class="eb-text"><b>Customize</b><span>Drag a widget to move it, drag its edges to resize. ⚙ settings, × remove.</span></div>
+  bar.innerHTML=`<div class="eb-text"><b>Customize</b><span>Drag a widget to move it, drag its sides to change the width; height fits the content. ⚙ settings, × remove.</span></div>
     <div class="eb-actions"><button class="connect primary" type="button" id="eb-add">+ Add widget</button>
     <label class="eb-field">Layout <select id="eb-preset"><option value="">Choose…</option>${Object.keys(PRESETS).map(p=>`<option>${p}</option>`).join('')}</select></label>
     <label class="eb-field">Day <select id="hours-start">${hourOpts(DAY_START,0,22)}</select>–<select id="hours-end">${hourOpts(DAY_END,1,23)}</select></label>
@@ -695,5 +705,150 @@
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!wpanel.hidden)closePanel()});
   $('#eb-add').onclick=openGallery;
   renderSmart();
+  // ======== Command bar: ask, search and quick capture ========
+  const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'],DAYS=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  function parseWhen(text){
+    let rest=' '+text+' ',date=null,hasTime=false,h=null,mi=0;const now=new Date(),base=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const take=re=>{const m=re.exec(rest);if(m)rest=rest.slice(0,m.index)+' '+rest.slice(m.index+m[0].length);return m};
+    let m;
+    if((m=take(/\s(?:by\s+|for\s+|on\s+)?(today|tonight)\b/i))){date=new Date(base);if(/tonight/i.test(m[1]))h=20}
+    else if(take(/\s(?:by\s+|for\s+|on\s+)?tomorrow\b/i))date=new Date(base.getTime()+86400000);
+    else if(take(/\s(?:by\s+|for\s+|on\s+)?next\s+week\b/i)){date=new Date(base);date.setDate(date.getDate()+((8-date.getDay())%7||7))}
+    else if((m=take(/\s(?:by\s+|for\s+|on\s+)?(?:this\s+|next\s+)?(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(?:day|nesday|sday|urday)?\b/i))){const want=DAYS.findIndex(d=>d.startsWith(m[1].toLowerCase().slice(0,3)));date=new Date(base);date.setDate(date.getDate()+(((want-date.getDay())+7)%7||7))}
+    else if((m=take(/\sin\s+(\d+)\s+(minutes?|mins?|hours?|days?|weeks?)\b/i))){const n=+m[1],u=m[2][0].toLowerCase();if(u==='m'||u==='h'){const t=new Date(now.getTime()+n*(u==='m'?60000:3600000));date=new Date(t.getFullYear(),t.getMonth(),t.getDate());h=t.getHours();mi=t.getMinutes()}else date=new Date(base.getTime()+n*(u==='w'?7:1)*86400000)}
+    else if((m=take(/\s(?:by\s+|for\s+|on\s+)?(\d{1,2})\.\s?(\d{1,2})\.?(?:\s?(\d{4}))?(?=\s)/))){date=new Date(m[3]?+m[3]:base.getFullYear(),+m[2]-1,+m[1]);if(!m[3]&&date<base)date.setFullYear(date.getFullYear()+1)}
+    else if((m=take(/\s(?:by\s+|for\s+|on\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i))||(m=take(/\s(?:by\s+|for\s+|on\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?\b/i))){
+      const mon=MONTHS.indexOf((isNaN(m[1])?m[1]:m[2]).toLowerCase().slice(0,3)),day=+(isNaN(m[1])?m[2]:m[1]);date=new Date(base.getFullYear(),mon,day);if(date<base)date.setFullYear(date.getFullYear()+1)}
+    if((m=take(/\s(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i))){h=+m[1]%12+(m[3].toLowerCase()==='pm'?12:0);mi=+(m[2]||0)}
+    else if((m=take(/\s(?:at\s+)?(\d{1,2}):(\d{2})\b/))){h=+m[1];mi=+m[2]}
+    else if((m=take(/\sat\s+(\d{1,2})\b/i))){h=+m[1]}
+    else if((m=take(/\s(?:in\s+the\s+|this\s+)?(morning|noon|afternoon|evening)\b/i))){h={morning:9,noon:12,afternoon:14,evening:18}[m[1].toLowerCase()]}
+    if(h!=null){hasTime=true;if(!date){date=new Date(base);if(h*60+mi<=now.getHours()*60+now.getMinutes())date.setDate(date.getDate()+1)}date.setHours(h,mi,0,0)}
+    else if(date)date.setHours(9,0,0,0);
+    return {date,hasTime,rest:rest.replace(/\s+/g,' ').trim()};
+  }
+  function fmtDue(t){if(!t.dueDate)return'';const d=new Date(t.dueDate),days=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-localMidnight)/86400000);
+    const day=days===0?'Today':days===1?'Tomorrow':days===-1?'Yesterday':d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});return day+(t.hasTime?', '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'')}
+  function parseCapture(text){
+    const w=parseWhen(text);let t=w.rest,project='';let m;
+    if((m=/\s*\b(?:with|for|to|in|under|into)\s+(?:my|the|our)\s+([\p{L}\d][\p{L}\d-]*(?:\s[\p{L}\d][\p{L}\d-]*)?)\s+project\b/iu.exec(t))){project=m[1];t=t.replace(m[0],'')}
+    else if((m=/\s*#([\p{L}\d-]+)/u.exec(t))){project=m[1];t=t.replace(m[0],'')}
+    t=t.replace(/^(please\s+)?(remember\s+to|remind\s+me\s+to|remind\s+me\s+(?:about|of)|remind\s+me|remember|add\s+a\s+reminder(\s+to)?|add\s+reminder(\s+to)?|set\s+a\s+reminder(\s+to)?|reminder(\s+to)?:?|add\s+a\s+task(\s+to)?|add\s+task:?|todo:?|to-?do:?|note:?)\s*/i,'').replace(/\s+(for|on|by|at)$/i,'').replace(/[.\s]+$/,'').trim();
+    if(!t)t='Reminder';t=t[0].toUpperCase()+t.slice(1);if(project)project=project[0].toUpperCase()+project.slice(1);
+    return {title:t,dueDate:w.date?w.date.toISOString():'',hasTime:w.hasTime,project};
+  }
+  const looksLikeCapture=q=>/^\s*(please\s+)?(remember|remind|add|todo|to-?do|note|keep|save|buy|call|email|text|send|book|pay|check|finish|submit|renew|cancel|pick up|bring)\b/i.test(q);
+  function savePersonal(){try{localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks))}catch{}}
+  function capture(text){const item={id:crypto.randomUUID?.()||String(Date.now()),...parseCapture(text),created:new Date().toISOString()};personalTasks.unshift(item);savePersonal();renderTasks();renderLoops();return item}
+
+  // Search across what Daylight can see
+  const STOP=new Set('find search show me the a an my for about of in on to with where is are was what which email emails mail mails message file files document documents doc docs meeting meetings please any that from'.split(' '));
+  const keywordsOf=q=>q.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu,' ').split(/\s+/).filter(w=>w&&!STOP.has(w));
+  const has=(s,kws)=>kws.every(k=>String(s||'').toLowerCase().includes(k));
+  async function eventsBetween(from,to,q){if(!token)return null;const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');u.searchParams.set('timeMin',from.toISOString());u.searchParams.set('timeMax',to.toISOString());u.searchParams.set('singleEvents','true');u.searchParams.set('orderBy','startTime');u.searchParams.set('maxResults','25');if(q)u.searchParams.set('q',q);
+    try{return (await api(u)).items||[]}catch{return []}}
+  const evItem=e=>{const s=new Date(e.start?.dateTime||e.start?.date);return {title:e.summary||'(No title)',meta:(e.start?.dateTime?s.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})+' · '+hm(s):s.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})+' · all day')+(e.location?' · '+e.location:''),href:e.htmlLink,src:'Calendar'}};
+  const loopItem=l=>({title:l.title,meta:[srcOf(l),l.meta||l.detail].filter(Boolean).join(' · '),href:l.href,src:srcOf(l)});
+  async function answer(q){
+    const lq=q.toLowerCase(),w=parseWhen(q),needG=!token&&!microsoftAccount;
+    if(/\b(bills?|renewals?|subscriptions?|payments?|invoices?)\b/.test(lq))return {sections:[{title:'Bills and renewals',items:computeLoops().filter(l=>l.type==='renewal').map(loopItem),empty:needG?'Connect Google to check your inbox.':'Nothing coming up in your recent email.'}]};
+    if(/\b(trips?|travel|flights?|trains?|hotels?|bookings?)\b/.test(lq))return {sections:[{title:'Trips',items:computeLoops().filter(l=>l.type==='travel').map(loopItem),empty:'No trips found in recent email or your calendar.'}]};
+    if(/\b(repl(y|ies)|waiting|follow[- ]?ups?|owe)\b/.test(lq))return {sections:[{title:'Waiting on you',items:computeLoops().filter(l=>l.type==='reply').map(loopItem),empty:'Nobody is waiting for a reply.'},{title:'Waiting on others',items:computeLoops().filter(l=>l.type==='followup').map(loopItem),empty:'No unanswered emails you sent.'}]};
+    if(/\b(tasks?|to-?dos?|unfinished|overdue|reminders?)\b/.test(lq)){
+      const all=[...personalTasks.map(t=>({...t,src:'Daylight'})),...(providerData.google.tasks||[]).map(t=>({...t,src:'Google Tasks'})),...(providerData.microsoft.tasks||[]).map(t=>({...t,src:'To Do'}))];
+      const day=t=>{if(!t.dueDate)return null;const d=new Date(t.dueDate);return /T00:00:00(\.000)?Z$/.test(t.dueDate)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+      let list=all,title='Open tasks and reminders';
+      if(/last week/.test(lq)){const from=new Date(localMidnight.getTime()-7*86400000);list=all.filter(t=>{const d=day(t);return d&&d>=from&&d<localMidnight});title='Due last week and still open'}
+      else if(/overdue|unfinished|late/.test(lq)){list=all.filter(t=>{const d=day(t);return d&&d<localMidnight});title='Overdue'}
+      return {sections:[{title,items:list.map(t=>({title:t.title,meta:[t.src,t.dueDate?(t.personal||t.src==='Daylight'?fmtDue(t):day(t).toLocaleDateString(undefined,{day:'numeric',month:'short'})):'',t.project].filter(Boolean).join(' · '),href:t.src==='Google Tasks'?'https://tasks.google.com/':''})),empty:'Nothing here.'}]};
+    }
+    if(/\b(latest|recent)\b.*\b(project|activity|files?|documents?|work)\b/.test(lq)){
+      const files=(providerData.google.files||[]).map(f=>({title:f.name,meta:'Drive'+((f.viewedByMeTime||f.modifiedTime)?' · '+ago(new Date(f.viewedByMeTime||f.modifiedTime)):''),href:f.webViewLink,src:'Drive'}));
+      const proj=personalTasks.filter(t=>t.project).slice(0,5).map(t=>({title:t.title,meta:t.project+(t.dueDate?' · '+fmtDue(t):''),src:'Daylight'}));
+      return {sections:[{title:'Recently opened files',items:files,empty:needG?'Connect Google to see your Drive activity.':'No recent files.'},...(proj.length?[{title:'Saved to your projects',items:proj}]:[])],note:'A written AI summary of project activity comes with the AI step.'};
+    }
+    if(/\b(schedule|agenda|plans?|busy|free|calendar)\b/.test(lq)||/\bwhat(?:'s| is| do i have| have i got| am i doing| happens?|'s happening)\b/.test(lq)||(/\b(meetings?|events?|day|week)\b/.test(lq)&&(w.date||/\b(today|week)\b/.test(lq)))){
+      if(needG)return {note:'Connect Google to see your calendar.'};
+      let from,to,title;if(/\bthis week\b|\bweek\b/.test(lq)&&!w.date){from=new Date();to=new Date(localMidnight.getTime()+8*86400000);title='Coming up this week'}
+      else{const d=w.date||new Date();from=new Date(d.getFullYear(),d.getMonth(),d.getDate());to=new Date(from.getTime()+86400000);title=fmtDue({dueDate:from.toISOString()})}
+      const ev=await eventsBetween(from,to);const mine=personalTasks.filter(t=>t.dueDate&&new Date(t.dueDate)>=from&&new Date(t.dueDate)<to).map(t=>({title:t.title,meta:'Reminder · '+fmtDue(t),src:'Daylight'}));
+      return {sections:[{title,items:(ev||[]).map(evItem),empty:'Nothing in your calendar.'},...(mine.length?[{title:'Your reminders',items:mine}]:[])]};
+    }
+    // Keyword search across sources
+    const kws=keywordsOf(q);if(!kws.length)return {note:'Try a few keywords, like “conference” or “invoice”.'};
+    const sections=[];const mails=[...(loopsData?.inbox||[]).map(m=>{const h=m.payload?.headers||[];return {title:header(h,'Subject')||'(No subject)',from:header(h,'From').replace(/<.*?>/,'').replace(/"/g,'').trim(),date:new Date(header(h,'Date')),href:gmailLink(m.threadId)}})];
+    const seen=new Set();const mailHits=mails.filter(m=>(has(m.title+' '+m.from,kws))&&!seen.has(m.href)&&seen.add(m.href)).map(m=>({title:m.title,meta:'Gmail · '+m.from+' · '+ago(m.date),href:m.href,src:'Gmail'}));
+    sections.push({title:'Email',items:mailHits,empty:'No match in your recent inbox.',more:{label:`Search all of Gmail for “${kws.join(' ')}”`,href:'https://mail.google.com/mail/u/0/#search/'+encodeURIComponent(kws.join(' '))}});
+    if(token){const longest=[...kws].sort((a,b)=>b.length-a.length)[0];
+      const [ev,files]=await Promise.all([eventsBetween(new Date(Date.now()-120*86400000),new Date(Date.now()+120*86400000),kws.join(' ')),
+        (async()=>{try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${longest.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','6');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,mimeType,modifiedTime,webViewLink)');return (await api(u)).files||[]}catch{return[]}})()]);
+      sections.push({title:'Calendar',items:(ev||[]).slice(0,6).map(evItem),empty:'No events match.'});
+      sections.push({title:'Drive',items:files.filter(f=>has(f.name,kws)||kws.length===1).map(f=>({title:f.name,meta:'Drive'+(f.modifiedTime?' · edited '+ago(new Date(f.modifiedTime)):''),href:f.webViewLink,src:'Drive'})),empty:'No file names match.'});}
+    const taskHits=[...personalTasks,...(providerData.google.tasks||[])].filter(t=>has(t.title+' '+(t.project||''),kws)).map(t=>({title:t.title,meta:(t.project?t.project+' · ':'')+(t.personal===undefined&&t.created?'Daylight':t.source||'Daylight')+(t.dueDate&&t.created?' · '+fmtDue(t):''),src:'Tasks'}));
+    if(taskHits.length)sections.push({title:'Tasks and reminders',items:taskHits});
+    const notes=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(/^daylight-note-\d{4}-\d{2}-\d{2}$/.test(k)){const v=localStorage.getItem(k)||'';if(has(v,kws))notes.push({title:v.split('\n').find(l=>has(l,kws))?.slice(0,90)||v.slice(0,90),meta:'Note · '+new Date(k.slice(14)+'T12:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}),src:'Notes'})}}}catch{}
+    if(notes.length)sections.push({title:'Daily notes',items:notes});
+    if(needG)sections.push({title:'',items:[],empty:'Connect Google to also search your calendar and Drive.'});
+    return {sections};
+  }
+
+  // UI
+  const cmd=document.createElement('div');cmd.className='cmd';cmd.id='cmd';
+  cmd.innerHTML=`<div class="cmd-sheet" id="cmd-sheet" role="region" aria-live="polite" hidden></div>
+    <form class="cmd-bar" id="cmd-form" autocomplete="off"><button type="button" class="cmd-plus" id="cmd-capture" aria-label="Quick capture" title="Quick capture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <input id="cmd-input" type="text" enterkeyhint="go" placeholder="Ask Daylight or capture a thought…" aria-label="Ask Daylight or capture a thought">
+    <kbd class="cmd-kbd">Ctrl K</kbd><button type="submit" class="cmd-go" aria-label="Go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></form>`;
+  document.body.append(cmd);document.body.classList.add('has-cmd');
+  const sheet=$('#cmd-sheet'),input=$('#cmd-input');let captureMode=false;
+  const SUGGEST=['What do I have tomorrow?','Remember to check the simulation results on Friday','Find the email about the conference','Show unfinished tasks from last week','What bills or renewals are coming up?','Add a reminder for Friday at 10'];
+  function showSheet(html){sheet.innerHTML=html;sheet.hidden=false}
+  function hideSheet(){sheet.hidden=true;captureMode=false;cmd.classList.remove('capturing');input.placeholder=innerWidth<=680?'Ask or capture…':'Ask Daylight or capture a thought…'}
+  function suggestions(){showSheet(`<div class="cs-head">Try</div>${SUGGEST.map(s=>`<button type="button" class="cs-suggest" data-q="${esc(s)}">${esc(s)}</button>`).join('')}<div class="cs-hint">Start with “Remember”, “Remind me” or “Add” to save something. Press <kbd>+</kbd> to save anything as a reminder.</div>`)}
+  function renderAnswer(q,res,altCapture){
+    const secs=(res.sections||[]).map(s=>`${s.title?`<div class="cs-head">${esc(s.title)}${s.items.length?` <span>${s.items.length}</span>`:''}</div>`:''}${s.items.length?s.items.slice(0,8).map(i=>`<${i.href?`a href="${esc(i.href)}" target="_blank" rel="noopener"`:'div'} class="cs-item"><b>${esc(i.title)}</b><small>${esc(i.meta||'')}</small></${i.href?'a':'div'}>`).join(''):`<div class="cs-empty">${esc(s.empty||'Nothing found.')}</div>`}${s.more?`<a class="cs-more" href="${esc(s.more.href)}" target="_blank" rel="noopener">${esc(s.more.label)} ↗</a>`:''}`).join('');
+    showSheet(`<div class="cs-q">“${esc(q)}”</div>${secs}${res.note?`<div class="cs-hint">${esc(res.note)}</div>`:''}<div class="cs-actions"><button type="button" class="connect ghost" data-capture="${esc(q)}">Save as reminder instead</button></div>`);
+  }
+  function renderSaved(item){
+    showSheet(`<div class="cs-saved"><span class="cs-check">✓</span><div><b>Saved: ${esc(item.title)}</b><small>${esc([item.dueDate?fmtDue(item):'No date',item.project?'Project: '+item.project:'In your tasks'].join(' · '))}</small></div></div>
+      <div class="cs-actions"><button type="button" class="connect ghost" data-undo="${esc(item.id)}">Undo</button>${item.hasTime&&'Notification' in window&&Notification.permission==='default'?'<button type="button" class="connect" data-notify>Alert me on this device</button>':''}<button type="button" class="connect ghost" data-close-sheet>Close</button></div>`);
+  }
+  async function run(q,forceCapture){
+    q=q.trim();if(!q)return;
+    if(forceCapture||looksLikeCapture(q)){const item=capture(q);input.value='';renderSaved(item);toast('Saved');return}
+    showSheet(`<div class="cs-q">“${esc(q)}”</div><div class="cs-empty">Looking…</div>`);
+    try{renderAnswer(q,await answer(q))}catch(e){showSheet(`<div class="cs-empty">Something went wrong: ${esc(e.message)}</div>`)}
+  }
+  $('#cmd-form').addEventListener('submit',e=>{e.preventDefault();run(input.value,captureMode)});
+  $('#cmd-capture').onclick=()=>{if(input.value.trim())return run(input.value,true);captureMode=true;cmd.classList.add('capturing');input.placeholder='Remember to… (add a day or time if you like)';input.focus();showSheet('<div class="cs-hint">Type anything and press Enter to save it. Dates like “Friday”, “tomorrow 15:00” or “12.11.” and “for my research project” are picked up automatically.</div>')};
+  input.addEventListener('focus',()=>{if(sheet.hidden&&!input.value)suggestions()});
+  input.addEventListener('input',()=>{if(!input.value&&!captureMode)suggestions()});
+  sheet.addEventListener('click',async e=>{
+    const s=e.target.closest('[data-q]');if(s){input.value=s.dataset.q;run(s.dataset.q);return}
+    const c=e.target.closest('[data-capture]');if(c){run(c.dataset.capture,true);return}
+    const u=e.target.closest('[data-undo]');if(u){personalTasks=personalTasks.filter(t=>t.id!==u.dataset.undo);savePersonal();renderTasks();renderLoops();hideSheet();toast('Removed');return}
+    if(e.target.closest('[data-notify]')){const p=await Notification.requestPermission();toast(p==='granted'?'You’ll get an alert at the reminder time while Daylight is open':'Alerts not allowed');hideSheet();return}
+    if(e.target.closest('[data-close-sheet]'))hideSheet()});
+  document.addEventListener('click',e=>{if(!sheet.hidden&&!e.composedPath().includes(cmd))hideSheet()});
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();input.focus();input.select()}
+    else if(e.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){e.preventDefault();input.focus()}
+    else if(e.key==='Escape'&&(!sheet.hidden||document.activeElement===input)){hideSheet();input.blur()}});
+  hideSheet();addEventListener('resize',()=>{if(!captureMode)input.placeholder=innerWidth<=680?'Ask or capture…':'Ask Daylight or capture a thought…'});
+  // Reminder alerts at the chosen time (while Daylight is open)
+  setInterval(()=>{const now=Date.now(),done=readJSON('daylight-alerted',[]);
+    personalTasks.filter(t=>t.hasTime&&t.dueDate&&!done.includes(t.id)&&new Date(t.dueDate)<=now&&now-new Date(t.dueDate)<10*60000).forEach(t=>{
+      done.push(t.id);toast('Reminder: '+t.title);if('Notification' in window&&Notification.permission==='granted'){try{new Notification('Daylight reminder',{body:t.title,icon:'icon-192.png'})}catch{}}});
+    writeJSON('daylight-alerted',done.slice(-200));renderBell()},30000);
+
+  // ======== Open loops: attention-inbox list view ========
+  function srcOf(l){const h=l.href||'';return h.includes('mail.google')?'Gmail':h.includes('calendar.google')?'Calendar':h.includes('tasks.google')?'Google Tasks':h.includes('to-do.office')?'To Do':'Daylight'}
+  const TAGS={overdue:['Overdue','hot'],deadline:['Due soon','warm'],reply:['Suggested action',''],followup:['Suggested action',''],prepare:['Upcoming',''],renewal:['Review',''],travel:['Reminder','']};
+  function loopHTML(l){const t=LOOP_TYPES[l.type],list=(wset('loops').view||'List')==='List';
+    if(!list)return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}"><div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div><div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}<div class="loop-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done">Done</button></div></div>`;
+    const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&!(l.type==='overdue'))tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);
+    return `<div class="arow ${t.cls}" data-loop="${esc(l.id)}"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
+      <div class="arow-main"><div class="arow-top"><b>${esc(l.title)}</b><span class="arow-src">${esc([srcOf(l),l.meta].filter(Boolean).join(' · '))}</span></div>
+      <div class="arow-detail">${esc(l.detail)}${l.related?` · <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a>`:''}</div>
+      <div class="arow-foot"><span class="arow-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${x}</span>`).join('')}</span><span class="arow-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></span></div></div></div>`}
 })();
 

@@ -137,15 +137,15 @@ body.dark .badge{background:#2c3a57;color:#b9c8ff}body.dark .tl-chip{background:
 /* ---- Daylight 2.0: GridStack widgets ---- */
 .layout.grid-stack{display:block;margin:0 -8px}
 .layout .grid-stack-item-content{inset:8px!important;overflow:visible!important}
-.layout .grid-stack-item-content>.card{height:100%;margin:0;overflow:auto;scrollbar-width:thin}
-.layout .grid-stack-item-content>.card.hero{overflow:auto}
+.layout .grid-stack-item-content>.card{height:100%;margin:0;overflow:hidden}
+
 .layout.no-grid>.summary-w{grid-column:1/-1}
 .wtools{position:absolute;top:10px;right:10px;display:none;gap:5px;z-index:3}body.editing .wtools{display:flex}
 .wt-btn{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);color:#5f6b80;font:700 14px 'DM Sans',sans-serif;cursor:pointer;box-shadow:0 3px 10px #27324d1a}.wt-btn:hover{color:var(--ink);border-color:#9fb2ec}
 body.editing .layout .grid-stack-item-content>.card{outline:2px dashed #9fb2ec;outline-offset:-2px;cursor:move}
 body.editing .layout .card input,body.editing .layout .card textarea,body.editing .layout .card button{cursor:auto}
 .grid-stack-placeholder>.placeholder-content{background:#5879df22!important;border:2px dashed #5879df;border-radius:var(--radius)}
-.layout .ui-resizable-handle{opacity:0}body.editing .layout .ui-resizable-handle{opacity:1}
+.layout .ui-resizable-handle{opacity:0}body.editing .layout .ui-resizable-handle{opacity:1}.layout .ui-resizable-e,.layout .ui-resizable-w{width:12px!important}body.editing .layout .ui-resizable-e::after,body.editing .layout .ui-resizable-w::after{content:'';position:absolute;top:50%;left:50%;width:4px;height:36px;margin:-18px 0 0 -2px;border-radius:3px;background:#5879df}
 .layout .ui-resizable-se{width:16px!important;height:16px!important;right:14px!important;bottom:14px!important;background:none!important;border-right:3px solid #5879df;border-bottom:3px solid #5879df;border-radius:0 0 7px 0;transform:none!important}
 .edit-bar{position:sticky;top:10px;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding:12px 16px;border-radius:16px;background:var(--bg2);border:1px solid #c9d5f5;box-shadow:0 10px 30px #27324d1f}.edit-bar[hidden]{display:none}
 .eb-text b{display:block;font:700 15px Manrope,sans-serif}.eb-text span{font-size:12.5px;color:var(--muted)}
@@ -170,6 +170,40 @@ body.editing .layout .card input,body.editing .layout .card textarea,body.editin
 @media(max-width:680px){.edit-bar{top:6px}.eb-field{flex:1}}
 body.dark .edit-bar{background:#1b2333;border-color:#3b4b72}body.dark .wpanel{background:#1b2333}body.dark .wt-btn{background:#263247;color:#c2cde0}body.dark .smart em{color:#9bb0ff}body.dark .eb-field select,body.dark .wp-settings select,body.dark .wp-settings input{background:#263247;border-color:#46536b}
 .notif-panel{z-index:20}
+/* ---- Command bar (bottom centre) ---- */
+body.has-cmd .shell{padding-bottom:120px}
+.cmd{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:min(640px,calc(100% - 32px));z-index:8;display:flex;flex-direction:column;gap:8px}
+.cmd-bar{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:22px;background:color-mix(in srgb,var(--bg2) 88%,transparent);backdrop-filter:blur(18px);border:1px solid #d3dcef;box-shadow:0 18px 50px #27324d2e,0 2px 8px #27324d14}
+.cmd-bar:focus-within{border-color:#8ea6f3;box-shadow:0 18px 50px #27324d33,0 0 0 4px #5879df22}
+.cmd-plus,.cmd-go{width:38px;height:38px;border-radius:14px;border:0;display:grid;place-items:center;cursor:pointer;flex:none}.cmd-plus svg,.cmd-go svg{width:18px;height:18px}
+.cmd-plus{background:#e8edff;color:#4569d0}.cmd-plus:hover{background:#dbe3ff}.cmd.capturing .cmd-plus{background:#5879df;color:#fff}
+.cmd-go{background:#5879df;color:#fff}.cmd-go:hover{background:#4a6bd3}
+#cmd-input{flex:1;min-width:0;border:0;background:transparent;font:500 15px 'DM Sans',sans-serif;color:var(--ink);outline:none;padding:8px 4px}#cmd-input::placeholder{color:#8a94a5}
+.cmd-kbd,.cs-hint kbd{font:600 11px 'DM Sans',sans-serif;color:#7a8599;border:1px solid #d9e0eb;border-radius:7px;padding:3px 7px;background:var(--card2);white-space:nowrap}
+.cmd-sheet{max-height:min(60vh,520px);overflow:auto;border-radius:20px;background:var(--bg2);border:1px solid var(--line);box-shadow:0 24px 60px #27324d33;padding:10px}.cmd-sheet[hidden]{display:none}
+.cs-q{font:700 14px Manrope,sans-serif;padding:4px 8px 6px;color:var(--muted)}
+.cs-head{font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#7a8599;padding:10px 8px 4px}.cs-head span{color:#4569d0;margin-left:4px}
+.cs-item,.cs-suggest{display:flex;flex-direction:column;gap:1px;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:12px;color:var(--ink);text-decoration:none;font:inherit;cursor:pointer}
+.cs-item:hover,.cs-suggest:hover{background:var(--card2)}.cs-item b{font-size:14px;font-weight:600}.cs-item small{font-size:12.5px;color:var(--muted)}.cs-suggest{font-size:14px}
+.cs-empty{font-size:13px;color:var(--muted);padding:4px 10px 6px}.cs-more{display:block;font-size:12.5px;font-weight:700;color:#4569d0;padding:4px 10px 8px;text-decoration:none}
+.cs-hint{font-size:12.5px;color:var(--muted);padding:8px 10px;line-height:1.5}
+.cs-actions{display:flex;gap:6px;flex-wrap:wrap;padding:8px 8px 4px;border-top:1px solid var(--line);margin-top:6px}
+.cs-saved{display:flex;gap:12px;align-items:center;padding:8px 10px}.cs-saved b{display:block;font-size:14.5px}.cs-saved small{font-size:12.5px;color:var(--muted)}
+.cs-check{width:30px;height:30px;border-radius:50%;background:#e1f1eb;color:#2f8a68;display:grid;place-items:center;font-weight:800;flex:none}
+@media(max-width:680px){.cmd{width:calc(100% - 24px);bottom:12px}.cmd-kbd{display:none}.cmd-bar{padding:5px 6px;border-radius:18px}.cmd-plus,.cmd-go{width:34px;height:34px;border-radius:12px}#cmd-input{font-size:14.5px}body.has-cmd .shell{padding-bottom:96px}}
+body.dark .cmd-bar{background:#1b2333e6;border-color:#3b4b72}body.dark .cmd-plus{background:#2c3a57;color:#b9c8ff}body.dark .cmd-sheet{background:#1b2333}body.dark .cmd-kbd{background:#263247;border-color:#46536b;color:#a4b0c2}body.dark .cs-check{background:#22413a;color:#8fdcbe}
+/* ---- Open loops: attention inbox list ---- */
+.loop-grid.as-list{display:flex;flex-direction:column;gap:0}
+.arow{display:flex;gap:11px;padding:11px 4px;border-top:1px solid var(--line)}.arow:first-child{border-top:0;padding-top:2px}
+.arow .loop-icon{margin-top:1px}.arow-main{flex:1;min-width:0}
+.arow-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.arow-top b{font:700 14.5px Manrope,sans-serif;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow-src{font-size:12px;color:var(--muted);white-space:nowrap;flex:none}
+.arow-detail{font-size:13px;color:#5f6b80;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.arow-detail a{color:#4c6fdb;text-decoration:none;font-weight:600}
+.arow-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.arow-tags{display:flex;gap:5px;flex-wrap:wrap}.atag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:#eef1f6;color:#4b5770}.atag.hot{background:#fdeae3;color:#c0532f}.atag.warm{background:#fbf0dc;color:#a8701c}
+.arow-actions{display:flex;gap:4px}.arow-actions .connect{padding:4px 9px;font-size:11.5px;border-radius:8px;text-decoration:none}
+@media(max-width:680px){.arow-top{flex-direction:column;gap:0}.arow-detail{white-space:normal}}
+body.dark .arow-detail{color:#b0bbcc}body.dark .atag{background:#2a3446;color:#c2cde0}body.dark .atag.hot{background:#4a2d24;color:#f3a48a}body.dark .atag.warm{background:#4a3a22;color:#efc98a}
 </style>
 </head>
 <body>
@@ -207,7 +241,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="app.js?v=10" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="app.js?v=11" defer></script></body></html>
 
 
 
