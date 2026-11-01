@@ -28,15 +28,23 @@
   $('#layout').append(weatherCard);
 
   function connectDialog() {
-    $('#overlay').innerHTML=`<div class="modal"><h3>Connect your Google account</h3><p>Daylight requests read-only access. Google shows the permission screen before any data is loaded. Your access token stays in this browser tab and is never saved.</p>
-      <label class="client-label" for="client-id">Google OAuth Client ID</label>
-      <input class="client-input" id="client-id" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" value="${esc(localStorage.getItem('daylight-client-id')||'')}">
-      <div class="scope-note"><b>Requested permissions</b><br>• View events on your Google calendars<br>• View Gmail message headers in your inbox (no message bodies, sending, or deleting)<br>• View your Google Tasks</div>
-      <div class="setup-note">Create a Google OAuth Web application client ID. Enable Calendar API, Gmail API, and Tasks API. Add this app’s origin as an authorized JavaScript origin. For local preview use <b>http://localhost:8000</b>. During testing, add your Google account as a test user.</div>
-      <div id="connect-error" class="error" role="alert"></div><div class="modalfoot"><button class="close secondary" id="disconnect">Disconnect</button><button class="close" id="google-connect">Continue to Google</button></div></div>`;
+    const connected=Boolean(token);
+    $('#overlay').innerHTML=`<div class="modal connections-modal"><div class="modal-top"><div><div class="eyebrow">Your connections</div><h3>Bring your apps together</h3></div><button class="modal-x" id="close-modal" aria-label="Close">×</button></div>
+      <p>Choose a service. Each provider asks you to approve access before Daylight reads anything. You can disconnect at any time.</p>
+      <div class="provider-card"><div class="provider-icon google-icon">G</div><div class="provider-copy"><b>Google</b><span>Calendar · Gmail · Tasks</span></div><span class="provider-status ${connected?'is-connected':''}">${connected?'Connected':'Not connected'}</span><button class="connect provider-action" id="google-connect">${connected?'Refresh':'Connect'}</button></div>
+      <div class="scope-note"><b>Google will ask to allow</b><br>• View calendar events<br>• View inbox message headers (no message bodies or email changes)<br>• View Google Tasks<br><span class="privacy-line">Permission is granted on Google’s screen. Access tokens stay in this tab.</span></div>
+      <details class="setup-details" ${localStorage.getItem('daylight-client-id')?'':'open'}><summary>Set up Google access for this dashboard</summary>
+        <label class="client-label" for="client-id">Google OAuth Client ID</label><input class="client-input" id="client-id" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" value="${esc(localStorage.getItem('daylight-client-id')||'')}">
+        <div class="setup-note">Use a Google OAuth client ID for a Web application. Enable Calendar API, Gmail API, and Tasks API in Google Cloud. Add <b>https://kratveer.github.io</b> as an authorized JavaScript origin and your Google account as a test user. Keep the app in Testing for personal use.</div>
+      </details>
+      <div class="provider-card provider-later"><div class="provider-icon ms-icon">M</div><div class="provider-copy"><b>Microsoft 365</b><span>Outlook Calendar · Mail · Tasks</span></div><span class="provider-status">Coming soon</span></div>
+      <div class="provider-card provider-later"><div class="provider-icon samsung-icon">S</div><div class="provider-copy"><b>Samsung Calendar</b><span>Calendar and reminders</span></div><span class="provider-status">Coming soon</span></div>
+      <div class="provider-card provider-later"><div class="provider-icon social-icon">◎</div><div class="provider-copy"><b>Social notifications</b><span>Only where providers support it</span></div><span class="provider-status">Coming soon</span></div>
+      <div id="connect-error" class="error" role="alert"></div><div class="modalfoot"><button class="close secondary" id="disconnect">Disconnect Google</button></div></div>`;
     $('#overlay').classList.add('show');
     $('#google-connect').onclick=authorize;
-    $('#disconnect').onclick=()=>{token=null;localStorage.removeItem('daylight-client-id');$('#overlay').classList.remove('show');$('#sync-status').textContent='Disconnected';toast('Google access cleared from this page')};
+    $('#close-modal').onclick=()=>$('#overlay').classList.remove('show');
+    $('#disconnect').onclick=()=>{token=null;$('#overlay').classList.remove('show');$('#sync-status').textContent='Google disconnected · reconnect to refresh';$('#connections').classList.remove('active');toast('Google access cleared from this page')};
   }
   $('#connections').onclick=connectDialog;
   $('#close')?.addEventListener('click',()=>$('#overlay').classList.remove('show'));
@@ -49,7 +57,7 @@
     if(!window.google?.accounts?.oauth2) { $('#connect-error').textContent='Google sign-in is still loading. Try again in a moment.'; return; }
     tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:scopes,include_granted_scopes:true,callback:async response=>{
       if(response.error){$('#connect-error').textContent='Google authorization failed: '+response.error;return;}
-      token=response.access_token;$('#overlay').classList.remove('show');$('#sync-status').textContent='Connected to Google · refreshing…';setTimeout(()=>{token=null;$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));await refreshAll();
+      token=response.access_token;$('#overlay').classList.remove('show');$('#connections').classList.add('active');$('#sync-status').textContent='Google connected · refreshing…';setTimeout(()=>{token=null;$('#connections').classList.remove('active');$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));await refreshAll();
     }});
     tokenClient.requestAccessToken({prompt:'consent'});
   }
@@ -91,6 +99,6 @@
     $('#weather-content').textContent='Waiting for location permission…';navigator.geolocation.getCurrentPosition(async pos=>{try{const {latitude,longitude}=pos.coords;const u=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;const w=await(await fetch(u)).json();const names={0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',71:'Snow',80:'Showers',95:'Thunderstorm'};$('#weather-content').innerHTML=`<div class="weather-temp">${Math.round(w.current.temperature_2m)}°</div><div class="weather-label">${esc(names[w.current.weather_code]||'Current conditions')}</div><div class="weather-range">Feels like ${Math.round(w.current.apparent_temperature)}° · H ${Math.round(w.daily.temperature_2m_max[0])}° / L ${Math.round(w.daily.temperature_2m_min[0])}°</div>`;$('#weather-connect').textContent='Refresh';}catch(e){$('#weather-content').textContent='Weather could not be loaded. Try again.'}},()=>{$('#weather-content').textContent='Location permission was not granted. You can allow it in browser settings.'},{enableHighAccuracy:false,timeout:10000});
   };
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&token)refreshAll()});
-  const clientId=localStorage.getItem('daylight-client-id');if(clientId){$('#sync-status').textContent='OAuth client saved · connect to grant access';$('#connections').classList.add('active');}
+  const clientId=localStorage.getItem('daylight-client-id');if(clientId){$('#sync-status').textContent='Google setup saved · connect to grant access';}
 })();
 
