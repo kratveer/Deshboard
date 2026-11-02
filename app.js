@@ -777,9 +777,20 @@
     if($('#loops-more'))$('#loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
     renderSummary(loops.length);renderCategories();
   }
-  $('#loop-grid').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const id=b.closest('[data-loop]').dataset.loop,s=loopState();
-    s[id]=b.dataset.act==='done'?{done:true,t:Date.now()}:{snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);renderLoops();
-    toast(b.dataset.act==='done'?'Marked as done':'Snoozed until tomorrow')});
+  function onLoopListClick(e){
+    const act=e.target.closest('[data-act]');
+    if(act){const row=act.closest('[data-loop]');if(!row)return;e.preventDefault();e.stopPropagation();const id=row.dataset.loop,s=loopState();
+      s[id]=act.dataset.act==='done'?{done:true,t:Date.now()}:{snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);renderLoops();
+      toast(act.dataset.act==='done'?'Marked as done':'Snoozed until tomorrow');return}
+    if(e.target.closest('a[href]'))return;
+    const openBtn=e.target.closest('[data-open-loop]');
+    const row=e.target.closest('[data-loop]');
+    const id=openBtn?.dataset.openLoop||row?.dataset.loop;if(!id)return;
+    e.preventDefault();openLoopSheet(id);
+  }
+  function onLoopListKey(e){if(e.key!=='Enter'&&e.key!==' ')return;const row=e.target.closest('[data-loop]');if(!row||e.target.closest('button,a'))return;e.preventDefault();openLoopSheet(row.dataset.loop)}
+  $('#loop-grid').addEventListener('click',onLoopListClick);
+  $('#loop-grid').addEventListener('keydown',onLoopListKey);
   // ---- Greeting summary + Up next ----
   function renderSummary(loopCount){
     const el=$('#day-summary');if(!el)return;const {timed}=todayEvents(),now=new Date();
@@ -806,7 +817,7 @@
   const openMenu=o=>{if(!drawer)return;drawer.hidden=!o;scrim.hidden=!o;document.body.classList.toggle('menu-open',o);$('#menu-btn').setAttribute('aria-expanded',String(o));if(o){renderDrawerAccount();drawer.querySelector('.menu-item')?.focus()}};
   $('#menu-btn')?.addEventListener('click',()=>openMenu(drawer.hidden));
   $('#drawer-close')?.addEventListener('click',()=>openMenu(false));scrim?.addEventListener('click',()=>openMenu(false));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){openMenu(false);$('#overlay').classList.remove('show')}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#loop-sheet')?.classList.contains('show')){closeLoopSheet();return}openMenu(false);$('#overlay').classList.remove('show')}});
   ['#connections','#refresh','#customize'].forEach(s=>$(s)?.addEventListener('click',()=>openMenu(false)));
   function renderDrawerAccount(){const p=readProfile(),el=$('#drawer-account');if(!el)return;
     el.innerHTML=p.name||p.email?`<div class="da-avatar">${p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc((p.name||'?')[0])}</div><div><b>${esc(p.name||'')}</b><span>${esc(p.email||'')}</span></div>`:'<div><b>Not connected</b><span>Open Connections to sign in</span></div>';
@@ -1161,13 +1172,83 @@
   // ======== Open loops: attention-inbox list view ========
   function srcOf(l){const h=l.href||'';return h.includes('mail.google')?'Gmail':h.includes('calendar.google')?'Calendar':h.includes('tasks.google')?'Google Tasks':h.includes('to-do.office')?'To Do':'Daylight'}
   const TAGS={overdue:['Overdue','hot'],deadline:['Due soon','warm'],reply:['Suggested action',''],followup:['Suggested action',''],prepare:['Upcoming',''],renewal:['Review',''],travel:['Reminder','']};
+  function findLoop(id){return computeLoops().find(l=>l.id===id)||null}
+  function loopBody(l){
+    const parts=[];
+    if(l.detail)parts.push(l.detail);
+    if(l.meta)parts.push(l.meta);
+    if(l.related?.name)parts.push(`Related file: ${l.related.name}`);
+    if(l.type==='reply')parts.push('This message looks like it still needs a reply from you.');
+    if(l.type==='followup')parts.push('You sent this and haven’t heard back yet — a short nudge may help.');
+    if(l.type==='prepare')parts.push('Meeting is coming up. Review attendees, notes and any linked files before it starts.');
+    if(l.type==='overdue')parts.push('This task is past due. Reschedule it to a realistic time or mark it done.');
+    if(l.type==='deadline')parts.push('Deadline is close. Finish the remaining work or move the due date.');
+    if(l.type==='renewal')parts.push('Check whether you still need this subscription, and cancel or confirm before it renews.');
+    if(l.type==='travel')parts.push('Confirm tickets, accommodation, documents and timing for this trip.');
+    return parts.filter(Boolean).join('\n\n');
+  }
+  function loopSuggestion(l){
+    const subject=(l.type==='reply'||l.type==='followup')?(l.detail||l.title):l.title;
+    if(l.type==='reply')return{kind:'reply',label:'Suggested reply',text:`Hi,\n\nThanks for your note about “${subject}”. I’ll follow up with a clear update shortly.\n\nBest regards`,cta:'Use reply'};
+    if(l.type==='followup')return{kind:'reply',label:'Suggested follow-up',text:`Hi,\n\nJust checking in on “${subject}” — any update on your side?\n\nThanks`,cta:'Send follow-up'};
+    if(l.type==='prepare')return{kind:'task',label:'Suggested task',text:`Prepare for: ${l.title.replace(/^Prepare for\s+/i,'')}`,cta:'Add task'};
+    if(l.type==='overdue')return{kind:'task',label:'Suggested task',text:l.title.startsWith('Reschedule')?l.title:`Reschedule: ${l.title}`,cta:'Add task'};
+    if(l.type==='deadline')return{kind:'task',label:'Suggested task',text:`Finish: ${l.title}`,cta:'Add task'};
+    if(l.type==='renewal')return{kind:'task',label:'Suggested action',text:`Review renewal · ${subject.replace(/^Review:\s*/i,'')}`,cta:'Add reminder'};
+    if(l.type==='travel')return{kind:'task',label:'Suggested checklist',text:`Confirm tickets & stay · ${l.title}`,cta:'Add task'};
+    return{kind:'task',label:'Suggested action',text:l.title,cta:'Add task'};
+  }
+  let openLoopId=null;
+  function closeLoopSheet(){const sheet=$('#loop-sheet');if(!sheet)return;sheet.classList.remove('show');sheet.setAttribute('aria-hidden','true');openLoopId=null;document.body.classList.remove('loop-open')}
+  function openLoopSheet(id){
+    const l=findLoop(id);if(!l)return;openLoopId=id;
+    let sheet=$('#loop-sheet');
+    if(!sheet){
+      sheet=document.createElement('div');sheet.id='loop-sheet';sheet.className='loop-sheet';sheet.setAttribute('aria-hidden','true');
+      sheet.innerHTML=`<div class="loop-sheet-card" role="dialog" aria-modal="true" aria-labelledby="ls-title">
+        <div class="loop-sheet-top"><div class="ls-copy"><div class="ls-source" id="ls-source"></div><h2 id="ls-title"></h2></div><button class="loop-sheet-x" type="button" data-ls-close aria-label="Close">×</button></div>
+        <div class="loop-sheet-body" id="ls-body"></div>
+        <div class="loop-sheet-foot"><div class="ls-left" id="ls-left"></div><div class="ls-right" id="ls-right"></div></div>
+      </div>`;
+      document.body.append(sheet);
+      sheet.addEventListener('click',e=>{
+        if(e.target===sheet||e.target.closest('[data-ls-close]')){closeLoopSheet();return}
+        const act=e.target.closest('[data-ls-act]');if(!act||!openLoopId)return;
+        const loop=findLoop(openLoopId);if(!loop)return;
+        const a=act.dataset.lsAct;
+        if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();toast('Snoozed until tomorrow');return}
+        if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();toast('Marked as done');return}
+        if(a==='open'&&loop.href){window.open(loop.href,'_blank','noopener');return}
+        if(a==='suggest'){
+          const sug=loopSuggestion(loop);
+          if(sug.kind==='reply'){
+            const copy=async()=>{try{await navigator.clipboard.writeText(sug.text);toast('Suggested reply copied')}catch{toast('Copy the reply from the card')}};
+            copy();if(loop.href)window.open(loop.href,'_blank','noopener');
+            return;
+          }
+          capture(sug.text);toast(sug.cta==='Add reminder'?'Reminder added':'Task added');
+          closeLoopSheet();renderLoops();
+        }
+      });
+    }
+    const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,sug=loopSuggestion(l),body=loopBody(l);
+    $('#ls-source').innerHTML=`<span class="dot" aria-hidden="true"></span>${esc(srcOf(l))}${l.meta?` · ${esc(l.meta)}`:''}`;
+    $('#ls-title').textContent=l.title;
+    $('#ls-body').innerHTML=`<span class="ls-type">${esc(t.label)}</span>
+      <div class="ls-content">${esc(body)}</div>
+      ${l.related?`<div class="ls-meta">Related: <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a></div>`:''}
+      <div class="ls-block"><b>${esc(sug.label)}</b><p>${esc(sug.text)}</p></div>`;
+    $('#ls-left').innerHTML=`<button class="connect ghost" type="button" data-ls-act="snooze">Snooze</button><button class="connect ghost" type="button" data-ls-act="done">Done</button>${l.href?`<button class="connect ghost" type="button" data-ls-act="open">Open in ${esc(srcOf(l))}</button>`:''}`;
+    $('#ls-right').innerHTML=`<button class="connect primary" type="button" data-ls-act="suggest">${esc(sug.cta)}</button>`;
+    sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('loop-open');
+  }
   function loopHTML(l){const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply;const list=(wset('loops').view||'List')==='List';
-    if(!list)return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}"><div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div><div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}<div class="loop-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done">Done</button></div></div>`;
+    if(!list)return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}" role="button" tabindex="0"><div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div><div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}<div class="loop-actions"><button class="connect primary" type="button" data-open-loop="${esc(l.id)}">Expand</button><button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done">Done</button></div></div>`;
     const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&!(l.type==='overdue'))tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);
-    return `<div class="arow ${t.cls}" data-loop="${esc(l.id)}"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
+    return `<div class="arow ${t.cls}" data-loop="${esc(l.id)}" role="button" tabindex="0"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
       <div class="arow-main"><div class="arow-top"><b>${esc(l.title)}</b><span class="arow-src">${esc([srcOf(l),l.meta].filter(Boolean).join(' · '))}</span></div>
       <div class="arow-detail">${esc(l.detail)}${l.related?` · <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a>`:''}</div>
-      <div class="arow-foot"><span class="arow-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${x}</span>`).join('')}</span><span class="arow-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></span></div></div></div>`}
+      <div class="arow-foot"><span class="arow-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${x}</span>`).join('')}</span><span class="arow-actions"><button class="connect primary" type="button" data-open-loop="${esc(l.id)}">Expand</button><button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></span></div></div></div>`}
   // ======== Mobile app (≤680px): Home · Inbox · Wallet · Assistant · Statistics ========
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
@@ -1287,13 +1368,8 @@
       if($('#m-loops-more'))$('#m-loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
     }
   }
-  $('#m-loop-grid')?.addEventListener('click',e=>{
-    const b=e.target.closest('[data-act]');if(!b)return;
-    const row=b.closest('[data-loop]');if(!row)return;
-    e.preventDefault();e.stopPropagation();
-    const s=loopState();s[row.dataset.loop]=b.dataset.act==='done'?{done:true,t:Date.now()}:{snooze:Date.now()+86400000,t:Date.now()};
-    saveLoopState(s);renderLoops();toast(b.dataset.act==='done'?'Marked as done':'Snoozed until tomorrow');
-  });
+  $('#m-loop-grid')?.addEventListener('click',onLoopListClick);
+  $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
   $('#m-brief')?.addEventListener('click',e=>{
     if(e.target.closest('[data-goto-inbox]')){setTab('inbox');return}
     const a=e.target.closest('[data-ask]');if(a){setTab('assistant');ask(a.dataset.ask)}

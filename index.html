@@ -166,6 +166,31 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .m-home-block{margin-top:18px}.m-home-block .m-sub{margin-top:0}
 .m-loops-card{margin:0;box-shadow:0 6px 20px rgba(40,50,90,.06)}.m-loops-card .loops-hint{display:none}.m-loops-card .loop-grid.as-list{gap:0}
 .m-loops-card .arow-top b{white-space:normal}.m-loops-card .arow-detail{white-space:normal}
+.arow,.loop{cursor:pointer}.arow:focus-visible,.loop:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:12px}
+/* Open loop expand sheet */
+.loop-sheet{position:fixed;inset:0;z-index:55;display:none;align-items:flex-end;justify-content:center;padding:18px;background:rgba(17,24,39,.42);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.loop-sheet.show{display:flex}
+.loop-sheet-card{width:min(520px,100%);max-height:min(86vh,720px);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:28px;box-shadow:0 28px 80px rgba(30,40,70,.28);overflow:hidden;font-family:var(--font)}
+.loop-sheet-top{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 12px;border-bottom:1px solid var(--line)}
+.loop-sheet-top .ls-copy{flex:1;min-width:0}
+.loop-sheet-top .ls-source{display:inline-flex;align-items:center;gap:6px;font:650 12px var(--font);letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.loop-sheet-top .ls-source .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.loop-sheet-top h2{margin:0;font:700 22px/1.25 var(--font);letter-spacing:-.35px;color:var(--ink)}
+.loop-sheet-x{width:40px;height:40px;border:0;border-radius:14px;background:var(--card2);color:var(--muted);font-size:22px;line-height:1;flex:none;cursor:pointer}
+.loop-sheet-body{flex:1;overflow:auto;padding:18px 20px 8px;display:grid;gap:14px}
+.loop-sheet-body .ls-type{display:inline-flex;width:fit-content;font:650 12px var(--font);padding:5px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text)}
+.loop-sheet-body .ls-meta{font:500 13.5px/1.4 var(--font);color:var(--muted)}
+.loop-sheet-body .ls-content{font:500 16px/1.55 var(--font);color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.loop-sheet-body .ls-block{background:var(--card2);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+.loop-sheet-body .ls-block b{display:block;font:650 12px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.loop-sheet-body .ls-block p{margin:0;font:500 15px/1.5 var(--font);color:var(--ink);white-space:pre-wrap}
+.loop-sheet-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:color-mix(in srgb,var(--card) 92%,var(--card2))}
+.loop-sheet-foot .ls-left{display:flex;gap:6px;flex-wrap:wrap}
+.loop-sheet-foot .ls-right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.loop-sheet-foot .connect{min-height:40px;padding:8px 14px;border-radius:12px;font:650 13.5px var(--font)}
+@media(min-width:681px){.loop-sheet{align-items:center;padding:24px}.loop-sheet-card{border-radius:24px}}
+@media(max-width:680px){.loop-sheet{padding:0;align-items:stretch}.loop-sheet-card{width:100%;max-height:none;height:100%;border-radius:0;border:0}}
+body.loop-open{overflow:hidden}
 .mapp,.mapp button,.mapp input,.mapp a,.mapp h2,.mapp h3,.shell,.shell button,.shell input,.shell textarea,.shell select{font-family:var(--font)}
 .mapp[data-screen="inbox"] .m-title{font:700 28px/1.15 var(--font);letter-spacing:-.6px}
 .m-inbox-head{display:flex;align-items:center;gap:10px;margin:10px 0 20px}
@@ -536,7 +561,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=1" defer></script><script src="app.js?v=24" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=1" defer></script><script src="app.js?v=25" defer></script></body></html>
 
 
 
