@@ -654,7 +654,14 @@ body.m .tl-chat{padding-top:4px}
     0 10px 30px rgba(23,32,51,.12),
     0 4px 12px rgba(23,32,51,.08),
     0 0 0 0.5px rgba(23,32,51,.04);
+  transform:translate3d(0,0,0);opacity:1;
+  transition:transform .32s cubic-bezier(.22,.9,.28,1),opacity .28s ease,visibility .28s ease;
+  will-change:transform,opacity;
 }
+body.m.tabs-hide .m-tabs{
+  transform:translate3d(0,calc(100% + 28px),0);opacity:0;visibility:hidden;pointer-events:none;
+}
+body.m.kb-open.tabs-hide .m-tabs{transform:translate3d(0,120%,0)}
 body.dark .m-tabs{
   background:rgba(28,30,38,.72);border-color:rgba(255,255,255,.1);
   box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 14px 36px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.35);
@@ -1345,7 +1352,7 @@ body.dark .m-ptr{background:rgba(26,28,34,.92);color:var(--muted)}
 .toast.toast-warn{background:#3a2a12;color:#ffe6b8}
 body.m .toast{bottom:calc(102px + env(safe-area-inset-bottom) + var(--kb,0px))}
 /* Keyboard: lift composer + hide floating tabs while typing */
-body.m.kb-open .m-tabs{opacity:0;pointer-events:none;transform:translate3d(0,120%,0);transition:opacity .2s ease,transform .24s var(--ease-out)}
+body.m.kb-open .m-tabs{opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(0,120%,0)}
 body.m .m-msg{
   bottom:calc(96px + var(--kb,0px));
   transition:bottom .2s var(--ease-out),box-shadow .2s ease;
@@ -1367,6 +1374,7 @@ body.dark.m .m-wallet-fab{background:#fff;color:#111;box-shadow:0 14px 32px rgba
   .m-ptr,.m-skel,.m-action-scrim,.m-action-panel,.toast,body.m .m-msg,body.m .m-tabs{animation:none!important;transition:none!important}
   body.m .m-row-card:active,body.m .m-inbox-card:active,body.m .m-brief:active,
   body.m .m-wallet-pass:active,body.m .m-circle:active,body.m .m-tabs [data-tab]:active{transform:none!important}
+  body.m.tabs-hide .m-tabs{transform:none;opacity:0}
 }
 </style>
 </head>
@@ -1405,7 +1413,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=44" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=45" defer></script></body></html>
 
 
 

@@ -2777,6 +2777,10 @@
   Nav._bind();
   if(history.state?.dl&&history.state.view){try{history.replaceState({dl:0,root:1},'')}catch{}}
   else if(!history.state?.dl){try{history.replaceState({dl:0,root:1},'')}catch{}}
+  function setTabsHidden(hide){
+    if(!mq.matches){document.body.classList.remove('tabs-hide');return}
+    document.body.classList.toggle('tabs-hide',!!hide);
+  }
   function setTab(t,opts){
     const soft=opts&&opts.soft;
     if(!soft&&t!==mTab){Nav.saveTab();feel.select()}
@@ -2785,6 +2789,7 @@
     const fab=$('#m-wallet-fab');if(fab)fab.hidden=t!=='wallet';
     const top=$('#mapp .m-top');if(top)top.hidden=t==='assistant';
     if(t!=='assistant'&&mAssistAsk)setAssistAsk(false);
+    setTabsHidden(false);
     renderMobile();
     if(!soft)Nav.restoreTab();
   }
@@ -2871,6 +2876,32 @@
   function skelRows(n=4){
     return `<div class="m-skel-list" aria-hidden="true" aria-busy="true">${Array.from({length:n},()=>`<div class="m-skel-row"><i class="m-skel"></i><span><b class="m-skel"></b><s class="m-skel"></s></span></div>`).join('')}</div>`;
   }
+  (function bindTabBarScrollHide(){
+    let lastY=0,acc=0,ticking=false;
+    const THRESH=10,TOP=36;
+    const y=()=>Nav.scrollEl().scrollTop||window.scrollY||0;
+    const isHidden=()=>document.body.classList.contains('tabs-hide');
+    const canHide=()=>mq.matches&&mTab==='home'&&!Nav.anyOpen()&&!document.body.classList.contains('kb-open')&&!document.body.classList.contains('brief-open');
+    const onScroll=()=>{
+      if(ticking)return;ticking=true;
+      requestAnimationFrame(()=>{
+        ticking=false;
+        if(!canHide()){acc=0;lastY=y();setTabsHidden(false);return}
+        const cur=y();
+        if(cur<=TOP){acc=0;lastY=cur;setTabsHidden(false);return}
+        const dy=cur-lastY;lastY=cur;
+        if(Math.abs(dy)<1)return;
+        const hid=isHidden();
+        // Finger swipe up → page scrolls down → fade bar away; swipe down → bring it back
+        if((dy>0&&hid)||(dy<0&&!hid)){acc=0;return}
+        acc+=dy;
+        if(acc>THRESH){acc=0;setTabsHidden(true)}
+        else if(acc<-THRESH){acc=0;setTabsHidden(false)}
+      });
+    };
+    window.addEventListener('scroll',onScroll,{passive:true});
+    document.addEventListener('touchstart',()=>{if(canHide()){lastY=y();acc=0}},{passive:true});
+  })();
   (function bindPullRefresh(){
     let startY=0,pulling=false,armed=false,busy=false;
     let ind=$('#m-ptr');
