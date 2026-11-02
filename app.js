@@ -742,6 +742,37 @@
   const saveLoopState=s=>{const now=Date.now();Object.keys(s).forEach(k=>{if(s[k].t&&now-s[k].t>30*86400000)delete s[k]});writeJSON('daylight-loops',s)};
   const parseFrom=v=>{const m=/^\s*"?([^"<]*)"?\s*<([^>]+)>/.exec(v||'');return m?{name:m[1].trim()||m[2],email:m[2].toLowerCase()}:{name:(v||'').trim(),email:(v||'').trim().toLowerCase()}};
   const gmailLink=id=>`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
+  function gmailThreadId(loop){
+    return loop?.threadId||loop?.relatedMail?.threadId||loop?.mailId||loop?.relatedMail?.mailId||'';
+  }
+  function gmailHttpsUrl(loop){
+    const id=gmailThreadId(loop);
+    return loop?.relatedMail?.href||loop?.href||(id?gmailLink(id):'');
+  }
+  /** Open the message in the Gmail mobile app when possible; fall back to https. */
+  function openGmailApp(loop){
+    const id=gmailThreadId(loop);
+    const https=gmailHttpsUrl(loop);
+    if(!https&&!id){toast('No Gmail link available',{type:'warn'});return false}
+    const url=https||gmailLink(id);
+    const ua=navigator.userAgent||'';
+    feel.select();
+    if(/Android/i.test(ua)){
+      const path=`mail.google.com/mail/u/0/#all/${encodeURIComponent(id||'')}`;
+      location.href=`intent://${path}#Intent;scheme=https;package=com.google.android.gm;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+      return true;
+    }
+    if(/iPhone|iPad|iPod/i.test(ua)){
+      // Universal Links hand off to Gmail when installed; googlegmail as a soft try.
+      const deep=`googlegmail://co?msg=${encodeURIComponent(id||'')}`;
+      const start=Date.now();
+      try{location.href=deep}catch{}
+      setTimeout(()=>{if(Date.now()-start<1600)location.href=url},700);
+      return true;
+    }
+    window.open(url,'_blank','noopener');
+    return true;
+  }
   async function apiRetry(url,opts,maxAttempts=3){
     let lastErr=null,retries=0;
     for(let attempt=0;attempt<maxAttempts;attempt++){
@@ -1827,38 +1858,48 @@
   function isFav(id){return!!readFavs()[id]}
   function toggleFav(id){const f=readFavs();f[id]=!f[id];if(!f[id])delete f[id];writeJSON('daylight-favs',f);feel.select();return!!f[id]}
   let tdTab='details';
+  function suggestedPrimaryAction(l){
+    const mailish=!!(l.mailId||l.threadId||l.relatedMail||l._inbox||l.type==='reply'||l.type==='followup'||l.type==='renewal'||/mail\.google/i.test(l.href||''));
+    if(mailish||l.type==='reply'||l.type==='followup')return{label:'Reply',act:'open-gmail'};
+    if(l.type==='renewal'||l._inbox)return{label:'Open in Gmail',act:'open-gmail'};
+    if(l.type==='prepare')return{label:'Open Calendar',act:'open-original'};
+    if(l.type==='travel')return{label:'Open booking',act:'open-original'};
+    if(l.type==='overdue'||l.type==='deadline')return{label:'Open Tasks',act:'open-original'};
+    const sug=loopSuggestion(l);
+    return{label:sug.primary&&!/open task/i.test(sug.primary)?sug.primary:'Take action',act:l.href?'open-original':'done'};
+  }
   function paintLoopDetail(l,mail){
-    const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,sug=loopSuggestion(l),prio=l.weight>=2||l.type==='overdue'||l.urgent;
+    const sug=loopSuggestion(l),prio=l.weight>=2||l.type==='overdue'||l.urgent;
     const whenTxt=l.meta||(l.whenMs?ago(new Date(l.whenMs)):'');
-    const due=loopDueLabel(l),cat=loopCategory(l),need=l._need||loopNote(l);
+    const need=l._need||loopNote(l);
     const fromName=mail?.from?.name||l.fromName||srcOf(l);
     const subject=mail?.subject||loopSubject(l);
-    const body=mail?.body||l.snippet||l.detail||'Open the source to read the full message.';
-    const timeStr=mail?.date?mail.date.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):(l.whenMs?new Date(l.whenMs).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):'');
+    const body=mail?.body||l.snippet||l.detail||'';
+    const timeStr=mail?.date?mail.date.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):(l.whenMs?new Date(l.whenMs).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'');
     const relatedMail=l.relatedMail||null;
     const isMail=!!(l.mailId||relatedMail||l._inbox||l.type==='reply'||l.type==='followup'||l.type==='renewal'||(l.href&&String(l.href).includes('mail.google')));
     const composing=!!(replyState?.open&&replyState.loopId===l.id);
-    const navTitle=composing?'Reply':(l._inbox?'Inbox Detail':'Task Detail');
+    const navTitle=composing?'Reply':(isMail?'Email':'Task');
     const fav=isFav(l.id);
-    const tab=composing?'email':(tdTab==='email'&&isMail?'email':tdTab==='notes'?'notes':tdTab==='activity'?'activity':'details');
+    const tab=composing?'email':(tdTab==='notes'?'notes':tdTab==='activity'?'activity':'details');
     const nav=$('.td-nav b');if(nav)nav.textContent=navTitle;
     const star=$('.td-nav [data-ls-fav]');if(star){star.classList.toggle('on',fav);star.setAttribute('aria-pressed',fav?'true':'false')}
     const tripPass=l.tripId?readWallet().filter(w=>w.tripId===l.tripId):[];
-    $('#ls-head').innerHTML=`<span class="td-ico ${t.cls}" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
+    const brand=loopSourceBrand(l);
+    const mailFrom=mail?.from?.name||relatedMail?.from?.name||fromName;
+    const mailEmail=mail?.from?.email||l.fromEmail||relatedMail?.from?.email||'';
+    const mailSub=mail?.subject||relatedMail?.subject||subject;
+    const logoBrand={...brand,fromEmail:mailEmail||brand.fromEmail,title:mailFrom||brand.title,domain:l.domain||brand.domain};
+    $('#ls-head').innerHTML=`<span class="td-ico m-brand" style="--a1:${esc(logoBrand.color)};--a2:${esc(logoBrand.color)}" aria-hidden="true">${brandLogoHTML(logoBrand,initialsOf(mailFrom||l.title))}</span>
       <div class="td-head-copy">${prio?`<span class="td-prio">High Priority</span>`:''}<h2 id="ls-title">${esc(composing?'Write a reply':l.title)}</h2>
-      <div class="td-meta-row"><span class="td-chip">${esc(srcOf(l)||'Daylight')}</span><span class="td-chip accent">${esc(due||whenTxt||'—')}</span>${prio?`<span class="td-chip hot">Priority · High</span>`:''}${l.tripId?`<span class="td-chip">Trip</span>`:''}</div></div>`;
+      <div class="td-meta-row"><span class="td-chip">${esc(srcOf(l)||'Daylight')}</span>${whenTxt?`<span class="td-chip">${esc(whenTxt)}</span>`:''}${l.amount?`<span class="td-chip accent">${esc(l.amount)}</span>`:''}${l.tripId?`<span class="td-chip">Trip</span>`:''}</div></div>`;
     const tripCard=tripPass.length?`<div class="td-card td-need"><span class="td-need-l">Linked trip</span>${tripPass.map(w=>`<p style="margin:6px 0 0"><button type="button" class="td-link" data-open-wallet="${esc(w.id)}">${esc(w.title)}</button> <small>${esc(w.typeLabel||WALLET_LABEL[w.kind]||'')}</small></p>`).join('')}</div>`:'';
-    const relatedMailCard=relatedMail?`<div class="td-card td-mail"><div class="td-mail-h"><div><b>Related email</b><small>${esc(relatedMail.subject)}</small></div></div><p class="td-mail-b">From ${esc(relatedMail.from?.name||relatedMail.from?.email||'Gmail')}</p><button type="button" class="td-link" data-ls-act="open-related-mail">Open related mail</button></div>`:'';
-    const details=`
-      <div class="td-card td-attrs">
-        <div class="td-attr"><span class="td-attr-l">${l._inbox?'Date':'Due'}</span><span class="td-attr-v accent">${esc(due)}</span></div>
-        ${l.amount?`<div class="td-attr"><span class="td-attr-l">Amount</span><span class="td-attr-v accent">${esc(l.amount)}</span></div>`:''}
-        <div class="td-attr"><span class="td-attr-l">Status</span><span class="td-status">${l.urgent||l.type==='overdue'||l.type==='deadline'?'Needs Action':'Review'}</span></div>
-        <div class="td-attr"><span class="td-attr-l">Category</span><span class="td-attr-v accent">${esc(cat)}</span></div>
-      </div>
-      <div class="td-card td-need"><span class="td-need-l">What needs to be done</span><p>${esc(need)}</p></div>
-      ${tripCard}${relatedMailCard}
-      <div class="td-card td-ai"><div class="td-ai-top"><span class="td-ai-ico" aria-hidden="true">✦</span><b>${esc(sug.label)}</b></div><p>${esc(sug.text)}</p><button class="td-draft" type="button" data-ls-act="${canReplyInApp(l)?'reply':'suggest'}">${esc(canReplyInApp(l)?'Reply in Daylight':sug.cta)}</button></div>`;
+    const loadingMail=isMail&&!mail&&!!(l.mailId||relatedMail?.mailId)&&!!token;
+    const mailBodyTxt=mail?body:(loadingMail?'Loading email from Gmail…':(body||l.detail||'No email body yet.'));
+    const emailCard=`<div class="td-card td-mail" id="ls-mail">
+        <div class="td-mail-h"><span class="td-av m-brand" style="--a1:${esc(logoBrand.color)};--a2:${esc(logoBrand.color)}">${brandLogoHTML(logoBrand,initialsOf(mailFrom))}</span><div><b>${esc(mailFrom||'Unknown sender')}</b><small>${esc(mailSub||'(No subject)')}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
+        <p class="td-mail-b">${esc(mailBodyTxt)}</p>
+      </div>`;
     const st=replyState&&replyState.loopId===l.id?replyState:null;
     const statusHtml=st?.status==='sending'?`<div class="td-compose-status is-sending" role="status">Sending…</div>`
       :st?.status==='success'?`<div class="td-compose-status is-ok" role="status">Sent via Gmail${st.sentId?` · ${esc(st.sentId.slice(0,10))}…`:''}</div>`
@@ -1869,20 +1910,14 @@
         <label class="td-compose-field"><span>Subject</span><input id="td-reply-subject" type="text" value="${esc(st.subject)}" ${st.status==='sending'||st.status==='success'?'readonly':''}></label>
         <label class="td-compose-field"><span>Message</span><textarea id="td-reply-body" rows="8" ${st.status==='sending'||st.status==='success'?'readonly':''}>${esc(st.body)}</textarea></label>
         ${statusHtml}
-        ${l.href?`<button type="button" class="td-link td-open-original" data-ls-act="open-original">Open original</button>`:''}
       </div>`:'';
-    const mailFrom=mail?.from?.name||relatedMail?.from?.name||fromName;
-    const mailSub=mail?.subject||relatedMail?.subject||subject;
-    const email=`      ${isMail?`<div class="td-card td-mail" id="ls-mail">
-        <div class="td-mail-h"><span class="td-av m-brand" style="--a1:${esc(l.color||brandColor(mailFrom))};--a2:${esc(l.color||brandColor(mailFrom))}">${brandLogoHTML({fromEmail:l.fromEmail||relatedMail?.from?.email,title:mailFrom,domain:l.domain,logo:l.logo},initialsOf(mailFrom))}</span><div><b>${esc(mailFrom)}</b><small>${esc(mailSub)}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
-        <p class="td-mail-b">${mail?esc(body):(l.mailId||relatedMail?.mailId?'Loading email from Gmail…':esc(body))}</p>
-        ${relatedMailCard}
-        ${tripCard}
-        ${(l.href||relatedMail?.href)?`<button type="button" class="td-link td-open-original" data-ls-act="open-original">Open original</button>`:''}
-      </div>${compose}`:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>${tripCard}${compose}`}`;
-    const notes=`<div class="td-card td-need"><span class="td-need-l">Notes</span><p>${esc(l.detail||l.snippet||'No notes yet. Capture a reminder from Assistant.')}</p></div>
+    const details=`
+      ${isMail?emailCard:`<div class="td-card td-need"><span class="td-need-l">What needs to be done</span><p>${esc(need)}</p></div>`}
+      ${isMail?`<div class="td-card td-need"><span class="td-need-l">Suggested</span><p>${esc(need)}</p></div>`:''}
       ${tripCard}
-      ${l.related?`<div class="td-card"><a class="td-link" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a></div>`:''}`;
+      ${!isMail?`<div class="td-card td-ai"><div class="td-ai-top"><span class="td-ai-ico" aria-hidden="true">✦</span><b>${esc(sug.label)}</b></div><p>${esc(sug.text)}</p></div>`:''}`;
+    const email=`${isMail?emailCard:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>`}${tripCard}${compose}`;
+    const notes=`<div class="td-card td-need"><span class="td-need-l">Notes</span><p>${esc(l.detail||l.snippet||'No notes yet.')}</p></div>${tripCard}`;
     const activity=`<div class="td-card td-attrs">
         <div class="td-attr"><span class="td-attr-l">Source</span><span class="td-attr-v">${esc(srcOf(l))}</span></div>
         <div class="td-attr"><span class="td-attr-l">Updated</span><span class="td-attr-v">${esc(whenTxt||'—')}</span></div>
@@ -1891,26 +1926,22 @@
     $('#ls-body').innerHTML=`
       <div class="td-tabs" role="tablist">
         <button type="button" class="td-tab${tab==='details'&&!composing?' on':''}" data-td-tab="details" ${composing?'disabled':''}>Details</button>
-        <button type="button" class="td-tab${tab==='email'||composing?' on':''}" data-td-tab="email" ${isMail||composing?'':'disabled'}>Email</button>
         <button type="button" class="td-tab${tab==='notes'&&!composing?' on':''}" data-td-tab="notes" ${composing?'disabled':''}>Notes</button>
         <button type="button" class="td-tab${tab==='activity'&&!composing?' on':''}" data-td-tab="activity" ${composing?'disabled':''}>Activity</button>
       </div>
-      ${composing||tab==='email'?email:tab==='notes'?notes:tab==='activity'?activity:details}`;
+      ${composing?email:tab==='notes'?notes:tab==='activity'?activity:details}`;
     if(composing){
       const sending=st.status==='sending',ok=st.status==='success',needReconnect=!hasGmailSend();
       $('#ls-foot').innerHTML=`${ok
         ?`<button class="td-primary" type="button" data-ls-act="close-compose">Done</button>`
         :`<button class="td-primary" type="button" data-ls-act="${needReconnect?'reconnect-send':(st.status==='error'?'retry-send':'send')}" ${sending?'disabled':''}>${sending?'Sending…':needReconnect?'Reconnect to send':st.status==='error'?'Retry send':'Send reply'}</button>`}
         <div class="td-sec td-sec-2"><button class="td-sec-btn" type="button" data-ls-act="cancel-compose" ${sending?'disabled':''}>${ok?'Close':'Cancel'}</button>
-        ${l.href?`<button class="td-sec-btn" type="button" data-ls-act="open-original">Open original</button>`:`<button class="td-sec-btn" type="button" data-ls-act="remind" ${sending?'disabled':''}>Reminder</button>`}</div>`;
+        <button class="td-sec-btn" type="button" data-ls-act="open-gmail" ${sending?'disabled':''}>Open in Gmail</button></div>`;
       return;
     }
-    const replyable=canReplyInApp(l);
-    const primary=replyable?'Reply':(l._inbox?'Review':(sug.primary&&sug.primary!=='Reply Now'&&sug.primary!=='Send follow-up'&&sug.primary!=='Open in Gmail'?sug.primary:'Open'));
-    const primaryAct=replyable?'reply':(l.href?'open-original':'done');
-    $('#ls-foot').innerHTML=`<button class="td-primary" type="button" data-ls-act="${primaryAct}">${esc(primary)}</button>
-      <div class="td-sec td-sec-3"><button class="td-sec-btn" type="button" data-ls-act="snooze">Snooze</button><button class="td-sec-btn" type="button" data-ls-act="remind">Reminder</button><button class="td-sec-btn" type="button" data-ls-act="done">Mark Done</button></div>
-      ${l.href?`<button type="button" class="td-foot-link" data-ls-act="open-original">Open original in Gmail</button>`:''}`;
+    const primary=suggestedPrimaryAction(l);
+    $('#ls-foot').innerHTML=`<button class="td-primary" type="button" data-ls-act="${primary.act}">${esc(primary.label)}</button>
+      <div class="td-sec td-sec-3"><button class="td-sec-btn" type="button" data-ls-act="snooze">Snooze</button><button class="td-sec-btn" type="button" data-ls-act="remind">Reminder</button><button class="td-sec-btn" type="button" data-ls-act="done">Mark Done</button></div>`;
   }
   async function openLoopSheet(idOrObj){
     const l=typeof idOrObj==='object'&&idOrObj?idOrObj:findLoop(idOrObj);if(!l)return;
@@ -1953,16 +1984,14 @@
         if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Snoozed until tomorrow',{type:'ok',haptic:'success'});return}
         if(a==='remind'){capture('Remind me: '+loop.title+(loop.dueLabel?' by '+loop.dueLabel:''));toast('Reminder added',{type:'ok',haptic:'success'});return}
         if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Marked as done',{type:'ok',haptic:'success'});return}
+        if(a==='open-gmail'||a==='reply'){openGmailApp(loop);return}
         if(a==='open-original'){
-          const href=loop.relatedMail?.href||loop.href;
-          if(!href){toast('No Gmail link available',{type:'warn'});return}
+          const href=gmailHttpsUrl(loop)||loop.href;
+          if(!href){toast('No link available',{type:'warn'});return}
+          if(/mail\.google/i.test(href)){openGmailApp(loop);return}
           feel.select();window.open(href,'_blank','noopener');return
         }
-        if(a==='open-related-mail'){
-          const rm=loop.relatedMail;if(!rm?.href){toast('No related mail found',{type:'warn'});return}
-          feel.select();window.open(rm.href,'_blank','noopener');return
-        }
-        if(a==='reply'){openReplyComposer(loop);return}
+        if(a==='open-related-mail'){openGmailApp({...loop,...(loop.relatedMail||{}),href:loop.relatedMail?.href||loop.href,mailId:loop.relatedMail?.mailId||loop.mailId,threadId:loop.relatedMail?.threadId||loop.threadId});return}
         const wOpen=e.target.closest('[data-open-wallet]');
         if(wOpen){feel.select();closeLoopSheet();setTab('wallet');openPassSheet(wOpen.dataset.openWallet);return}
         if(a==='cancel-compose'||a==='close-compose'){

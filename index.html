@@ -183,7 +183,10 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .td-nav b{font:650 15px/1 var(--font);color:var(--ink)}
 .td-nav-btn{width:36px;height:36px;border:0;border-radius:12px;background:#eceef3;color:#374151;font:600 22px/1 var(--font);cursor:pointer}
 .td-head{display:flex;align-items:flex-start;gap:12px;padding:8px 16px 12px}
-.td-ico{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;flex:none;background:var(--tb,var(--accent-soft));color:var(--tc,var(--accent))}
+.td-ico{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;flex:none;background:var(--tb,var(--accent-soft));color:var(--tc,var(--accent));position:relative;overflow:hidden}
+.td-ico.m-brand{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px rgba(23,32,51,.08)}
+.td-ico .m-brand-img{padding:8px;border-radius:14px}
+.td-ico .m-brand-ini{font:750 14px/1 var(--font)}
 .td-head-copy{flex:1;min-width:0}
 .td-prio{display:inline-flex;font:650 11px/1.2 var(--font);color:#c2410c;background:#ffedd5;padding:3px 8px;border-radius:6px;margin-bottom:6px}
 .td-head-copy h2{margin:0;font:700 22px/1.2 var(--font);letter-spacing:-.35px;color:var(--ink)}
@@ -205,7 +208,7 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .td-mail-h b{display:block;font:650 13.5px/1.2 var(--font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .td-mail-h small{display:block;margin-top:2px;font:500 12px/1.25 var(--font);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .td-mail-t{font:500 12px var(--font);color:var(--muted);flex:none}
-.td-mail-b{margin:0;font:500 13.5px/1.5 var(--font);color:#374151;display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
+.td-mail-b{margin:0;font:500 13.5px/1.5 var(--font);color:#374151;display:-webkit-box;-webkit-line-clamp:14;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
 .td-compose{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .td-compose-field{display:flex;flex-direction:column;gap:5px;font:650 11.5px/1.2 var(--font);color:var(--muted);letter-spacing:.02em;text-transform:uppercase}
 .td-compose-field input,.td-compose-field textarea{
@@ -1423,7 +1426,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=47" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=48" defer></script></body></html>
 
 
 
