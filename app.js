@@ -16,7 +16,45 @@
     'https://www.googleapis.com/auth/contacts.readonly'
   ].join(' ');
   const esc = (s='') => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const toast = (s) => { const e=$('#toast'); e.textContent=s; e.classList.add('show'); setTimeout(()=>e.classList.remove('show'),2800); };
+  /* Light native-feel feedback (Capacitor Haptics → vibrate → no-op) */
+  const feel={
+    _t:0,
+    reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches},
+    async haptic(kind='light'){
+      const now=Date.now();if(now-this._t<48)return;this._t=now;
+      try{
+        const H=window.Capacitor?.Plugins?.Haptics;
+        if(H){
+          if(kind==='success'){await H.notification({type:'SUCCESS'});return}
+          if(kind==='warning'){await H.notification({type:'WARNING'});return}
+          if(kind==='error'){await H.notification({type:'ERROR'});return}
+          if(kind==='medium'||kind==='press'){await H.impact({style:'MEDIUM'});return}
+          if(kind==='selection'){await H.selectionStart?.();await H.selectionChanged?.();await H.selectionEnd?.();return}
+          await H.impact({style:'LIGHT'});return;
+        }
+      }catch{}
+      try{
+        if(!navigator.vibrate)return;
+        const map={light:8,selection:6,medium:12,press:12,success:[7,36,10],warning:[9,28,9],error:[12,36,12]};
+        navigator.vibrate(map[kind]||8);
+      }catch{}
+    },
+    tap(){return this.haptic('light')},
+    select(){return this.haptic('selection')},
+    success(){return this.haptic('success')},
+    error(){return this.haptic('error')},
+    press(){return this.haptic('press')}
+  };
+  window.DaylightFeel=feel;
+  let toastTimer=0;
+  const toast=(s,opts={})=>{
+    const e=$('#toast');if(!e)return;
+    e.textContent=s;
+    e.className='toast show'+(opts.type==='ok'?' toast-ok':opts.type==='err'?' toast-err':opts.type==='warn'?' toast-warn':'');
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(()=>{e.classList.remove('show','toast-ok','toast-err','toast-warn')},opts.ms||2600);
+    if(opts.haptic)feel.haptic(opts.haptic);
+  };
   const date = new Date();
   const localMidnight = new Date(date.getFullYear(),date.getMonth(),date.getDate());
   const tomorrow = new Date(date.getFullYear(),date.getMonth(),date.getDate()+1);
@@ -1311,8 +1349,8 @@
         const act=e.target.closest('[data-ls-act]');if(!act||!openLoopId)return;
         const loop=currentDetail();if(!loop)return;
         const a=act.dataset.lsAct;
-        if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Snoozed until tomorrow');return}
-        if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Marked as done');return}
+        if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Snoozed until tomorrow',{type:'ok',haptic:'success'});return}
+        if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Marked as done',{type:'ok',haptic:'success'});return}
         if(a==='open'&&loop.href){window.open(loop.href,'_blank','noopener');return}
         if(a==='suggest'){
           const sug=loopSuggestion(loop);
@@ -1329,6 +1367,7 @@
     const wasOpen=sheet.classList.contains('show');
     sheet.classList.remove('closing','show');void sheet.offsetWidth;
     sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('loop-open');
+    if(!wasOpen)feel.tap();
     const N=window.DaylightNav;
     if(N){
       if(wasOpen&&N.topView()==='loop')N.replace('loop',l.id);
@@ -1414,7 +1453,7 @@
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
   let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mWeekCache={},mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
   if(mTab==='calendar')mTab='inbox';
-  const TITLES={home:'',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
+  const TITLES={home:'Daylight',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
   const WALLET_COLORS={tickets:['#1f6feb','#0b3d91'],coupons:['#d9480f','#a33b0a'],documents:['#2f9e44','#1b6b2e'],others:['#7048e8','#4c2db3']};
   const WALLET_LABEL={tickets:'Ticket',coupons:'Coupon',documents:'Document',others:'Pass'};
   function qrUrl(payload,size){return(window.DaylightScan?.qrImageUrl?.(payload,size))||('https://api.qrserver.com/v1/create-qr-code/?size='+(size||200)+'x'+(size||200)+'&margin=8&data='+encodeURIComponent(payload))}
@@ -1514,7 +1553,7 @@
   else if(!history.state?.dl){try{history.replaceState({dl:0,root:1},'')}catch{}}
   function setTab(t,opts){
     const soft=opts&&opts.soft;
-    if(!soft&&t!==mTab)Nav.saveTab();
+    if(!soft&&t!==mTab){Nav.saveTab();feel.select()}
     mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
     mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];renderMobile();if(t==='assistant'&&!mChat.length)chatHello();
     if(!soft)Nav.restoreTab();
@@ -1522,11 +1561,11 @@
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab,{soft:true});else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);
   $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-  window.addEventListener('popstate',()=>Nav.onPop());
-  document.addEventListener('backbutton',e=>{if(Nav.back()){e.preventDefault?.();e.stopPropagation?.()}},true);
+  window.addEventListener('popstate',()=>{feel.tap();Nav.onPop()});
+  document.addEventListener('backbutton',e=>{if(Nav.back()){feel.tap();e.preventDefault?.();e.stopPropagation?.()}},true);
   try{
     const Cap=window.Capacitor,App=Cap?.Plugins?.App||Cap?.App;
-    App?.addListener?.('backButton',()=>{if(Nav.back())return;App.minimizeApp?.()});
+    App?.addListener?.('backButton',()=>{if(Nav.back()){feel.tap();return}App.minimizeApp?.()});
   }catch{}
   (function bindEdgeSwipe(){
     let s=null;
@@ -1562,10 +1601,135 @@
       const dist=s.fromLeft?dx:-dx;
       const el=s.el,was=s.active;s=null;
       clearDrag(el);
-      if(was&&dist>thresh())Nav.back();
+      if(was&&dist>thresh()){feel.tap();Nav.back()}
     };
     document.addEventListener('touchend',end,{passive:true});
     document.addEventListener('touchcancel',end,{passive:true});
+  })();
+  /* Action sheet · pull-to-refresh · long-press · keyboard inset */
+  function closeActionSheet(){
+    const sh=$('#m-action-sheet');if(!sh)return;
+    sh.classList.remove('show');sh.setAttribute('aria-hidden','true');
+    setTimeout(()=>sh.remove(),feel.reduced()?0:220);
+  }
+  function openActionSheet(title,actions){
+    closeActionSheet();feel.press();
+    const sh=document.createElement('div');sh.id='m-action-sheet';sh.className='m-action-sheet';sh.setAttribute('role','dialog');sh.setAttribute('aria-modal','true');
+    sh.innerHTML=`<button type="button" class="m-action-scrim" data-as-close aria-label="Dismiss"></button>
+      <div class="m-action-panel">
+        ${title?`<div class="m-action-title">${esc(title)}</div>`:''}
+        <div class="m-action-list">${actions.map((a,i)=>`<button type="button" class="m-action-btn${a.danger?' is-danger':''}" data-as="${i}">${esc(a.label)}</button>`).join('')}</div>
+        <button type="button" class="m-action-cancel" data-as-close>Cancel</button>
+      </div>`;
+    document.body.append(sh);
+    requestAnimationFrame(()=>sh.classList.add('show'));
+    sh.addEventListener('click',e=>{
+      if(e.target.closest('[data-as-close]')){feel.tap();closeActionSheet();return}
+      const b=e.target.closest('[data-as]');if(!b)return;
+      const act=actions[+b.dataset.as];feel.tap();closeActionSheet();
+      try{act?.run?.()}catch{}
+    });
+  }
+  function skelRows(n=4){
+    return `<div class="m-skel-list" aria-hidden="true" aria-busy="true">${Array.from({length:n},()=>`<div class="m-skel-row"><i class="m-skel"></i><span><b class="m-skel"></b><s class="m-skel"></s></span></div>`).join('')}</div>`;
+  }
+  (function bindPullRefresh(){
+    let startY=0,pulling=false,armed=false,busy=false;
+    let ind=$('#m-ptr');
+    if(!ind){ind=document.createElement('div');ind.id='m-ptr';ind.className='m-ptr';ind.innerHTML='<i></i><span>Pull to refresh</span>';ind.hidden=true;mapp.prepend(ind)}
+    const atTop=()=>(Nav.scrollEl().scrollTop||window.scrollY||0)<=2;
+    const reset=()=>{pulling=false;armed=false;ind.classList.remove('armed','loading');ind.hidden=true;ind.style.transform='';mapp.classList.remove('is-pulling')}
+    document.addEventListener('touchstart',e=>{
+      if(!mq.matches||Nav.anyOpen()||busy||!atTop())return;
+      if(mTab!=='home'&&mTab!=='inbox'&&mTab!=='wallet')return;
+      startY=e.touches[0].clientY;pulling=true;armed=false;
+    },{passive:true});
+    document.addEventListener('touchmove',e=>{
+      if(!pulling||busy)return;
+      const dy=e.touches[0].clientY-startY;
+      if(dy<8||!atTop()){if(!armed)return;reset();return}
+      if(e.cancelable&&dy>12)e.preventDefault();
+      mapp.classList.add('is-pulling');ind.hidden=false;
+      const p=Math.min(88,dy*0.42);
+      ind.style.transform=`translate3d(-50%,${p-36}px,0)`;
+      armed=p>52;ind.classList.toggle('armed',armed);
+      ind.querySelector('span').textContent=armed?'Release to refresh':'Pull to refresh';
+    },{passive:false});
+    document.addEventListener('touchend',async()=>{
+      if(!pulling)return;
+      const go=armed;reset();
+      if(!go||busy)return;
+      busy=true;ind.hidden=false;ind.classList.add('loading');ind.querySelector('span').textContent='Refreshing…';
+      ind.style.transform='translate3d(-50%,12px,0)';feel.tap();
+      try{
+        if(token||microsoftAccount){refreshAll.force=true;await refreshAll();toast('Updated',{type:'ok',haptic:'success',ms:1800})}
+        else{renderMobile();toast('Connect Google to sync live data',{type:'warn',ms:2200})}
+      }catch{toast('Couldn’t refresh',{type:'err',haptic:'error'})}
+      finally{busy=false;setTimeout(reset,feel.reduced()?0:280)}
+    },{passive:true});
+  })();
+  (function bindLongPress(){
+    let timer=0,start=null,moved=false,suppressClick=false;
+    const clear=()=>{clearTimeout(timer);timer=0;start=null;moved=false};
+    document.addEventListener('click',e=>{
+      if(!suppressClick)return;
+      if(e.target.closest('[data-open-loop],[data-inbox-open],[data-wid]')){e.preventDefault();e.stopPropagation();suppressClick=false}
+    },true);
+    document.addEventListener('touchstart',e=>{
+      if(!mq.matches||Nav.anyOpen())return;
+      const card=e.target.closest('[data-open-loop],[data-inbox-open],[data-wid]');
+      if(!card||e.target.closest('a,input,textarea,select'))return;
+      const t=e.touches[0];start={x:t.clientX,y:t.clientY,card};
+      moved=false;clearTimeout(timer);
+      timer=setTimeout(()=>{
+        if(!start||moved)return;
+        const el=start.card;suppressClick=true;clear();
+        if(el.dataset.openLoop){
+          const id=el.dataset.openLoop,loop=findLoop(id);if(!loop)return;
+          openActionSheet(loop.title,[
+            {label:'Open',run:()=>{feel.tap();openLoopSheet(id)}},
+            {label:'Snooze until tomorrow',run:()=>{const s=loopState();s[id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);renderLoops();renderMobile();toast('Snoozed until tomorrow',{type:'ok',haptic:'success'})}},
+            {label:'Mark as done',run:()=>{const s=loopState();s[id]={done:true,t:Date.now()};saveLoopState(s);renderLoops();renderMobile();toast('Marked as done',{type:'ok',haptic:'success'})}}
+          ]);
+        }else if(el.dataset.inboxOpen){
+          const id=el.dataset.inboxOpen,item=inboxItems(mInboxFilter).find(i=>i.id===id)||computeMoney().all.find(i=>i.id===id);
+          if(!item)return;
+          openActionSheet(item.title,[
+            {label:'Open details',run:()=>openLoopSheet(inboxToDetail(item))},
+            {label:'Snooze until tomorrow',run:()=>{const s=loopState();s['inbox:'+id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);renderInbox({animate:false});toast('Snoozed until tomorrow',{type:'ok',haptic:'success'})}},
+            {label:'Mark as done',run:()=>{const s=loopState();s['inbox:'+id]={done:true,t:Date.now()};saveLoopState(s);renderInbox({animate:false});toast('Marked as done',{type:'ok',haptic:'success'})}}
+          ]);
+        }else if(el.dataset.wid){
+          const id=el.dataset.wid,item=readWallet().find(i=>i.id===id);if(!item)return;
+          openActionSheet(item.title,[
+            {label:'Open pass',run:()=>openPassSheet(id)},
+            {label:'Move category',run:()=>{
+              const list=readWallet(),it=list.find(i=>i.id===id);if(!it)return;
+              const order=['tickets','coupons','documents','others'];
+              it.kind=order[(order.indexOf(it.kind)+1)%order.length];it.color=WALLET_COLORS[it.kind];saveWallet(list);renderWallet();toast('Moved to '+WALLET_LABEL[it.kind],{type:'ok',haptic:'selection'});
+            }},
+            {label:'Remove from Wallet',danger:true,run:()=>{saveWallet(readWallet().filter(i=>i.id!==id));renderWallet();toast('Removed from Wallet',{type:'warn',haptic:'warning'})}}
+          ]);
+        }
+      },420);
+    },{passive:true});
+    document.addEventListener('touchmove',e=>{
+      if(!start)return;
+      const t=e.touches[0];
+      if(Math.abs(t.clientX-start.x)>10||Math.abs(t.clientY-start.y)>10){moved=true;clear()}
+    },{passive:true});
+    document.addEventListener('touchend',clear,{passive:true});
+    document.addEventListener('touchcancel',clear,{passive:true});
+  })();
+  (function bindKeyboardInset(){
+    const vv=window.visualViewport;if(!vv)return;
+    const sync=()=>{
+      if(!mq.matches){document.documentElement.style.removeProperty('--kb');return}
+      const kb=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
+      document.documentElement.style.setProperty('--kb',kb+'px');
+      document.body.classList.toggle('kb-open',kb>80);
+    };
+    vv.addEventListener('resize',sync);vv.addEventListener('scroll',sync);sync();
   })();
   // Home — compact Daily Brief + Open Loops cards (reference layout)
   function loopTags(l){const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&l.type!=='overdue')tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);return tags}
@@ -1581,7 +1745,7 @@
   function renderHome(){
     const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
     $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
-    $('#m-hello').textContent=`${part}${first?', '+first:''} 👋`;
+    $('#m-hello').textContent=`${part}${first?', '+first:''}`;
     const WORK=['reply','followup','prepare','overdue','deadline'];
     const loops=(token||microsoftAccount||DEMO)?computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type)):[],money=computeMoney(),pendingPay=money.pending||[];
     const bits=[];
@@ -1598,7 +1762,7 @@
     if(total){total.textContent=loops.length||'';total.hidden=!loops.length}
     if(see)see.hidden=!loops.length;
     if(!token&&!microsoftAccount&&!DEMO&&!loops.length){grid.innerHTML='<div class="m-empty">Connect Google to surface replies, renewals and trips here.</div>';return}
-    if(!loopsData&&token){grid.innerHTML='<div class="m-empty">Looking through your inbox…</div>';return}
+    if(!loopsData&&token){grid.innerHTML=skelRows(4);return}
     const lmax=loopsShowAll?loops.length:4,shown=loops.slice(0,lmax);
     grid.innerHTML=loops.length?shown.map(mobileLoopCard).join(''):'<div class="m-empty">No open loops. You’re caught up.</div>';
     if(see)see.textContent='';see.innerHTML=loopsShowAll?`Show less ${svg(ICON.chevron,14)}`:`See All ${svg(ICON.chevron,14)}`;
@@ -1762,10 +1926,10 @@
           const list=readWallet();const it=list.find(i=>i.id===mWalletOpen);if(!it)return;
           const order=['tickets','coupons','documents','others'];
           it.kind=order[(order.indexOf(it.kind)+1)%order.length];it.color=WALLET_COLORS[it.kind];saveWallet(list);
-          openPassSheet(it.id);toast('Moved to '+WALLET_LABEL[it.kind]);return;
+          openPassSheet(it.id);toast('Moved to '+WALLET_LABEL[it.kind],{type:'ok',haptic:'selection'});return;
         }
         if(e.target.closest('[data-pass-del]')){
-          saveWallet(readWallet().filter(i=>i.id!==mWalletOpen));closePassSheet();renderWallet();toast('Removed from Wallet');return;
+          saveWallet(readWallet().filter(i=>i.id!==mWalletOpen));closePassSheet();renderWallet();toast('Removed from Wallet',{type:'warn',haptic:'warning'});return;
         }
       });
     }
@@ -1816,7 +1980,7 @@
       <div class="pass-actions"><button type="button" class="connect ghost" data-pass-del>Remove</button></div>`;
     const wasOpen=sheet.classList.contains('show');
     clearTimeout(Nav.passTimer);sheet.classList.remove('closing');
-    if(!wasOpen){sheet.classList.remove('show');void sheet.offsetWidth}
+    if(!wasOpen){sheet.classList.remove('show');void sheet.offsetWidth;feel.tap()}
     sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('pass-open');
     if(hist==='replace')Nav.replace('pass',id);
     else if(hist==='none'){/* caller owns history */}
@@ -1848,7 +2012,7 @@
   }
   function openScan(){
     clearTimeout(Nav.scanTimer);scanUI.hidden=false;scanUI.classList.remove('closing');
-    if(!scanUI.classList.contains('show')){void scanUI.offsetWidth}
+    if(!scanUI.classList.contains('show')){void scanUI.offsetWidth;feel.tap()}
     scanUI.classList.add('show');scanUI.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
     showScanStep('landing');
     if(Nav.topView()!=='scan')Nav.push('scan');
@@ -1921,8 +2085,8 @@
     const ctx=c.getContext('2d'),sx=Math.round(w*0.1),sy=Math.round(h*0.14),sw=Math.round(w*0.8),sh=Math.round(h*0.72);
     c.width=sw;c.height=sh;ctx.drawImage(v,sx,sy,sw,sh,0,0,sw,sh);
     let data='';
-    try{data=c.toDataURL('image/jpeg',0.78)}catch{toast('Could not capture frame');return}
-    stopScanCamera();processScanImage(data,'');
+    try{data=c.toDataURL('image/jpeg',0.78)}catch{toast('Could not capture frame',{type:'err',haptic:'error'});return}
+    feel.haptic('medium');stopScanCamera();processScanImage(data,'');
   }
   function saveScanToWallet(){
     if(!scanDraft){toast('Nothing to save');return}
@@ -1948,7 +2112,7 @@
     mWalletFilter='all';mWalletOpen=item.id;setLS('daylight-wallet-filter','all');
     Nav.drop('scan');dismissScan();setTab('wallet',{soft:true});
     openPassSheet(item.id,{history:'replace'});
-    toast('Saved to Wallet');
+    toast('Saved to Wallet',{type:'ok',haptic:'success'});
   }
   $('#m-wallet-scan')?.addEventListener('click',openScan);
   scanUI.addEventListener('click',e=>{
