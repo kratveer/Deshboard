@@ -247,9 +247,14 @@ body.loop-open{overflow:hidden}
 .mapp,.mapp button,.mapp input,.mapp a,.mapp h2,.mapp h3,.shell,.shell button,.shell input,.shell textarea,.shell select{font-family:var(--font)}
 .mapp[data-screen="inbox"] .m-title{font:700 28px/1.15 var(--font);letter-spacing:-.6px}
 .m-inbox-head{display:flex;align-items:center;gap:10px;margin:10px 0 20px}
-.m-inbox-tabs{position:relative;display:flex;align-items:stretch;flex:1;min-width:0;padding:3px;gap:0;border-radius:12px;background:color-mix(in srgb,var(--ink) 8%,var(--card));box-shadow:inset 0 0 0 0.5px color-mix(in srgb,var(--ink) 6%,transparent);-webkit-tap-highlight-color:transparent}
+.m-inbox-tabs{position:relative;display:flex;align-items:stretch;flex:1;min-width:0;padding:3px;gap:0;border-radius:12px;background:color-mix(in srgb,var(--ink) 8%,var(--card));box-shadow:inset 0 0 0 0.5px color-mix(in srgb,var(--ink) 6%,transparent);-webkit-tap-highlight-color:transparent;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+.m-inbox-tabs::-webkit-scrollbar{display:none}
+.m-pill-tag.is-review{background:color-mix(in srgb,#c47b2b 18%,var(--card));color:#8a5a16}
+.m-pill-tag.is-ticket{background:color-mix(in srgb,#2f8fb0 16%,var(--card));color:#1f6f8a}
+.m-pill-tag.is-shop{background:color-mix(in srgb,#3d8b6e 16%,var(--card));color:#2a6b52}
+.m-inbox-card.is-review{box-shadow:inset 3px 0 0 #c47b2b}
 .m-inbox-thumb{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:9px;background:var(--card);box-shadow:0 1px 1px rgba(40,50,90,.04),0 3px 8px rgba(40,50,90,.10);pointer-events:none;z-index:0;transition:transform .34s cubic-bezier(.2,.9,.2,1),width .34s cubic-bezier(.2,.9,.2,1);will-change:transform,width}
-.m-inbox-tabs button{position:relative;z-index:1;flex:1 1 0;border:0;border-radius:9px;min-height:36px;padding:8px 6px;font:600 15px/1.2 var(--font);letter-spacing:-.1px;color:color-mix(in srgb,var(--ink) 45%,var(--muted));background:transparent;cursor:pointer;white-space:nowrap;transition:color .2s ease}
+.m-inbox-tabs button{position:relative;z-index:1;flex:0 0 auto;border:0;border-radius:9px;min-height:36px;padding:8px 10px;font:600 13.5px/1.2 var(--font);letter-spacing:-.1px;color:color-mix(in srgb,var(--ink) 45%,var(--muted));background:transparent;cursor:pointer;white-space:nowrap;transition:color .2s ease}
 .m-inbox-tabs button.on{color:var(--ink);font-weight:650;background:transparent;box-shadow:none}
 .m-inbox-tabs button:active{opacity:.72}
 .m-inbox-filter{width:46px;height:46px;border:0;border-radius:16px;background:var(--card);color:var(--ink);display:grid;place-items:center;box-shadow:0 4px 14px rgba(40,50,90,.06);cursor:pointer;flex:none}
@@ -292,10 +297,33 @@ body.dark .cat-item{background:var(--bg2);border-color:var(--line)}body.dark .ca
 body.dark .adj{background:var(--card2);border-color:var(--line);color:var(--accent-text)}body.dark .connect{background:var(--accent-soft);color:var(--accent-text)}body.dark .connect.primary{background:var(--accent);color:#fff}body.dark .connect.ghost{background:transparent}
 body.dark .card-title,body.dark h1,body.dark .menu-item{color:var(--ink)}body.dark .empty{color:var(--muted)}body.dark .modal h3,body.dark .connections-modal{color:var(--ink)}body.dark .conn-row .provider-copy span{color:var(--muted)}
 .actions{position:relative}.bell{position:relative}.bell svg{width:19px;height:19px}.bell-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#d4556b;color:#fff;font:700 10.5px/18px Inter,sans-serif;text-align:center;box-shadow:0 0 0 2px var(--bg2)}.bell-badge[hidden]{display:none}
-.notif-panel{position:absolute;top:52px;right:0;width:min(370px,calc(100vw - 32px));max-height:min(70vh,560px);overflow:auto;z-index:8;background:var(--bg2);border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px #27324d33;padding:14px}.notif-panel[hidden]{display:none}
-.notif-head{display:flex;justify-content:space-between;align-items:center;padding:0 4px 8px}.notif-head b{font:700 16px Inter,sans-serif}
-.notif{display:flex;gap:11px;align-items:flex-start;padding:10px;border-radius:12px;color:var(--ink);text-decoration:none}.notif:hover{background:var(--card2)}.notif.is-new{background:var(--accent-soft)}.notif-body{display:flex;flex-direction:column;gap:2px;min-width:0}.notif-body b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notif-body small{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.notif .loop-type{font-size:10px}
-body.dark .notif-panel{background:var(--bg2);box-shadow:0 24px 60px #00000066}body.dark .notif.is-new{background:var(--accent-soft)}body.dark .bell-badge{box-shadow:0 0 0 2px var(--bg2)}
+.notif-panel{position:fixed;inset:0;z-index:52;display:flex;align-items:stretch;justify-content:flex-end;padding:0;background:rgba(15,18,28,.28);backdrop-filter:blur(12px) saturate(1.05);-webkit-backdrop-filter:blur(12px) saturate(1.05);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .24s ease,visibility .24s ease;will-change:opacity}
+.notif-panel[hidden]{display:none!important}
+.notif-panel.show{opacity:1;visibility:visible;pointer-events:auto}
+.notif-panel.closing{opacity:0;pointer-events:none}
+.notif-scrim{position:absolute;inset:0;border:0;background:transparent;cursor:pointer}
+.notif-sheet{position:relative;z-index:1;width:min(400px,100%);height:100%;max-height:100%;display:flex;flex-direction:column;background:var(--card);border:0;border-left:1px solid var(--line);box-shadow:-18px 0 48px rgba(23,32,51,.18);padding:0;overflow:hidden;transform:translate3d(100%,0,0);opacity:1;transition:transform .32s cubic-bezier(.22,.9,.28,1),opacity .22s ease;will-change:transform,opacity;touch-action:pan-y;overscroll-behavior:contain}
+.notif-panel.show .notif-sheet{transform:none}
+.notif-panel.closing .notif-sheet{transform:translate3d(100%,0,0);opacity:0;transition-duration:.24s,.2s}
+.notif-head{display:flex;justify-content:space-between;align-items:center;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 12px;flex:none;border-bottom:1px solid color-mix(in srgb,var(--ink) 6%,transparent)}
+.notif-head b{font:700 17px/1.2 var(--font);letter-spacing:-.2px}
+.notif-list{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px 12px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px}
+.notif{display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;color:var(--ink);text-decoration:none;background:transparent;border:0;width:100%;text-align:left;cursor:pointer;font:inherit}
+.notif:hover{background:var(--card2)}.notif.is-new{background:var(--accent-soft)}
+.notif-logo{width:42px;height:42px;border-radius:13px;flex:none;display:grid;place-items:center;background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px rgba(23,32,51,.08);position:relative;overflow:hidden}
+.notif-logo .m-brand-img{padding:7px;border-radius:13px}
+.notif-logo .m-brand-ini{font:750 13px/1 var(--font);letter-spacing:-.2px}
+.notif-logo .loop-icon,.notif-logo svg{width:20px;height:20px}
+.notif-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.notif-body b{font:650 14px/1.25 var(--font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notif-body small{font:500 12.5px/1.25 var(--font);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notif .loop-type{font:650 10.5px/1.2 var(--font);letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+body.dark .notif-sheet{background:var(--bg2);box-shadow:-18px 0 48px #00000066;border-left-color:rgba(255,255,255,.08)}
+body.dark .notif.is-new{background:var(--accent-soft)}
+body.dark .notif-logo{background:rgba(255,255,255,.92)}
+body.dark .bell-badge{box-shadow:0 0 0 2px var(--bg2)}
+body.notif-open{overflow:hidden}
+@media(prefers-reduced-motion:reduce){.notif-panel,.notif-sheet{transition:none!important}.notif-sheet{transform:none!important}}
 body.dark .badge{background:var(--accent-soft);color:var(--accent-text)}body.dark .tl-chip{background:var(--accent-soft);color:var(--accent-text)}body.dark .tl-chip.due{background:#22413a;color:#8fdcbe}body.dark .tl-chip.warn{background:#4a2a33;color:#f3a7b6}body.dark .tag{background:var(--accent-soft);color:var(--accent-text)}body.dark .file-kind.k-doc{background:var(--accent-soft);color:var(--accent-text)}body.dark .k-sheet{background:#22413a;color:#8fdcbe}body.dark .k-slides{background:#4a3a22;color:#efc98a}body.dark .k-pdf{background:#4a2a33;color:#f3a7b6}body.dark .bday.is-today .badge{background:#4a2a33;color:#f3a7b6}body.dark .profile{box-shadow:0 0 0 2px #2a3550}
 /* ---- Daylight 2.0: GridStack widgets ---- */
 .layout.grid-stack{display:block;margin:0 -8px}
@@ -332,7 +360,6 @@ body.editing .layout .card input,body.editing .layout .card textarea,body.editin
 .loops-foot{margin-top:8px}
 @media(max-width:680px){.edit-bar{top:6px}.eb-field{flex:1}}
 body.dark .edit-bar{background:var(--bg2);border-color:var(--line)}body.dark .wpanel{background:var(--bg2)}body.dark .wt-btn{background:var(--card2);color:var(--muted)}body.dark .smart em{color:var(--accent-text)}body.dark .eb-field select,body.dark .wp-settings select,body.dark .wp-settings input{background:var(--card2);border-color:var(--line)}
-.notif-panel{z-index:20}
 /* ---- Command bar (bottom centre) ---- */
 body.has-cmd .shell{padding-bottom:120px}
 .cmd{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:min(640px,calc(100% - 32px));z-index:8;display:flex;flex-direction:column;gap:8px}
@@ -407,7 +434,8 @@ button,input,select,textarea,a,.mapp,.shell{font-family:var(--font);-webkit-tap-
 button,a,[role="button"]{-webkit-tap-highlight-color:transparent;tap-highlight-color:transparent}
 .m-item-main b,.m-item-main small,.m-hello,.m-sub,.m-tabs [data-tab],.m-brief p,.m-brief .eyebrow{font-family:var(--font)}
 /* surfaces */
-.card,body.dark .card,.settings-panel,.edit-bar,.wpanel,.cmd-sheet,.notif-panel,.drawer,.modal,body.dark .modal,.drawer-account,.up-next,body.dark .up-next{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:none}
+.card,body.dark .card,.settings-panel,.edit-bar,.wpanel,.cmd-sheet,.drawer,.modal,body.dark .modal,.drawer-account,.up-next,body.dark .up-next{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:none}
+.notif-sheet{background:var(--card)}
 .card{border-radius:var(--radius);padding:18px 20px}
 .hero,body.dark .hero,.focus,body.dark .focus{background:var(--card)}
 .loop,.arow,.conn-row,.wp-item,.toggle,body.dark .loop,body.dark .conn-row,body.dark .toggle{background:var(--card2);border-color:var(--line)}
@@ -757,7 +785,8 @@ body.dark .m-wallet-thumb{background:color-mix(in srgb,#fff 14%,var(--card2))}
 .m-scan-process p{margin:0;color:rgba(255,255,255,.62);font:500 14.5px/1.45 var(--font);max-width:280px}
 .m-scan[hidden]{display:none!important}
 .m-scan-landing[hidden],.m-scan-camera[hidden],.m-scan-review[hidden],.m-scan-process[hidden]{display:none!important}
-body.m .notif-panel{position:fixed;top:70px;right:12px;left:12px;width:auto;z-index:40}
+body.m .notif-panel{z-index:58}
+body.m .notif-sheet{width:min(440px,100%)}
 body.m .drawer{z-index:45}body.m .drawer-scrim{z-index:44}body.m .wpanel{z-index:46}
 .m-only{display:none}body.m .m-only{display:flex}
 /* Wallet pass detail — slide-in */
@@ -1392,7 +1421,7 @@ body.dark.m .m-wallet-fab{background:#fff;color:#111;box-shadow:0 14px 32px rgba
 </head>
 <body>
 <main class="shell">
- <header class="topbar"><div class="brand-wrap"><button class="iconbtn menu-btn" id="menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="brand"><span class="brandmark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke-linecap="round"><path d="M8 21a8 8 0 0 1 16 0" stroke="#f59e0b" stroke-width="2.4" fill="#fbbf24" fill-opacity=".35"/><path d="M16 6v3M6.5 10.5l2.1 2.1M25.5 10.5l-2.1 2.1M3 21h3M26 21h3" stroke="#f59e0b" stroke-width="2.4"/><path d="M4 25h24" stroke="#f97316" stroke-width="2.4"/></svg></span>Daylight</div></div><div class="actions"><button class="iconbtn bell" id="bell" type="button" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notif-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="bell-badge" id="bell-badge" hidden></span></button><button class="profile" id="profile" type="button" title="Connections">K</button><div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notifications" hidden><div class="notif-head"><b>Notifications</b><button class="modal-x" id="notif-close" type="button" aria-label="Close">×</button></div><div class="notif-list" id="notif-list"></div></div></div></header>
+ <header class="topbar"><div class="brand-wrap"><button class="iconbtn menu-btn" id="menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="brand"><span class="brandmark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke-linecap="round"><path d="M8 21a8 8 0 0 1 16 0" stroke="#f59e0b" stroke-width="2.4" fill="#fbbf24" fill-opacity=".35"/><path d="M16 6v3M6.5 10.5l2.1 2.1M25.5 10.5l-2.1 2.1M3 21h3M26 21h3" stroke="#f59e0b" stroke-width="2.4"/><path d="M4 25h24" stroke="#f97316" stroke-width="2.4"/></svg></span>Daylight</div></div><div class="actions"><button class="iconbtn bell" id="bell" type="button" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" aria-controls="notif-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="bell-badge" id="bell-badge" hidden></span></button><button class="profile" id="profile" type="button" title="Connections">K</button><div class="notif-panel" id="notif-panel" hidden aria-hidden="true"><button type="button" class="notif-scrim" id="notif-scrim" aria-label="Dismiss notifications"></button><div class="notif-sheet" role="dialog" aria-label="Notifications" aria-modal="true"><div class="notif-head"><b>Notifications</b><button class="modal-x" id="notif-close" type="button" aria-label="Close">×</button></div><div class="notif-list" id="notif-list"></div></div></div></div></header>
 <div class="drawer-scrim" id="drawer-scrim" hidden></div>
 <nav class="drawer" id="drawer" aria-label="Menu" hidden><div class="drawer-head"><div class="brand"><span class="brandmark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke-linecap="round"><path d="M8 21a8 8 0 0 1 16 0" stroke="#f59e0b" stroke-width="2.4" fill="#fbbf24" fill-opacity=".35"/><path d="M16 6v3M6.5 10.5l2.1 2.1M25.5 10.5l-2.1 2.1M3 21h3M26 21h3" stroke="#f59e0b" stroke-width="2.4"/><path d="M4 25h24" stroke="#f97316" stroke-width="2.4"/></svg></span>Daylight</div><button class="modal-x" id="drawer-close" type="button" aria-label="Close menu">×</button></div>
 <div class="drawer-account" id="drawer-account"></div>
@@ -1425,7 +1454,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=49" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="email-classify.js?v=1" defer></script><script src="app.js?v=51" defer></script></body></html>
 
 
 

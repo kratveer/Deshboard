@@ -791,7 +791,7 @@
     throw lastErr||new Error('Request failed');
   }
   async function loadLoops(force){
-    if(!token){if(DEMO){loopsData=demoLoopsData();loopsFetched=Date.now();try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)};queueDaylightHydrate();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return computeLoops().length}return 0}
+    if(!token){if(DEMO){loopsData=demoLoopsData();try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)};loopsFetched=Date.now();try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)};try{syncClassifiedTicketsToWallet()}catch(e){console.warn('ticket wallet',e)};queueDaylightHydrate();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();if(typeof renderWallet==='function'&&mq?.matches&&mTab==='wallet')renderWallet();return computeLoops().length}return 0}
     if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return 0}
     const Store=window.DaylightStore;
     const accountId=Store?await Store.getActiveAccountId().catch(()=>null):null;
@@ -799,7 +799,8 @@
     const t0=Date.now();
     let gmailRetries=0,calRetries=0,gmailMode='full',calMode='full';
     const G='https://gmail.googleapis.com/gmail/v1/users/me';
-    const meta=id=>apiRetry(`${G}/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`).then(r=>r.data);
+    // Fetch headers + snippet + attachment filenames for classify-first pipeline
+    const meta=id=>apiRetry(`${G}/messages/${encodeURIComponent(id)}?format=full&fields=id,threadId,labelIds,snippet,internalDate,payload/headers,payload/mimeType,payload/filename,payload/body/data,payload/parts(mimeType,filename,body/data,parts(mimeType,filename,body/data,parts(mimeType,filename)))`).then(r=>r.data);
     const listMeta=async (qs,n=12,pages=2)=>{
       try{
         const out=[];let pageToken='';
@@ -906,12 +907,15 @@
       upcoming=[];
     }
     loopsData={inbox:[...byId.values()],financeMail,travelMail,docsMail,threads:threads.filter(Boolean),upcoming,files:{},scanned:byId.size,financeHits:financeMail.length};
+    // Classify-first: every fetched mail gets a primary category before UI use
+    try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)}
     const meetings=upcoming.filter(e=>(e.attendees||[]).length>1&&e.start?.dateTime&&new Date(e.start.dateTime)<new Date(localMidnight.getTime()+2*86400000)).slice(0,3);
     await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
       try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${word.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','1');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,webViewLink)');
         const f=(await apiRetry(u).then(r=>r.data)).files?.[0];if(f)loopsData.files[e.id]=f}catch{}}));
     loopsFetched=Date.now();
     try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)}
+    try{syncClassifiedTicketsToWallet()}catch(e){console.warn('ticket wallet',e)}
     if(Store&&accountId){
       try{
         await Store.recordSyncSuccess('gmail',{durationMs:Date.now()-t0,retries:gmailRetries,fetched:byId.size,cursor:historyId,mode:gmailMode},accountId);
@@ -922,31 +926,94 @@
     renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();if(typeof renderWallet==='function'&&mq?.matches&&mTab==='wallet')renderWallet();
     return computeLoops().length;
   }
+  function applyEmailClassification(data){
+    const Cls=window.DaylightEmailClassify;
+    if(!Cls?.classifyAll||!data)return null;
+    const pool=new Map();
+    [...(data.inbox||[]),...(data.financeMail||[]),...(data.travelMail||[]),...(data.docsMail||[])].forEach(m=>{if(m?.id)pool.set(m.id,m)});
+    const result=Cls.classifyAll([...pool.values()]);
+    // Ensure every mail has a classification (never silently drop)
+    pool.forEach((m,id)=>{
+      if(result.byMailId[id])return;
+      const fallback=Cls.classifyEmail(m)||{
+        mailId:id,threadId:m.threadId||id,category:'other',confidence:0.3,needsReview:true,method:'fallback',
+        title:'Email',subject:'(No subject)',snippet:'',href:gmailLink(m.threadId||id),whenMs:Date.now(),
+        kind:'other',tag:'Needs review',recordKey:'other:'+id,status:null,amount:'',domain:'',fromEmail:'',fromName:''
+      };
+      result.byMailId[id]=fallback;result.all.push(fallback);result.byCategory.other.push(fallback);
+    });
+    data.classified=result;
+    return result;
+  }
+  function syncClassifiedTicketsToWallet(){
+    const tickets=loopsData?.classified?.byCategory?.ticket||[];
+    if(!tickets.length||typeof readWallet!=='function'||typeof saveWallet!=='function')return;
+    let list=readWallet(),changed=false;
+    tickets.forEach(t=>{
+      if(!t.mailId)return;
+      if(list.some(w=>w.mailId===t.mailId||(w.href&&t.href&&w.href===t.href)))return;
+      const id='ticket:'+t.mailId;
+      list.unshift({
+        id,kind:'tickets',title:t.subject||t.title||'Ticket',
+        typeLabel:'Ticket',note:t.fromName||t.domain||'',org:t.title||'',
+        href:t.href||'',mailId:t.mailId,at:new Date(t.whenMs||Date.now()).toISOString(),
+        color:'#2f8fb0',category:'ticket',recordKey:t.recordKey
+      });
+      changed=true;
+    });
+    if(changed)saveWallet(list.slice(0,80));
+  }
   function demoLoopsData(){
     const days=n=>new Date(Date.now()-n*86400000).toISOString();
-    const mail=(id,from,subject,agoDays,labels=['INBOX','UNREAD'])=>({id,threadId:id,labelIds:labels,internalDate:String(Date.now()-agoDays*86400000),payload:{headers:[{name:'From',value:from},{name:'Subject',value:subject},{name:'Date',value:days(agoDays)}]}});
+    const mail=(id,from,subject,agoDays,labels=['INBOX','UNREAD'],extra={})=>{
+      const body=extra.body||subject;
+      const parts=extra.filename?[{mimeType:'application/pdf',filename:extra.filename,body:{}}]:[];
+      return {
+        id,threadId:extra.threadId||id,labelIds:labels,snippet:String(body).slice(0,180),
+        internalDate:String(Date.now()-agoDays*86400000),
+        payload:{
+          mimeType:parts.length?'multipart/mixed':'text/plain',
+          headers:[{name:'From',value:from},{name:'Subject',value:subject},{name:'Date',value:days(agoDays)}],
+          body:parts.length?{}:{data:btoa(unescape(encodeURIComponent(body))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')},
+          parts:parts.length?[{mimeType:'text/plain',body:{data:btoa(unescape(encodeURIComponent(body))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}},...parts]:undefined
+        }
+      };
+    };
     const ev=(id,summary,inDays,loc='')=>({id,summary,htmlLink:'#',location:loc,start:{dateTime:new Date(localMidnight.getTime()+inDays*86400000+10*3600000).toISOString()},end:{dateTime:new Date(localMidnight.getTime()+inDays*86400000+11*3600000).toISOString()},attendees:[{email:'a@x.com'},{email:'b@x.com'}]});
     const money=[
-        mail('d1','Netflix <noreply@netflix.com>','Your Netflix subscription renews on Mar 15 · $19.99',2,['INBOX','CATEGORY_UPDATES']),
-      mail('d2','Spotify <no-reply@spotify.com>','Spotify Premium renews soon · $4.99',5,['INBOX','CATEGORY_UPDATES']),
-      mail('d7','Adobe <noreply@adobe.com>','Adobe Creative Cloud membership — payment due $59.99',1,['INBOX','IMPORTANT','UNREAD']),
-      mail('d8','Vodafone <billing@vodafone.cz>','Your Vodafone bill for February is ready · 499 Kč',3,['INBOX','CATEGORY_UPDATES']),
-      mail('d9','ČEZ <noreply@cez.cz>','Electricity invoice — payment due by Mar 12 · 1 240 Kč',4,['INBOX']),
-      mail('d10','Amazon <auto-confirm@amazon.com>','Your Amazon order has shipped · $42.10',1,['INBOX','CATEGORY_UPDATES']),
-      mail('d11','Zalando <no-reply@zalando.com>','Receipt for your Zalando purchase · €68.00',6,['INBOX','CATEGORY_UPDATES']),
-      mail('d12','PayPal <service@paypal.com>','You paid €24.90 via PayPal',2,['INBOX','CATEGORY_UPDATES']),
-      mail('d13','Apple <no_reply@email.apple.com>','Receipt from Apple — App Store · $15.99',7,['INBOX','CATEGORY_UPDATES']),
-      mail('d14','Cursor <noreply@cursor.com>','Cursor Pro free trial renews on Mar 9 · $15.99',0.5,['INBOX','CATEGORY_UPDATES'])
+      mail('d1','Netflix <noreply@netflix.com>','Your Netflix subscription renews on Mar 15 · $19.99',32,['INBOX','CATEGORY_UPDATES'],{body:'Your Netflix membership auto-renews monthly for $19.99. Manage your subscription in account settings.'}),
+      mail('d1b','Netflix <noreply@netflix.com>','Netflix renewal confirmation · $19.99',2,['INBOX','CATEGORY_UPDATES'],{body:'Thanks — your Netflix subscription renewed successfully for $19.99. Recurring membership continues.'}),
+      mail('d2','Spotify <no-reply@spotify.com>','Spotify Premium renews soon · $4.99',5,['INBOX','CATEGORY_UPDATES'],{body:'Your Spotify Premium subscription renews soon. Recurring billing $4.99/month.'}),
+      mail('d7','Adobe <noreply@adobe.com>','Adobe Creative Cloud membership — payment due $59.99',1,['INBOX','IMPORTANT','UNREAD'],{body:'Your Adobe Creative Cloud subscription payment is due. Membership renews automatically.'}),
+      mail('d14','Cursor <noreply@cursor.com>','Cursor Pro free trial renews on Mar 9 · $15.99',0.5,['INBOX','CATEGORY_UPDATES'],{body:'Your Cursor Pro subscription free trial converts to a paid recurring plan for $15.99.'}),
+      mail('d15','OpenAI <noreply@openai.com>','ChatGPT Plus subscription renewed · $20.00',3,['INBOX','CATEGORY_UPDATES'],{body:'Your ChatGPT Plus membership auto-renewed. Subscription continues monthly.'}),
+      mail('d16','xAI <noreply@x.ai>','Grok SuperGrok membership confirmation',8,['INBOX','CATEGORY_UPDATES'],{body:'Welcome to SuperGrok. Your recurring subscription is active.'}),
+      mail('d8','Vodafone <billing@vodafone.cz>','Your Vodafone bill for February is ready · 499 Kč',3,['INBOX','CATEGORY_UPDATES'],{body:'Your mobile invoice is ready. Amount due 499 Kč. Please pay by the due date.',filename:'vodafone-invoice.pdf'}),
+      mail('d9','ČEZ <noreply@cez.cz>','Electricity invoice — payment due by Mar 12 · 1 240 Kč',4,['INBOX'],{body:'Electricity bill / faktura. Payment due by Mar 12. Amount 1 240 Kč unpaid.',filename:'cez-faktura.pdf'}),
+      mail('d9p','ČEZ <noreply@cez.cz>','Thank you for your payment — electricity invoice paid · 1 240 Kč',1,['INBOX'],{body:'Invoice paid. Thank you for your payment on your electricity bill.'}),
+      mail('d12','PayPal <service@paypal.com>','You paid €24.90 via PayPal',2,['INBOX','CATEGORY_UPDATES'],{body:'You paid €24.90. Payment successful. Receipt for your purchase.'}),
+      mail('d13','Apple <no_reply@email.apple.com>','Receipt from Apple — App Store · $15.99',7,['INBOX','CATEGORY_UPDATES'],{body:'Receipt from Apple. You bought an app in the App Store for $15.99. One-time purchase.'}),
+      mail('d17','Stripe <receipts@stripe.com>','Payment failed — card declined · $12.00',0.8,['INBOX','IMPORTANT'],{body:'Your payment failed. Card declined. Insufficient funds. Please update your card.'}),
+      mail('d18','PayPal <service@paypal.com>','Refund issued · €18.40',9,['INBOX','CATEGORY_UPDATES'],{body:'A refund of €18.40 was issued to your PayPal balance.'})
+    ];
+    const shopping=[
+      mail('d10','Amazon <auto-confirm@amazon.com>','Your Amazon order has shipped · $42.10',1,['INBOX','CATEGORY_PURCHASES'],{body:'Your order has shipped. Tracking available. Package out for delivery soon.'}),
+      mail('d11','Zalando <no-reply@zalando.com>','Your Zalando order is confirmed · €68.00',6,['INBOX','CATEGORY_PURCHASES'],{body:'Order confirmed. We will email when your package is shipped.'}),
+      mail('d19','Temu <noreply@temu.com>','Return received — refund processing',4,['INBOX','CATEGORY_PURCHASES'],{body:'Your return was received. Refund for your order is processing.'})
+    ];
+    const tickets=[
+      mail('d3','Deutsche Bahn <noreply@bahn.de>','Your train ticket: Berlin → Prague',1,['INBOX','IMPORTANT'],{body:'Booking confirmation. Your e-ticket for Berlin to Prague is attached.',filename:'bahn-ticket.pdf'}),
+      mail('d4','Lufthansa <noreply@lufthansa.com>','Boarding pass · LH 1234 Munich–Lisbon',3,['INBOX'],{body:'Boarding pass attached. Flight LH 1234. Check-in complete. Gate A12.',filename:'boarding-pass.pdf'}),
+      mail('d20','Booking.com <noreply@booking.com>','Reservation confirmed — Hotel Lisboa Chiado',5,['INBOX'],{body:'Hotel booking confirmation. Reservation confirmed for 2 nights.'})
+    ];
+    const other=[
+      mail('d5','Ana <ana@uni.cz>','Quick question about Friday’s lab',0.3,['INBOX','UNREAD','CATEGORY_PERSONAL'],{body:'Hey — can we meet before Friday’s lab to review the notes?'}),
+      mail('d6','HR Portal <docs@company.com>','Please sign: internship agreement PDF',4,['INBOX','UNREAD'],{body:'Please review and sign the internship agreement PDF before Monday.',filename:'internship-agreement.pdf'}),
+      mail('d21','Newsletter <hello@mixedmail.example>','Update for you',1.2,['INBOX','CATEGORY_UPDATES'],{body:'Here is a short update from our team this week.'})
     ];
     return {
-      inbox:[
-        ...money,
-        mail('d3','Deutsche Bahn <noreply@bahn.de>','Your train ticket: Berlin → Prague',1,['INBOX','IMPORTANT']),
-        mail('d4','Lufthansa <noreply@lufthansa.com>','Boarding pass · LH 1234 Munich–Lisbon',3,['INBOX']),
-        mail('d5','Ana <ana@uni.cz>','Quick question about Friday’s lab',0.3,['INBOX','UNREAD','CATEGORY_PERSONAL']),
-        mail('d6','HR Portal <docs@company.com>','Please sign: internship agreement PDF',4,['INBOX','UNREAD'])
-      ],
-      financeMail:money,travelMail:[],docsMail:[],threads:[],
+      inbox:[...money,...shopping,...tickets,...other],
+      financeMail:money,travelMail:tickets,docsMail:[other[1]],threads:[],
       upcoming:[ev('e1','Flight LH 1234',2,'Munich Airport'),ev('e2','Project check-in',0),ev('e3','Submit thesis abstract',1)],
       files:{}
     };
@@ -1010,8 +1077,43 @@
     const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1);
     return {id:m.threadId||m.id,title:subject,detail:from.name,meta:ago(when),href:gmailLink(m.threadId||m.id),when:when.getTime(),unread:(m.labelIds||[]).includes('UNREAD')};
   }
-  const MONEY_LABEL={subscription:'Subscription',bill:'Bill',pending:'Payment'};
+  const MONEY_LABEL={subscription:'Subscription',bill:'Bill',pending:'Payment',payment:'Payment',ticket:'Ticket',shopping:'Shopping',other:'Other'};
+  function enrichClassifiedItem(c){
+    const Cls=window.DaylightEmailClassify;
+    if(!c||!Cls?.toInboxItem)return null;
+    const item=Cls.toInboxItem(c);
+    if(!item)return null;
+    item.color=brandColor(item.title||item.domain||'mail');
+    const logos=brandLogoUrls(item.domain);
+    if(logos[0])item.logo=logos[0];
+    if(!item.href&&item.id)item.href=gmailLink(item.id);
+    if(!item.meta){
+      if(c.status==='unpaid'||c.status==='pending')item.meta=c.status==='unpaid'?'Unpaid':'Pending';
+      else if(c.status==='renewal'||c.category==='subscription')item.meta='Subscription';
+      else item.meta=ago(new Date(item.whenMs||Date.now()));
+    }
+    return item;
+  }
+  function uniqueClassified(list,{byRecordKey=false}={}){
+    const map=new Map();
+    (list||[]).forEach(c=>{
+      const key=byRecordKey?(c.recordKey||c.mailId):(c.mailId||c.id);
+      const prev=map.get(key);
+      if(!prev||(c.whenMs||0)>(prev.whenMs||0))map.set(key,c);
+    });
+    return [...map.values()].sort((a,b)=>(b.whenMs||0)-(a.whenMs||0));
+  }
+  function ensureClassified(){
+    if(!loopsData)return null;
+    if(!loopsData.classified)try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)}
+    return loopsData.classified||null;
+  }
   function moneyFromMail(m){
+    const classified=ensureClassified()?.byMailId?.[m.id];
+    if(classified&&['subscription','payment','bill'].includes(classified.category)){
+      const item=enrichClassifiedItem(classified);
+      if(item)return item;
+    }
     const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1);
     const kind=moneyKind(subject,from.name+' '+from.email);if(!kind)return null;
     const renew=parseMoneyWhen(subject,when);
@@ -1022,11 +1124,49 @@
       :kind==='pending'?`Payment${amt?' · '+amt:''}`
       :`Bill from ${brand}${amt?' · '+amt:''}`;
     const domain=brandDomain(from.email,brand);
-    return {id:m.threadId||m.id,mailId:m.id,title:brand,subject,detail:subline,from:brand,fromName:from.name,fromEmail:from.email,domain,logo:brandLogoUrls(domain)[0]||'',meta:renew.label||ago(when),href:gmailLink(m.threadId||m.id),when:renew.sort||when.getTime(),whenMs:when.getTime(),kind,tag:MONEY_LABEL[kind]||'Money',urgent:!!renew.urgent||kind==='pending',amount:amt||'',color:brandColor(brand),received:!!renew.received,snippet:m.snippet||''};
+    return {id:m.threadId||m.id,mailId:m.id,title:brand,subject,detail:subline,from:brand,fromName:from.name,fromEmail:from.email,domain,logo:brandLogoUrls(domain)[0]||'',meta:renew.label||ago(when),href:gmailLink(m.threadId||m.id),when:renew.sort||when.getTime(),whenMs:when.getTime(),kind,category:kind==='pending'?'payment':kind,tag:MONEY_LABEL[kind]||'Money',urgent:!!renew.urgent||kind==='pending',amount:amt||'',color:brandColor(brand),received:!!renew.received,snippet:m.snippet||''};
+  }
+  function computeClassifiedInbox(){
+    const cls=ensureClassified();
+    if(!cls)return null;
+    const now=Date.now(),day=86400000;
+    const take=(cat,opts)=>uniqueClassified((cls.byCategory[cat]||[]).filter(c=>(now-(c.whenMs||0))<=180*day),opts)
+      .map(enrichClassifiedItem).filter(Boolean);
+    const subscription=take('subscription',{byRecordKey:true});
+    const bill=take('bill',{byRecordKey:true});
+    const pending=take('payment');
+    const ticket=take('ticket');
+    const shopping=take('shopping');
+    const other=take('other');
+    // Payment-like tasks still surface under Payments
+    const seen=new Set([...subscription,...bill,...pending,...ticket,...shopping,...other].map(i=>i.id));
+    const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+    [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks].forEach((t,i)=>{
+      const title=t.title||'';if(!MONEY.test(title)&&!PENDING_PAY.test(title)&&!/\b(fee|tuition|rent|školn|nájem|poplat)/i.test(title))return;
+      const id='task-money:'+(t.id||title)+i;if(seen.has(id))return;seen.add(id);
+      const d=t.dueDate?dueDay(t.dueDate):null,urgent=!d||d<=new Date(localMidnight.getTime()+7*day);
+      pending.push({id,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',meta:d?d.toLocaleDateString(undefined,{day:'numeric',month:'short'}):(t.due||'Open'),href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':'',when:d?d.getTime():now,whenMs:d?d.getTime():now,kind:'pending',category:'payment',tag:'Payment',urgent,amount:'',color:brandColor(title),received:false});
+    });
+    const byUrg=(a,b)=>(!!b.urgent-!!a.urgent)||(a.when||0)-(b.when||0)||String(a.title||'').localeCompare(String(b.title||''));
+    [subscription,bill,pending,ticket,shopping,other].forEach(g=>g.sort(byUrg));
+    const all=[...pending,...subscription,...bill,...ticket,...shopping,...other];
+    return {
+      subscription,bill,pending,ticket,shopping,other,payment:pending,
+      store:[],online:[],all,
+      counts:{
+        subscription:subscription.length,bill:bill.length,pending:pending.length,
+        ticket:ticket.length,shopping:shopping.length,other:other.length,
+        store:0,online:0,total:all.length
+      },
+      scanned:loopsData?.scanned||cls.all.length,
+      _fromClassification:true
+    };
   }
   function computeMoney(){
-    const groups={subscription:[],bill:[],pending:[]},seen=new Set(),now=Date.now(),day=86400000;
-    const mails=loopsData?[...(loopsData.inbox||[]),...(loopsData.financeMail||[])]:[];
+    const classified=computeClassifiedInbox();
+    if(classified)return classified;
+    const groups={subscription:[],bill:[],pending:[],ticket:[],shopping:[],other:[]},seen=new Set(),now=Date.now(),day=86400000;
+    const mails=loopsData?[...(loopsData.inbox||[]),...(loopsData.financeMail||[]),...(loopsData.travelMail||[]),...(loopsData.docsMail||[])]:[];
     const uniq=new Map();mails.forEach(m=>{if(m?.id)uniq.set(m.id,m)});
     uniq.forEach(m=>{
       const age=now-new Date((m.payload?.headers&&header(m.payload.headers,'Date'))||m.internalDate*1);
@@ -1034,19 +1174,18 @@
       const item=moneyFromMail(m);if(!item||seen.has(item.id))return;seen.add(item.id);
       (groups[item.kind]||groups.pending).push(item);
     });
-    // Payment-like tasks (tuition, bills) also belong in Inbox
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
     [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks].forEach((t,i)=>{
       const title=t.title||'';if(!MONEY.test(title)&&!PENDING_PAY.test(title)&&!/\b(fee|tuition|rent|školn|nájem|poplat)/i.test(title))return;
       const id='task-money:'+(t.id||title)+i;if(seen.has(id))return;seen.add(id);
       const d=t.dueDate?dueDay(t.dueDate):null,urgent=!d||d<=new Date(localMidnight.getTime()+7*day);
-      const item={id,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',meta:d?d.toLocaleDateString(undefined,{day:'numeric',month:'short'}):(t.due||'Open'),href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':'',when:d?d.getTime():now,kind:'pending',tag:'Payment',urgent,amount:'',color:brandColor(title),received:false};
+      const item={id,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',meta:d?d.toLocaleDateString(undefined,{day:'numeric',month:'short'}):(t.due||'Open'),href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':'',when:d?d.getTime():now,kind:'pending',category:'payment',tag:'Payment',urgent,amount:'',color:brandColor(title),received:false};
       groups.pending.push(item);
     });
     const byUrg=(a,b)=>(b.urgent-a.urgent)||(a.when||0)-(b.when||0)||a.title.localeCompare(b.title);
     Object.keys(groups).forEach(k=>groups[k].sort(byUrg));
-    const all=[...groups.pending,...groups.subscription,...groups.bill];
-    return {...groups,store:[],online:[],all,counts:{subscription:groups.subscription.length,bill:groups.bill.length,store:0,online:0,pending:groups.pending.length,total:all.length},scanned:loopsData?.scanned||uniq.size};
+    const all=[...groups.pending,...groups.subscription,...groups.bill,...groups.ticket,...groups.shopping,...groups.other];
+    return {...groups,store:[],online:[],payment:groups.pending,all,counts:{subscription:groups.subscription.length,bill:groups.bill.length,store:0,online:0,pending:groups.pending.length,ticket:groups.ticket.length,shopping:groups.shopping.length,other:groups.other.length,total:all.length},scanned:loopsData?.scanned||uniq.size};
   }
   function computeCategories(){
     const money=computeMoney(),finance=money.all.map(i=>({...i,title:i.subject||i.title,detail:i.from,meta:i.meta,kind:'finance'})),travel=[],pending=[],documents=[],now=Date.now(),day=86400000;
@@ -1217,27 +1356,105 @@
   if(!getLS('daylight-theme'))document.body.classList.toggle('dark',darkMq.matches);
   darkMq.addEventListener?.('change',e=>{if(!getLS('daylight-theme')){document.body.classList.toggle('dark',e.matches);syncTheme()}});
   $('#theme')?.addEventListener('click',syncTheme);syncTheme();
-  // ---- Notification bell ----
+  // ---- Notification bell (slide-in from right + source logos) ----
   const bellIcon={meeting:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/>'};
+  let notifClosing=false;
+  function bellBrandFor(item){
+    if(item.brand)return item.brand;
+    if(item.loop)return loopSourceBrand(item.loop);
+    if(item.kind==='meeting')return {domain:'google.com',title:'Calendar',color:brandColor('Calendar')};
+    if(item.kind==='reminder')return {domain:'',title:'Daylight',color:brandColor('Daylight')};
+    return {domain:'',title:item.title||'Daylight',color:brandColor(item.title||'Daylight')};
+  }
   function bellItems(){
     const items=[],now=new Date();
-    personalTasks.filter(t=>t.hasTime&&t.dueDate&&new Date(t.dueDate)-now<=30*60000&&now-new Date(t.dueDate)<6*3600000).forEach(t=>items.push({id:'rem:'+t.id,cls:'t-deadline',icon:LOOP_TYPES.deadline.icon,label:new Date(t.dueDate)<=now?'Reminder now':'Reminder soon',title:t.title,meta:fmtDue(t)+(t.project?' · '+t.project:''),href:''}));
-    todayEvents().timed.filter(e=>e.start>now&&e.start-now<=30*60000).forEach(e=>items.push({id:'meet:'+e.title+e.start.getTime(),cls:'t-prepare',icon:bellIcon.meeting,label:'Starting soon',title:e.title,meta:`${hm(e.start)} · in ${Math.max(1,Math.round((e.start-now)/60000))} min`,href:''}));
-    if(token||microsoftAccount)computeLoops().forEach(l=>{const t=LOOP_TYPES[l.type];items.push({id:l.id,cls:t.cls,icon:t.icon,label:t.label,title:l.title,meta:l.meta||l.detail,href:l.href})});
+    personalTasks.filter(t=>t.hasTime&&t.dueDate&&new Date(t.dueDate)-now<=30*60000&&now-new Date(t.dueDate)<6*3600000).forEach(t=>items.push({id:'rem:'+t.id,cls:'t-deadline',icon:LOOP_TYPES.deadline.icon,label:new Date(t.dueDate)<=now?'Reminder now':'Reminder soon',title:t.title,meta:fmtDue(t)+(t.project?' · '+t.project:''),href:'',kind:'reminder'}));
+    todayEvents().timed.filter(e=>e.start>now&&e.start-now<=30*60000).forEach(e=>items.push({id:'meet:'+e.title+e.start.getTime(),cls:'t-prepare',icon:bellIcon.meeting,label:'Starting soon',title:e.title,meta:`${hm(e.start)} · in ${Math.max(1,Math.round((e.start-now)/60000))} min`,href:'',kind:'meeting'}));
+    if(token||microsoftAccount||DEMO)computeLoops().forEach(l=>{const t=LOOP_TYPES[l.type];items.push({id:l.id,cls:t.cls,icon:t.icon,label:t.label,title:l.title,meta:l.meta||l.detail,href:l.href,kind:'loop',loop:l,loopId:l.id})});
     return items;
+  }
+  function notifLogoHTML(item){
+    const brand=bellBrandFor(item);
+    const ini=initialsOf(brand.title||item.title||'?');
+    if(brand.domain||item.loop){
+      return `<span class="notif-logo m-brand" style="--a1:${esc(brand.color)};--a2:${esc(brand.color)}" aria-hidden="true">${brandLogoHTML(brand,ini)}</span>`;
+    }
+    return `<span class="notif-logo" aria-hidden="true"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${item.icon||''}</svg></span></span>`;
+  }
+  function isNotifOpen(){
+    const panel=$('#notif-panel');
+    return !!(panel&&!panel.hidden&&panel.classList.contains('show')&&!panel.classList.contains('closing'));
   }
   function renderBell(){
     const items=bellItems(),seen=readJSON('daylight-seen',[]),unseen=items.filter(i=>!seen.includes(i.id)).length,badge=$('#bell-badge');if(!badge)return;
-    badge.hidden=!unseen;badge.textContent=unseen>9?'9+':unseen;$('#bell').setAttribute('aria-label',unseen?`Notifications, ${unseen} new`:'Notifications');
-    const panel=$('#notif-panel');if(panel.hidden)return;
-    $('#notif-list').innerHTML=items.length?items.slice(0,12).map(i=>`<${i.href?`a href="${esc(i.href)}" target="_blank" rel="noopener"`:'div'} class="notif ${i.cls}${seen.includes(i.id)?'':' is-new'}"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${i.icon}</svg></span><span class="notif-body"><span class="loop-type">${esc(i.label)}</span><b>${esc(i.title)}</b><small>${esc(i.meta||'')}</small></span></${i.href?'a':'div'}>`).join(''):`<div class="empty">${token||microsoftAccount?'You’re all caught up.':'Connect Google to get notified about replies, meetings and deadlines.'}</div>`;
+    badge.hidden=!unseen||isNotifOpen();badge.textContent=unseen>9?'9+':unseen;$('#bell').setAttribute('aria-label',unseen?`Notifications, ${unseen} new`:'Notifications');
+    const panel=$('#notif-panel');if(!panel||panel.hidden||!panel.classList.contains('show'))return;
+    const list=$('#notif-list');if(!list)return;
+    list.innerHTML=items.length?items.slice(0,12).map(i=>{
+      const openAttr=i.loopId?` data-notif-loop="${esc(i.loopId)}"`:(i.href?` href="${esc(i.href)}" target="_blank" rel="noopener"`:'');
+      const tag=i.loopId||i.href?'button':'div';
+      const hrefTag=i.href&&!i.loopId?'a':tag;
+      return `<${hrefTag} class="notif ${i.cls}${seen.includes(i.id)?'':' is-new'}"${openAttr} type="${hrefTag==='button'?'button':undefined}"><span class="notif-logo-wrap">${notifLogoHTML(i)}</span><span class="notif-body"><span class="loop-type">${esc(i.label)}</span><b>${esc(i.title)}</b><small>${esc(i.meta||'')}</small></span></${hrefTag}>`;
+    }).join('').replace(/\stype="undefined"/g,''):`<div class="empty">${token||microsoftAccount||DEMO?'You’re all caught up.':'Connect Google to get notified about replies, meetings and deadlines.'}</div>`;
   }
-  function toggleBell(open){const panel=$('#notif-panel');panel.hidden=!open;$('#bell').setAttribute('aria-expanded',String(open));
-    if(open){renderBell();writeJSON('daylight-seen',bellItems().map(i=>i.id).concat(readJSON('daylight-seen',[])).slice(0,300));$('#bell-badge').hidden=true}}
-  $('#bell')?.addEventListener('click',e=>{e.stopPropagation();toggleBell($('#notif-panel').hidden)});
+  function openNotifPanel(){
+    const panel=$('#notif-panel');if(!panel||notifClosing)return;
+    if(isNotifOpen()){renderBell();return}
+    panel.hidden=false;panel.setAttribute('aria-hidden','false');
+    panel.classList.remove('closing');
+    void panel.offsetWidth;
+    requestAnimationFrame(()=>panel.classList.add('show'));
+    $('#bell')?.setAttribute('aria-expanded','true');
+    $('#m-bell')?.setAttribute('aria-expanded','true');
+    document.body.classList.add('notif-open');
+    renderBell();
+    writeJSON('daylight-seen',bellItems().map(i=>i.id).concat(readJSON('daylight-seen',[])).slice(0,300));
+    $('#bell-badge').hidden=true;
+    const N=window.DaylightNav;
+    if(N&&N.topView()!=='notif')N.push('notif');
+    feel.select?.();
+  }
+  function closeNotifPanel(instant){
+    const panel=$('#notif-panel');
+    const N=window.DaylightNav;
+    if(!panel||(panel.hidden&&!panel.classList.contains('show'))){N?.drop?.('notif');document.body.classList.remove('notif-open');return}
+    $('#bell')?.setAttribute('aria-expanded','false');
+    $('#m-bell')?.setAttribute('aria-expanded','false');
+    const finish=()=>{
+      panel.classList.remove('show','closing');
+      panel.hidden=true;panel.setAttribute('aria-hidden','true');
+      panel.style.transform='';panel.style.opacity='';
+      const sheet=panel.querySelector('.notif-sheet');
+      if(sheet){sheet.style.transform='';sheet.style.opacity='';sheet.style.transition=''}
+      document.body.classList.remove('notif-open');
+      notifClosing=false;N?.drop?.('notif');renderBell();
+    };
+    if(instant||matchMedia('(prefers-reduced-motion: reduce)').matches){finish();return}
+    if(notifClosing)return;
+    notifClosing=true;
+    panel.classList.add('closing');
+    panel.classList.remove('show');
+    setTimeout(finish,260);
+  }
+  function toggleBell(open){
+    if(open==null)open=!isNotifOpen();
+    if(open)openNotifPanel();else{
+      const N=window.DaylightNav;
+      if(N&&(N.topView()==='notif'||N.stack?.some(x=>x.view==='notif'))){N.back();return}
+      closeNotifPanel();
+    }
+  }
+  $('#bell')?.addEventListener('click',e=>{e.stopPropagation();toggleBell()});
   $('#notif-close')?.addEventListener('click',()=>toggleBell(false));
-  document.addEventListener('click',e=>{const p=$('#notif-panel');if(p&&!p.hidden&&!p.contains(e.target)&&e.target.closest('#bell')==null)toggleBell(false)});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#notif-panel').hidden)toggleBell(false)});
+  $('#notif-scrim')?.addEventListener('click',()=>toggleBell(false));
+  $('#notif-list')?.addEventListener('click',e=>{
+    const row=e.target.closest('[data-notif-loop]');if(!row)return;
+    e.preventDefault();
+    const id=row.dataset.notifLoop;
+    closeNotifPanel(true);
+    if(id&&typeof openLoopSheet==='function')openLoopSheet(id);
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&isNotifOpen()){e.preventDefault();toggleBell(false)}});
   { const orig=renderLoops;renderLoops=function(){orig();renderBell()} }
   renderBell();setInterval(renderBell,60000);
   renderLoops();renderUpNext();applyVisibility();setInterval(()=>{renderUpNext();renderSummary(token?computeLoops().length:null)},60000);
@@ -1843,13 +2060,20 @@
   }
   function initialsOf(name){return String(name||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase()||'?'}
   function inboxToDetail(item){
-    const type=item.kind==='subscription'?'renewal':item.kind==='pending'?'overdue':item.kind==='bill'?'deadline':'reply';
-    const need=item.kind==='subscription'?'Review this subscription and cancel or confirm before renewal.':item.kind==='pending'?'Settle this payment or reschedule it.':item.kind==='bill'?'Review the bill and pay if needed.':item.kind==='store'?'Confirm this store purchase and keep the receipt.':'Review this online payment.';
+    const type=item.kind==='subscription'?'renewal':item.kind==='pending'?'overdue':item.kind==='bill'?'deadline':item.kind==='ticket'?'travel':'reply';
+    const need=item.kind==='subscription'?'Review this subscription and cancel or confirm before renewal.'
+      :item.kind==='pending'?'Settle this payment or check the receipt.'
+      :item.kind==='bill'?'Review the bill and pay if needed.'
+      :item.kind==='ticket'?'Keep this booking handy — saved to Wallet when available.'
+      :item.kind==='shopping'?'Track this order, delivery or return.'
+      :item.needsReview?'Needs review — confirm the right category for this email.'
+      :'Review this email.';
     return {
       id:'inbox:'+item.id,type,title:item.title,detail:item.detail||item.subject||'',subject:item.subject||item.title,
-      meta:item.meta,href:item.href,mailId:item.mailId||null,fromName:item.fromName||item.from||item.title,
-      fromEmail:item.fromEmail||'',domain:item.domain||brandDomain(item.fromEmail,item.title),logo:item.logo||'',whenMs:item.whenMs||item.when||0,dueLabel:item.meta||'',category:item.tag||MONEY_LABEL[item.kind]||'Money',
-      amount:item.amount||'',urgent:!!item.urgent,weight:item.urgent?2:1,snippet:item.snippet||'',_inbox:true,_need:need
+      meta:item.meta,href:item.href,mailId:item.mailId||null,threadId:item.id||null,fromName:item.fromName||item.from||item.title,
+      fromEmail:item.fromEmail||'',domain:item.domain||brandDomain(item.fromEmail,item.title),logo:item.logo||'',whenMs:item.whenMs||item.when||0,dueLabel:item.meta||'',category:item.tag||MONEY_LABEL[item.kind]||'Mail',
+      amount:item.amount||'',urgent:!!item.urgent,weight:item.urgent||item.needsReview?2:1,snippet:item.snippet||'',
+      status:item.status||'',recordKey:item.recordKey||'',needsReview:!!item.needsReview,_inbox:true,_need:need,_classified:!!item._classified
     };
   }
   function currentDetail(){return openDetail||findLoop(openLoopId)||null}
@@ -2056,7 +2280,7 @@
      </div>
      <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
    <section class="m-screen" data-screen="inbox">
-     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
+     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="ticket" aria-selected="false">Tickets</button><button type="button" role="tab" data-inbox="shopping" aria-selected="false">Shopping</button><button type="button" role="tab" data-inbox="other" aria-selected="false">Other</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
      <div id="m-inbox"></div>
    </section>
    <section class="m-screen" data-screen="wallet">
@@ -2130,6 +2354,7 @@
   // move overlays out of the desktop shell so they work on the phone too
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
   let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mAssistDay=new Date(localMidnight),mAssistAsk=false,mWeekCache={},mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
+  if(!['all','subscription','payments','bill','ticket','shopping','other'].includes(mInboxFilter))mInboxFilter='all';
   if(mTab==='calendar')mTab='inbox';
   const TITLES={home:'Daylight',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Timeline',stats:'Statistics'};
   const WALLET_COLORS={tickets:['#1f6feb','#0b3d91'],coupons:['#d9480f','#a33b0a'],documents:['#2f9e44','#1b6b2e'],others:['#7048e8','#4c2db3']};
@@ -2529,6 +2754,8 @@
       const h=m.payload?.headers||[];return /\b(passport|visa|contract|insurance|tax|agreement)\b/i.test(header(h,'Subject')||'');
     };
     if(loopsData){
+      try{ensureClassified()}catch{}
+      const classifiedById=loopsData.classified?.byMailId||{};
       [...(loopsData.inbox||[]),...(loopsData.financeMail||[]),...(loopsData.travelMail||[]),...(loopsData.docsMail||[])].forEach(m=>{
         if(!m?.id||mailPool.has(m.id))return;
         mailPool.set(m.id,m);
@@ -2536,19 +2763,59 @@
         const from=parseFrom(header(h,'From'));
         const subject=header(h,'Subject')||'(No subject)';
         const when=new Date(header(h,'Date')||m.internalDate*1);
+        const c=classifiedById[m.id];
         const tags=(m.labelIds||[]).slice(0,8);
-        if(isFinance(m))tags.push('money');
+        if(c?.category)tags.push('cat:'+c.category);
+        if(c?.needsReview)tags.push('needs_review');
+        if(c?.status)tags.push('status:'+c.status);
+        if(c?.recordKey)tags.push(c.recordKey);
+        if(isFinance(m)||['subscription','payment','bill'].includes(c?.category))tags.push('money');
         if(isDocs(m))tags.push('documents');
+        if(c?.category==='ticket')tags.push('travel');
+        const privacy=c?.privacyClass==='financial'?Store.PRIVACY.FINANCIAL
+          :c?.privacyClass==='identity'?Store.PRIVACY.IDENTITY
+          :isFinance(m)?Store.PRIVACY.FINANCIAL
+          :isDocs(m)?Store.PRIVACY.IDENTITY
+          :Store.PRIVACY.NORMAL;
         entities.push({
           ...base,type:'mail',source:'gmail',
           sourceIds:{messageId:m.id,threadId:m.threadId||m.id},
           title:subject,subtitle:from.name||from.email||'',
           whenMs:isNaN(when)?null:when.getTime(),
           href:gmailLink(m.threadId||m.id),
-          tags,
-          privacyClass:isFinance(m)?Store.PRIVACY.FINANCIAL:(isDocs(m)?Store.PRIVACY.IDENTITY:Store.PRIVACY.NORMAL),
-          payload:{fromEmail:from.email,snippet:String(m.snippet||'').slice(0,240)}
+          tags:tags.slice(0,12),
+          privacyClass:privacy,
+          payload:{
+            fromEmail:from.email,snippet:String(m.snippet||c?.snippet||'').slice(0,240),
+            category:c?.category||'other',status:c?.status||null,recordKey:c?.recordKey||null,
+            confidence:c?.confidence||null,needsReview:!!c?.needsReview,amount:c?.amount||'',
+            originalHref:gmailLink(m.threadId||m.id)
+          }
         });
+      });
+      Object.values(loopsData.classified?.byRecordKey||{}).forEach(c=>{
+        if(!c?.recordKey||!['subscription','bill','payment','ticket','shopping'].includes(c.category))return;
+        const type=c.category==='shopping'?'order':c.category;
+        entities.push({
+          ...base,type,source:'gmail',
+          id:accountId+'|'+c.recordKey,
+          sourceIds:{messageId:c.mailId,threadId:c.threadId,recordKey:c.recordKey},
+          title:c.title||c.subject||c.category,
+          subtitle:c.subject||'',
+          whenMs:c.whenMs||null,
+          href:c.href||'',
+          tags:['cat:'+c.category,c.status?'status:'+c.status:null,c.needsReview?'needs_review':null].filter(Boolean),
+          privacyClass:c.privacyClass==='financial'?Store.PRIVACY.FINANCIAL:c.privacyClass==='identity'?Store.PRIVACY.IDENTITY:Store.PRIVACY.NORMAL,
+          payload:{recordKey:c.recordKey,status:c.status,amount:c.amount||'',mailId:c.mailId,linkedFrom:c.linkedFrom||[],confidence:c.confidence}
+        });
+        if(c.mailId){
+          relationships.push({
+            ...base,fromId:accountId+'|'+c.recordKey,toId:Store.id.mail(accountId,c.mailId),type:'from_mail',
+            confidence:c.confidence||0.8,confirmed:'auto',method:'classify',
+            evidence:[{kind:'classification',category:c.category}],
+            sourceIds:{recordKey:c.recordKey,messageId:c.mailId}
+          });
+        }
       });
       (loopsData.upcoming||[]).forEach(e=>{
         if(!e?.id)return;
@@ -2802,7 +3069,7 @@
       if(this.backing||!view)return;
       this.backing=true;this.silentPop=true;
       if(this.stack.length&&this.stack[this.stack.length-1].view===view)this.stack.pop();
-      const root=view==='loop'?$('#loop-sheet'):view==='pass'?$('#pass-sheet'):scanUI;
+      const root=view==='notif'?$('#notif-panel'):view==='loop'?$('#loop-sheet'):view==='pass'?$('#pass-sheet'):view==='brief'?$('#brief-pop'):view==='loops'?$('#loops-pop'):scanUI;
       const finish=()=>{
         if(el){el.style.transition='';el.style.transform='';el.style.opacity=''}
         if(root&&root!==el){root.style.transition='';root.style.opacity='';root.style.transform=''}
@@ -2894,7 +3161,7 @@
       const t=e.touches[0];if(!t)return;
       const fromLeft=t.clientX<=edge,fromRight=t.clientX>=innerWidth-edge;
       if(!fromLeft&&!fromRight)return;
-      const view=Nav.topView()||(Nav.isOpen('scan')?'scan':Nav.isOpen('pass')?'pass':Nav.isOpen('loop')?'loop':null);
+      const view=Nav.topView()||(Nav.isOpen('notif')?'notif':Nav.isOpen('scan')?'scan':Nav.isOpen('pass')?'pass':Nav.isOpen('loop')?'loop':null);
       if(!view)return;
       s={x0:t.clientX,y0:t.clientY,fromLeft,active:false,view,el:Nav.sheetEl(view)};
     },{passive:true});
@@ -3384,23 +3651,105 @@
     Nav.drop('brief');
   }
   const _navDismiss=Nav.dismissView.bind(Nav);
-  Nav.dismissView=function(view){if(view==='brief'){closeBriefPop(true);return}_navDismiss(view)};
+  Nav.dismissView=function(view){
+    if(view==='notif'){closeNotifPanel();return}
+    if(view==='brief'){closeBriefPop(true);return}
+    _navDismiss(view);
+  };
   const _navInstant=Nav.dismissInstant.bind(Nav);
-  Nav.dismissInstant=function(view){if(view==='brief'){closeBriefPop(true);return}_navInstant(view)};
+  Nav.dismissInstant=function(view){
+    if(view==='notif'){closeNotifPanel(true);return}
+    if(view==='brief'){closeBriefPop(true);return}
+    _navInstant(view);
+  };
   const _navIsOpen=Nav.isOpen.bind(Nav);
-  Nav.isOpen=function(view){return view==='brief'?!!$('#brief-pop')?.classList.contains('show'):_navIsOpen(view)};
+  Nav.isOpen=function(view){
+    if(view==='notif')return isNotifOpen();
+    if(view==='brief')return !!$('#brief-pop')?.classList.contains('show');
+    return _navIsOpen(view);
+  };
   const _navAny=Nav.anyOpen.bind(Nav);
-  Nav.anyOpen=function(){return Nav.isOpen('brief')||_navAny()};
+  Nav.anyOpen=function(){return Nav.isOpen('notif')||Nav.isOpen('brief')||_navAny()};
   const _navDismissTop=Nav.dismissTop.bind(Nav);
-  Nav.dismissTop=function(){if(Nav.isOpen('brief')){Nav.dismissView('brief');return}_navDismissTop()};
+  Nav.dismissTop=function(){
+    if(Nav.isOpen('notif')){Nav.dismissView('notif');return}
+    if(Nav.isOpen('brief')){Nav.dismissView('brief');return}
+    _navDismissTop();
+  };
   const _navSheet=Nav.sheetEl.bind(Nav);
-  Nav.sheetEl=function(view){return view==='brief'?($('#brief-pop')?.querySelector('.brief-pop-card')||$('#brief-pop')):_navSheet(view)};
+  Nav.sheetEl=function(view){
+    if(view==='notif')return $('#notif-panel')?.querySelector('.notif-sheet')||$('#notif-panel');
+    if(view==='brief')return $('#brief-pop')?.querySelector('.brief-pop-card')||$('#brief-pop');
+    return _navSheet(view);
+  };
   $('#m-brief')?.addEventListener('click',()=>{openBriefPop()});
   $('#m-schedule-cal')?.addEventListener('click',()=>{feel.select();setTab('assistant')});
-  // Inbox — subscriptions, bills, payments
+  // Drag the notification sheet right to dismiss (slide over)
+  (function bindNotifSlide(){
+    let s=null;
+    const panel=()=>$('#notif-panel');
+    const sheet=()=>panel()?.querySelector('.notif-sheet');
+    const thresh=()=>Math.min(88,innerWidth*.22);
+    const clear=(el,animate)=>{
+      if(!el)return;
+      if(animate&&!Nav.reduced()){
+        el.style.transition='transform .2s cubic-bezier(.22,.9,.28,1), opacity .16s ease';
+        el.style.transform='';el.style.opacity='';
+        const root=panel();if(root){root.style.transition='opacity .16s ease';root.style.opacity=''}
+        setTimeout(()=>{el.style.transition='';if(root)root.style.transition=''},220);
+      }else{
+        el.style.transition='';el.style.transform='';el.style.opacity='';
+        const root=panel();if(root){root.style.transition='';root.style.opacity=''}
+      }
+    };
+    document.addEventListener('touchstart',e=>{
+      if(!isNotifOpen()||notifClosing||Nav.backing)return;
+      const t=e.touches[0];if(!t)return;
+      const el=sheet();if(!el||!el.contains(e.target))return;
+      if(e.target.closest('#notif-close,.notif-scrim'))return;
+      s={x0:t.clientX,y0:t.clientY,active:false,el,list:$('#notif-list')};
+    },{passive:true});
+    document.addEventListener('touchmove',e=>{
+      if(!s||Nav.backing)return;
+      const t=e.touches[0];if(!t)return;
+      const dx=t.clientX-s.x0,dy=Math.abs(t.clientY-s.y0);
+      if(!s.active){
+        if(dy>12&&dy>=Math.abs(dx)){s=null;return}
+        if(dx<10)return;
+        s.active=true;
+        if(s.list)s.list.style.overflow='hidden';
+      }
+      if(e.cancelable)e.preventDefault();
+      if(Nav.reduced())return;
+      const p=Math.min(innerWidth,Math.max(0,dx));
+      const o=Math.max(.35,1-p/(innerWidth*.7));
+      s.el.style.transition='none';
+      s.el.style.transform=`translate3d(${p}px,0,0)`;
+      s.el.style.opacity=String(o);
+      const root=panel();
+      if(root){root.style.transition='none';root.style.opacity=String(Math.max(.2,1-p/(innerWidth*.85)))}
+      s.p=p;
+    },{passive:false});
+    const end=()=>{
+      if(!s)return;
+      const {el,active,p,list}=s;s=null;
+      if(list)list.style.overflow='';
+      if(active&&(p||0)>thresh()){feel.tap();Nav.commitGesture('notif',el);return}
+      clear(el,active);
+    };
+    document.addEventListener('touchend',end,{passive:true});
+    document.addEventListener('touchcancel',end,{passive:true});
+  })();
+  // Inbox — driven by stored classification (not keyword search at paint time)
   function inboxItems(filter){
     const money=computeMoney();
-    let list=filter==='subscription'?money.subscription:filter==='bill'?money.bill:filter==='payments'?money.pending:money.all;
+    let list=filter==='subscription'?money.subscription
+      :filter==='bill'?money.bill
+      :filter==='payments'?money.pending
+      :filter==='ticket'?money.ticket||[]
+      :filter==='shopping'?money.shopping||[]
+      :filter==='other'?money.other||[]
+      :money.all;
     const st=loopState(),now=Date.now();
     return list.filter(i=>{const s=st['inbox:'+i.id];return !(s&&(s.done||(s.snooze&&s.snooze>now)))});
   }
@@ -3428,8 +3777,8 @@
   }
   function inboxCard(item){
     const initial=(item.title||'?').trim().slice(0,2).toUpperCase();
-    const tag=item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||MONEY_LABEL[item.kind]||inboxDaysLabel(item)||'');
-    const tagCls=item.kind==='pending'||item.urgent?' is-urgent':item.kind==='subscription'?' is-sub':item.kind==='bill'?' is-bill':'';
+    const tag=item.needsReview?'Needs review':item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||MONEY_LABEL[item.kind]||inboxDaysLabel(item)||'');
+    const tagCls=item.needsReview?' is-review':item.kind==='pending'||item.urgent?' is-urgent':item.kind==='subscription'?' is-sub':item.kind==='bill'?' is-bill':item.kind==='ticket'?' is-ticket':item.kind==='shopping'?' is-shop':'';
     const snip=(item.snippet||item.subject||item.detail||'').replace(/\s+/g,' ').trim().slice(0,72);
     const amt=item.amount?`<span class="m-inbox-amt">${esc(item.amount)}</span>`:'';
     return `<div class="m-swipe" data-swipe-id="${esc(item.id)}">
@@ -3438,7 +3787,7 @@
         <button type="button" class="m-sw m-sw-task" data-sw="task" data-id="${esc(item.id)}">Task</button>
         <button type="button" class="m-sw m-sw-arch" data-sw="archive" data-id="${esc(item.id)}">Done</button>
       </div>
-      <button type="button" class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}" data-inbox-open="${esc(item.id)}">
+      <button type="button" class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}${item.needsReview?' is-review':''}" data-inbox-open="${esc(item.id)}">
         <span class="m-inbox-logo m-brand" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${brandLogoHTML(item,initial)}</span>
         <span class="m-inbox-copy"><span class="m-inbox-top"><b>${esc(item.title)}</b><time>${esc(inboxAgo(item))}</time></span>
         <small>${esc(snip||inboxDateLabel(item)||'Open for details')}</small></span>
@@ -3446,7 +3795,7 @@
       </button>
     </div>`;
   }
-  const INBOX_ORDER=['all','subscription','payments','bill'];
+  const INBOX_ORDER=['all','subscription','payments','bill','ticket','shopping','other'];
   let inboxAnim=null;
   function syncInboxThumb(animate=true){
     const tabs=$('#m-inbox-tabs'),thumb=$('#m-inbox-thumb'),on=tabs?.querySelector('[data-inbox].on');
@@ -3457,17 +3806,18 @@
     if(!animate){void thumb.offsetWidth;thumb.style.transition=''}
   }
   function paintInbox(el){
-    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Connect to fill Inbox</b><p>Subscriptions, bills and payments from Gmail appear here.</p></div>';return}
+    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Connect to fill Inbox</b><p>Classified mail from Gmail appears in Subscriptions, Payments, Bills, Tickets, Shopping and Other.</p></div>';return}
     if(!loopsData&&token){el.innerHTML=skelRows(5);return}
     const items=inboxItems(mInboxFilter);
     if(!items.length){el.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Inbox is clear</b><p>${mInboxFilter==='all'?'Nothing needs attention right now.':'Nothing in this category.'}</p></div>`;return}
-    const needs=items.filter(i=>i.kind==='pending'||i.urgent||(i.kind==='bill'&&!i.received));
+    const needs=items.filter(i=>i.needsReview||i.kind==='pending'||i.urgent||(i.kind==='bill'&&!i.received)||i.status==='failed'||i.status==='unpaid');
     const needsIds=new Set(needs.map(i=>i.id));
     const week=items.filter(i=>!needsIds.has(i.id)&&!i.received&&i.when&&(i.when-localMidnight.getTime())<=14*86400000);
     const weekIds=new Set(week.map(i=>i.id));
     const recent=items.filter(i=>!needsIds.has(i.id)&&!weekIds.has(i.id));
+    const recentLabel=mInboxFilter==='payments'?'Recent payments':mInboxFilter==='shopping'?'Recent orders':mInboxFilter==='ticket'?'Recent tickets':'Recent';
     const block=(title,list)=>list.length?`<div class="m-inbox-sec"><h3 class="m-inbox-sec-h">${title}</h3><div class="m-inbox-list">${list.map(inboxCard).join('')}</div></div>`:'';
-    el.innerHTML=block('Needs Attention',needs)+block('This Week',week)+block(mInboxFilter==='payments'?'Recent payments':'Recent',recent);
+    el.innerHTML=block('Needs Attention',needs)+block('This Week',week)+block(recentLabel,recent);
   }
   function renderInbox(opts={}){
     const el=$('#m-inbox');if(!el)return;
