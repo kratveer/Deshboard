@@ -206,6 +206,25 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .td-mail-h small{display:block;margin-top:2px;font:500 12px/1.25 var(--font);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .td-mail-t{font:500 12px var(--font);color:var(--muted);flex:none}
 .td-mail-b{margin:0;font:500 13.5px/1.5 var(--font);color:#374151;display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
+.td-compose{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.td-compose-field{display:flex;flex-direction:column;gap:5px;font:650 11.5px/1.2 var(--font);color:var(--muted);letter-spacing:.02em;text-transform:uppercase}
+.td-compose-field input,.td-compose-field textarea{
+  width:100%;border:1px solid #e5e7ef;border-radius:12px;background:#fff;color:var(--ink);
+  font:500 14.5px/1.4 var(--font);padding:11px 12px;outline:none;resize:vertical;text-transform:none;letter-spacing:0;
+}
+.td-compose-field input:focus,.td-compose-field textarea:focus{border-color:color-mix(in srgb,var(--accent) 55%,#e5e7ef);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+.td-compose-field textarea{min-height:140px}
+.td-compose-status{border-radius:12px;padding:10px 12px;font:600 13px/1.35 var(--font)}
+.td-compose-status.is-sending{background:var(--accent-soft);color:var(--accent-text)}
+.td-compose-status.is-ok{background:var(--ok-soft,#e1f1eb);color:var(--ok,#3f8a70)}
+.td-compose-status.is-err{background:var(--hot-soft,#f8e8eb);color:var(--hot,#d0627a)}
+.td-compose-status.is-warn{background:#fff6e5;color:#9a6b16}
+.td-foot-link,.td-open-original,button.td-link{
+  border:0;background:none;color:var(--accent-text);font:650 13px var(--font);padding:8px 0 0;cursor:pointer;text-align:left;text-decoration:none;display:inline-block;
+}
+.td-sec-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+body.dark .td-compose-field input,body.dark .td-compose-field textarea{background:var(--card2);border-color:var(--line);color:var(--ink)}
+body.dark .td-compose-status.is-warn{background:#3a2a12;color:#ffe6b8}
 .td-link{display:inline-block;margin-top:8px;font:650 13px var(--font);color:var(--accent-text);text-decoration:none}
 .td-ai-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .td-ai-ico{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:#eef0ff;color:#6d5ce8;font-size:12px}
@@ -1233,7 +1252,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="app.js?v=37" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="app.js?v=38" defer></script></body></html>
 
 
 
