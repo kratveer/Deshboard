@@ -1260,26 +1260,24 @@
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>'};
+  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>',chevron:'<path d="m9 6 6 6-6 6"/>',spark:'<path d="M12 3.5 13.2 8l4.3.4-3.3 2.9.9 4.2L12 13.4 8.9 15.5l.9-4.2-3.3-2.9L10.8 8 12 3.5Z"/>',scan:'<path d="M8 4H6a2 2 0 0 0-2 2v2M16 4h2a2 2 0 0 1 2 2v2M8 20H6a2 2 0 0 1-2-2v-2M16 20h2a2 2 0 0 0 2-2v-2"/><path d="M8 12h8"/>'};
   const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const mapp=document.createElement('div');mapp.id='mapp';mapp.className='mapp';
-  mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,20)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,20)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
+  mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,18)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,18)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
    <section class="m-screen" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
-     <div class="m-brief" id="m-brief"></div>
+     <button class="m-brief" id="m-brief" type="button"></button>
      <div class="m-home-block" id="m-loops-block">
-       <article class="card loops wide m-loops-card">
-         <div class="card-head"><div class="card-title"><span class="glyph g-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 12a5 5 0 1 1 5 5"/><path d="M12 17H5m0 0 3-3m-3 3 3 3"/></svg></span>Open loops <span class="loop-count" id="m-loop-total"></span></div><span class="tiny loops-hint">Things you started but haven’t finished</span></div>
-         <div class="loop-grid as-list" id="m-loop-grid"></div>
-         <div class="loops-foot" id="m-loops-foot"></div>
-       </article>
+       <div class="m-sec-head"><h3 class="m-sec-title">Open Loops <span class="m-count-pill" id="m-loop-total" hidden></span></h3><button class="m-see-all" type="button" id="m-loops-see">See All ${svg(ICON.chevron,14)}</button></div>
+       <div class="m-loop-list" id="m-loop-grid"></div>
+       <div class="loops-foot" id="m-loops-foot" hidden></div>
      </div>
      <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
    <section class="m-screen" data-screen="inbox">
-     <div class="m-inbox-head"><div class="m-inbox-tabs" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true"></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subs</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,18)}</button></div>
+     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subs</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
      <div id="m-inbox"></div>
    </section>
    <section class="m-screen" data-screen="wallet">
-     <div class="m-wallet-head"><div class="m-wallet-tabs" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true"></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-wallet="coupons" aria-selected="false">Coupons</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">Documents</button><button type="button" role="tab" data-wallet="others" aria-selected="false">Others</button></div><button class="m-wallet-scan-btn" id="m-wallet-scan" type="button">Scan</button></div>
+     <div class="m-wallet-head"><div class="m-wallet-tabs m-pills" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-wallet="coupons" aria-selected="false">Coupons</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">Documents</button><button type="button" role="tab" data-wallet="others" aria-selected="false">Others</button></div><button class="m-wallet-scan-btn" id="m-wallet-scan" type="button" aria-label="Scan">${svg(ICON.scan,18)}</button></div>
      <div id="m-wallet"></div>
    </section>
    <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
@@ -1336,50 +1334,50 @@
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab);else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);
   $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-  // Home — daily brief + same Open loops list tile as desktop
+  // Home — compact Daily Brief + Open Loops cards (reference layout)
+  function loopTags(l){const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&l.type!=='overdue')tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);return tags}
+  function mobileLoopCard(l){
+    const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,tags=loopTags(l);
+    const meta=[srcOf(l),l.meta].filter(Boolean).join(' · ');
+    return `<button type="button" class="m-row-card ${t.cls}" data-loop="${esc(l.id)}" data-open-loop="${esc(l.id)}">
+      <span class="m-row-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
+      <span class="m-row-main"><b>${esc(l.title)}</b><small>${esc(meta)}</small>${tags.length?`<span class="m-row-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${esc(x)}</span>`).join('')}</span>`:''}</span>
+      <span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>
+    </button>`;
+  }
   function renderHome(){
     const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
-    $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});$('#m-hello').textContent=`${part}${first?', '+first:''}`;
+    $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+    $('#m-hello').textContent=`${part}${first?', '+first:''} 👋`;
     const WORK=['reply','followup','prepare','overdue','deadline'];
-    const loops=(token||microsoftAccount||DEMO)?computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type)):[],money=computeMoney(),{timed,connected}=todayEvents(),now=new Date();
-    const left=timed.filter(e=>e.end>now),next=left[0],pendingPay=money.pending||[];
-    let brief=`${part}${first?', '+esc(first):''}.`;
-    if(!token&&!microsoftAccount&&!DEMO)brief=`${brief} Connect Google and I’ll brief you from mail, calendar and tasks.`;
+    const loops=(token||microsoftAccount||DEMO)?computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type)):[],money=computeMoney(),pendingPay=money.pending||[];
+    const bits=[];
+    if(!token&&!microsoftAccount&&!DEMO)bits.push('Connect Google to brief your day');
     else{
-      if(next){const mins=Math.round((next.start-now)/60000);brief+=next.start<=now?` <em>${esc(next.title)}</em> is on now.`:mins<60?` Next: <em>${esc(next.title)}</em> in ${mins} min.`:` Next: <em>${esc(next.title)}</em> at ${hm(next.start)}.`;}
-      else if(connected)brief+=' Calendar looks clear.';
-      if(loops.length)brief+=` <em>${loops.length} open ${loops.length===1?'loop':'loops'}</em> waiting.`;
-      if(pendingPay.length)brief+=` <em>${pendingPay.length} pending ${pendingPay.length===1?'payment':'payments'}</em>.`;
-      else if(money.counts.total)brief+=` ${money.counts.total} items waiting in Inbox.`;
-      if(!loops.length&&!money.counts.total&&!next)brief+=' Nothing pressing — nice.';
+      if(loops.length)bits.push(`${loops.length} open loop${loops.length===1?'':'s'}`);
+      if(pendingPay.length)bits.push(`${pendingPay.length} pending payment${pendingPay.length===1?'':'s'}`);
+      else if(money.counts.total)bits.push(`${money.counts.total} in Inbox`);
+      if(!bits.length)bits.push('Nothing pressing today');
     }
-    const chips=[];
-    if(loops[0])chips.push(loops[0].href?`<a href="${esc(loops[0].href)}" target="_blank" rel="noopener">Open first loop</a>`:`<button type="button" data-ask="Who is waiting for a reply?">Review loops</button>`);
-    if(pendingPay.length||money.counts.total)chips.push(`<button type="button" data-goto-inbox>Open Inbox</button>`);
-    $('#m-brief').innerHTML=`<div class="eyebrow">Daily brief</div><p>${brief}</p>${chips.length?`<div class="m-chips">${chips.join('')}</div>`:''}`;
-    const grid=$('#m-loop-grid'),foot=$('#m-loops-foot'),total=$('#m-loop-total');
+    $('#m-brief').innerHTML=`<span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span><span class="m-brief-copy"><b>Daily Brief</b><small>${esc(bits.join(' · '))}</small></span><span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>`;
+    const grid=$('#m-loop-grid'),total=$('#m-loop-total'),see=$('#m-loops-see');
     if(!grid)return;
-    if(total)total.textContent=loops.length?loops.length:'';
-    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){
-      grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';
-      if(foot)foot.innerHTML='';
-      return;
-    }
-    if(!loopsData&&token){grid.innerHTML='<div class="empty">Looking through your inbox, calendar and tasks…</div>';if(foot)foot.innerHTML='';return}
-    const lmax=+(wset('loops').max||6),shown=loopsShowAll?loops:loops.slice(0,lmax);
-    grid.classList.add('as-list');
-    try{grid.innerHTML=loops.length?shown.map(loopHTML).join(''):'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>'}
-    catch(e){console.warn('mobile loops render',e);grid.innerHTML=loops.length?shown.map(l=>`<div class="arow ${LOOP_TYPES[l.type]?.cls||''}"><div class="arow-main"><b>${esc(l.title)}</b><div class="arow-detail">${esc(l.detail||'')}</div></div></div>`).join(''):'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>'}
-    if(foot){
-      foot.innerHTML=loops.length>lmax?`<button class="connect" type="button" id="m-loops-more">${loopsShowAll?'Show fewer':`Show all ${loops.length}`}</button>`:'';
-      if($('#m-loops-more'))$('#m-loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
-    }
+    if(total){total.textContent=loops.length||'';total.hidden=!loops.length}
+    if(see)see.hidden=!loops.length;
+    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){grid.innerHTML='<div class="m-empty">Connect Google to surface replies, renewals and trips here.</div>';return}
+    if(!loopsData&&token){grid.innerHTML='<div class="m-empty">Looking through your inbox…</div>';return}
+    const lmax=loopsShowAll?loops.length:4,shown=loops.slice(0,lmax);
+    grid.innerHTML=loops.length?shown.map(mobileLoopCard).join(''):'<div class="m-empty">No open loops. You’re caught up.</div>';
+    if(see)see.textContent='';see.innerHTML=loopsShowAll?`Show less ${svg(ICON.chevron,14)}`:`See All ${svg(ICON.chevron,14)}`;
   }
   $('#m-loop-grid')?.addEventListener('click',onLoopListClick);
   $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
-  $('#m-brief')?.addEventListener('click',e=>{
-    if(e.target.closest('[data-goto-inbox]')){setTab('inbox');return}
-    const a=e.target.closest('[data-ask]');if(a){setTab('assistant');ask(a.dataset.ask)}
+  $('#m-loops-see')?.addEventListener('click',()=>{loopsShowAll=!loopsShowAll;renderHome()});
+  $('#m-brief')?.addEventListener('click',()=>{
+    const money=computeMoney(),loops=(token||microsoftAccount||DEMO)?computeLoops():[];
+    if((money.pending||[]).length){setTab('inbox');return}
+    if(loops[0]){openLoopSheet(loops[0].id);return}
+    setTab('assistant');ask('What needs my attention today?');
   });
   // Inbox — subscriptions, bills, payments
   function inboxItems(filter){
@@ -1409,15 +1407,16 @@
   }
   function inboxCard(item){
     const initial=(item.title||'?').trim().slice(0,2).toUpperCase();
-    const amt=item.amount||'—';
-    const body=`<span class="m-inbox-logo" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span><span class="m-inbox-copy"><b>${esc(item.title)}</b><small>${esc(inboxDateLabel(item))}</small></span><span class="m-inbox-side"><span class="amt">${esc(amt)}</span><span class="meta">${esc(inboxDaysLabel(item))}</span></span>`;
-    return item.href?`<a class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}" href="${esc(item.href)}" target="_blank" rel="noopener">${body}</a>`:`<div class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}">${body}</div>`;
+    const tag=item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||inboxDaysLabel(item)||'');
+    const tagCls=item.kind==='pending'||item.urgent?' is-urgent':'';
+    const body=`<span class="m-inbox-logo" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span><span class="m-inbox-copy"><b>${esc(item.title)}</b><small>${esc(inboxDateLabel(item))}</small></span><span class="m-inbox-side">${tag?`<span class="m-pill-tag${tagCls}">${esc(tag)}</span>`:''}<span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span></span>`;
+    return item.href?`<a class="m-inbox-card m-row-card${item.urgent||item.kind==='pending'?' is-urgent':''}" href="${esc(item.href)}" target="_blank" rel="noopener">${body}</a>`:`<div class="m-inbox-card m-row-card${item.urgent||item.kind==='pending'?' is-urgent':''}">${body}</div>`;
   }
   const INBOX_ORDER=['all','subscription','bill','payments'];
   let inboxAnim=null;
   function syncInboxThumb(animate=true){
     const tabs=$('#m-inbox-tabs'),thumb=$('#m-inbox-thumb'),on=tabs?.querySelector('[data-inbox].on');
-    if(!tabs||!thumb||!on)return;
+    if(!tabs||!thumb||thumb.hidden||!on)return;
     if(!animate){thumb.style.transition='none'}
     thumb.style.width=on.offsetWidth+'px';
     thumb.style.transform=`translateX(${on.offsetLeft}px)`;
@@ -1433,7 +1432,7 @@
     const due=items.filter(i=>!comingIds.has(i.id)&&!i.received&&i.when);
     const recent=items.filter(i=>!comingIds.has(i.id)&&!due.includes(i));
     const block=(title,list)=>list.length?`<div class="m-inbox-sec"><h3 class="m-inbox-sec-h">${title}</h3><div class="m-inbox-list">${list.map(inboxCard).join('')}</div></div>`:'';
-    el.innerHTML=block('Coming up',coming)+block('Due soon',due)+block(mInboxFilter==='payments'?'Recent payments':'Recent',recent);
+    el.innerHTML=block('Coming Up',coming)+block('Due Soon',due)+block(mInboxFilter==='payments'?'Recent payments':'Recent',recent);
   }
   function renderInbox(opts={}){
     const el=$('#m-inbox');if(!el)return;
@@ -1465,7 +1464,7 @@
   const WALLET_ORDER=['all','tickets','coupons','documents','others'];
   function syncWalletThumb(animate=true){
     const tabs=$('#m-wallet-tabs'),thumb=$('#m-wallet-thumb'),on=tabs?.querySelector('[data-wallet].on');
-    if(!tabs||!thumb||!on)return;
+    if(!tabs||!thumb||thumb.hidden||!on)return;
     if(!animate)thumb.style.transition='none';
     thumb.style.width=on.offsetWidth+'px';
     thumb.style.transform=`translateX(${on.offsetLeft}px)`;
@@ -1475,22 +1474,28 @@
     const all=readWallet().slice().sort((a,b)=>new Date(b.at)-new Date(a.at));
     return filter==='all'?all:all.filter(i=>i.kind===filter);
   }
-  function walletPassHTML(item,i,total){
+  const WALLET_ICO={tickets:ICON.calendar,coupons:'<path d="M4 9a2.5 2.5 0 0 0 0 5v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2.5 2.5 0 0 0 0-5V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2Z"/><path d="M9 12h.01M15 12h.01"/>',documents:'<path d="M8 4h6l4 4v12H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M13 4v5h5M10 13h5M10 17h3"/>',others:ICON.wallet};
+  function walletPassHTML(item){
     const color=item.color||WALLET_COLORS[item.kind]||WALLET_COLORS.others;
-    const top=8+i*26,z=i+1;
-    const when=item.at?new Date(item.at).toLocaleDateString(undefined,{day:'numeric',month:'short'}):'';
+    const when=item.at?new Date(item.at).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
     const open=mWalletOpen===item.id?' is-open':'';
     const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:'';
-    return `<article class="m-wallet-pass${open}" data-wid="${esc(item.id)}" style="--i:${i};top:${top}px;z-index:${z};background:linear-gradient(145deg,${color[0]},${color[1]})"><div class="wp-top"><span class="wp-kind">${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-mark">${esc((item.title||'?').slice(0,1).toUpperCase())}</span></div><h3 class="wp-title">${esc(item.title)}</h3><div class="wp-foot"><span>${esc(item.note||'')}</span><span>${esc(when)}</span></div>${img}</article>`;
+    const ico=WALLET_ICO[item.kind]||WALLET_ICO.others;
+    return `<article class="m-wallet-pass${open}" data-wid="${esc(item.id)}" style="background:linear-gradient(135deg,${color[0]},${color[1]})">
+      <div class="wp-top"><span class="wp-kind">${svg(ico,14)} ${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-when">${esc(when)}</span></div>
+      <h3 class="wp-title">${esc(item.title)}</h3>
+      ${item.note?`<p class="wp-note">${esc(item.note)}</p>`:''}
+      ${img}
+    </article>`;
   }
   function renderWallet(){
     const el=$('#m-wallet');if(!el)return;
     $$('#m-wallet-tabs [data-wallet]').forEach(b=>{const on=b.dataset.wallet===mWalletFilter;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false')});
     requestAnimationFrame(()=>syncWalletThumb(true));
     const items=walletItems(mWalletFilter);
-    if(!items.length){el.innerHTML=`<div class="m-wallet-empty"><b>No passes yet</b><p>Scan a ticket, coupon or document and it will stack here like Wallet.</p><button class="m-wallet-scan-btn" type="button" id="m-wallet-empty-scan">Scan document</button></div>`;$('#m-wallet-empty-scan')?.addEventListener('click',openScan);return}
+    if(!items.length){el.innerHTML=`<div class="m-wallet-empty"><b>No passes yet</b><p>Scan a ticket, coupon or document and it will appear here.</p><button class="m-wallet-scan-btn" type="button" id="m-wallet-empty-scan">Scan document</button></div>`;$('#m-wallet-empty-scan')?.addEventListener('click',openScan);return}
     const open=items.find(i=>i.id===mWalletOpen);
-    el.innerHTML=`<div class="m-wallet-stack" style="padding-bottom:${Math.max(80,items.length*28)}px">${items.map((item,i)=>walletPassHTML(item,i,items.length)).join('')}</div>${open?`<div class="m-wallet-detail">${open.image?`<img src="${esc(open.image)}" alt="">`:''}<b>${esc(open.title)}</b><div class="m-note">${esc([WALLET_LABEL[open.kind],open.note].filter(Boolean).join(' · '))}</div><div class="wd-actions"><button class="connect" type="button" data-wcat="${esc(open.id)}">Move category</button><button class="connect ghost" type="button" data-wdel="${esc(open.id)}">Remove</button></div></div>`:''}`;
+    el.innerHTML=`<div class="m-wallet-list">${items.map(walletPassHTML).join('')}</div>${open?`<div class="m-wallet-detail">${open.image?`<img src="${esc(open.image)}" alt="">`:''}<b>${esc(open.title)}</b><div class="m-note">${esc([WALLET_LABEL[open.kind],open.note].filter(Boolean).join(' · '))}</div><div class="wd-actions"><button class="connect" type="button" data-wcat="${esc(open.id)}">Move category</button><button class="connect ghost" type="button" data-wdel="${esc(open.id)}">Remove</button></div></div>`:''}`;
   }
   $('#m-wallet-tabs')?.addEventListener('click',e=>{
     const b=e.target.closest('[data-wallet]');if(!b||b.dataset.wallet===mWalletFilter)return;
