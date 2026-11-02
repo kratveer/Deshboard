@@ -3162,8 +3162,8 @@
   function screenEl(name){return $(`#mapp .m-screen[data-screen="${name}"]`)}
   function clearTabAnimClasses(el){
     if(!el)return;
-    el.classList.remove('is-entering','is-leaving','from-right','from-left','to-left','to-right','slide-run','is-active');
-    el.style.transform='';el.style.opacity='';el.style.transition='';
+    el.classList.remove('is-entering','is-leaving','from-right','from-left','to-left','to-right','go-left','go-right','go-center','slide-run','is-active');
+    el.style.transform='';el.style.opacity='';el.style.transition='';el.style.zIndex='';
   }
   function finishTabSwitch(from,to){
     const out=screenEl(from),inn=screenEl(to);
@@ -3225,25 +3225,30 @@
 
     tabAnimating=true;clearTimeout(tabAnimTimer);
     const stage=$('#m-stage');
-    const h=Math.max(out.offsetHeight||0,inn.offsetHeight||0,stage?.offsetHeight||0,innerHeight*0.5);
-    if(stage){stage.style.minHeight=h+'px';stage.classList.add('is-sliding')}
 
     // Keep outgoing visible; prepare incoming off-screen
     out.hidden=false;inn.hidden=false;
     clearTabAnimClasses(out);clearTabAnimClasses(inn);
+    // Measure while outgoing is still in normal flow
+    const h=Math.max(out.offsetHeight||0,stage?.offsetHeight||0,Math.round(innerHeight*.55));
+    if(stage){stage.style.minHeight=h+'px';stage.classList.add('is-sliding')}
     out.classList.add('is-leaving',forward?'to-left':'to-right');
     inn.classList.add('is-entering',forward?'from-right':'from-left');
     // Render destination content while it is still off-screen (no flicker)
     renderMobile();
+    // Grow stage if destination is taller
+    const h2=Math.max(h,inn.scrollHeight||0,inn.offsetHeight||0);
+    if(stage&&h2>h)stage.style.minHeight=h2+'px';
     void inn.offsetWidth;
     requestAnimationFrame(()=>{
-      out.classList.add('slide-run');
-      inn.classList.add('slide-run','is-active');
-      out.classList.add(forward?'go-left':'go-right');
-      inn.classList.add('go-center');
+      requestAnimationFrame(()=>{
+        if(!tabAnimating)return;
+        out.classList.add('slide-run',forward?'go-left':'go-right');
+        inn.classList.add('slide-run','is-active','go-center');
+      });
     });
     const ms=Nav.reduced()?0:380;
-    tabAnimTimer=setTimeout(()=>finishTabSwitch(from,t),ms+20);
+    tabAnimTimer=setTimeout(()=>finishTabSwitch(from,t),ms+40);
   }
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab,{soft:true});else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);

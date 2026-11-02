@@ -521,15 +521,17 @@ body.m.cmd-open .cmd{display:flex;bottom:104px;z-index:31}
 .m-stage.is-sliding{touch-action:none}
 .m-screen.is-entering,.m-screen.is-leaving{
   position:absolute;left:0;right:0;top:0;width:100%;
-  will-change:transform,opacity;backface-visibility:hidden;
+  will-change:transform;backface-visibility:hidden;
 }
+.m-screen.is-leaving{z-index:1}
+.m-screen.is-entering{z-index:2}
 .m-screen.from-right{transform:translate3d(100%,0,0)}
 .m-screen.from-left{transform:translate3d(-100%,0,0)}
 .m-screen.to-left,.m-screen.to-right{transform:translate3d(0,0,0)}
-.m-screen.slide-run{transition:transform .38s cubic-bezier(.32,.72,0,1),opacity .28s ease}
-.m-screen.go-center{transform:translate3d(0,0,0);opacity:1}
-.m-screen.go-left{transform:translate3d(-100%,0,0);opacity:.96}
-.m-screen.go-right{transform:translate3d(100%,0,0);opacity:.96}
+.m-screen.slide-run{transition:transform .38s cubic-bezier(.32,.72,0,1)}
+.m-screen.go-left{transform:translate3d(-100%,0,0)}
+.m-screen.go-right{transform:translate3d(100%,0,0)}
+.m-screen.go-center{transform:translate3d(0,0,0)}
 .hx-detail{
   position:fixed;inset:0;z-index:57;display:block;background:#f7f8fb;font-family:var(--font);
   opacity:0;visibility:hidden;pointer-events:none;
@@ -550,7 +552,7 @@ body.m.cmd-open .cmd{display:flex;bottom:104px;z-index:31}
 body.dark .hx-detail{background:#15171e}
 @media(prefers-reduced-motion:reduce){
   .m-screen.slide-run,.hx-detail{transition:none!important}
-  .m-screen.from-right,.m-screen.from-left,.m-screen.go-left,.m-screen.go-right,.m-screen.go-center{transform:none!important}
+  .m-screen.from-right,.m-screen.from-left,.m-screen.to-left,.m-screen.to-right,.m-screen.go-left,.m-screen.go-right,.m-screen.go-center{transform:none!important}
 }
 .m-date{margin-top:34px;font:500 15px var(--font);color:var(--muted)}
 .m-hello{font:500 31px/1.15 var(--font);letter-spacing:-.8px;margin:6px 0 26px}
@@ -1561,7 +1563,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="email-classify.js?v=1" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=53" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="email-classify.js?v=1" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=54" defer></script></body></html>
 
 
 
