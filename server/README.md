@@ -69,4 +69,4 @@ Open Daylight → link icon → **Stay signed in (uses your Daylight server)** �
 | POST | `/auth/logout` | Revokes Google access and deletes the session |
 | GET | `/health` | Health check |
 
-The dashboard keeps only a random session ID in local storage. Anyone holding it could get short-lived read-only Google tokens for your account until you choose **Sign out everywhere**, so treat the browsers you sign in on as trusted.
+The dashboard keeps only a random session ID in local storage. Anyone holding it could get short-lived Google tokens for your account (including Gmail send after you consent) until you choose **Sign out everywhere**, so treat the browsers you sign in on as trusted. After `gmail.send` was added to scopes, redeploy this worker and sign in again so Google issues a refresh token that includes send.

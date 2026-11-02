@@ -5,7 +5,7 @@ This personal build reads connected Google data in the browser after you authori
 ## Included live connections
 
 - Google Calendar: today's primary calendar events (read only)
-- Gmail: up to six inbox message headers (sender, subject, date, unread status); no email body, send, or delete access
+- Gmail: recent inbox headers plus full message text when you open a loop in Daylight; plain-text replies can be written and sent in-app (no delete access). After this permission was added, reconnect Google once so consent includes send.
 - Google Tasks: open tasks in up to three task lists (read only)
 - Google Drive: names, types and dates of your six most recently viewed files, linking to Drive (no file contents)
 - Birthdays: upcoming birthdays (next 60 days) from your Google Contacts (read only)
@@ -70,9 +70,11 @@ Register a Microsoft Entra single-page application that accepts work/school and 
 2. Configure the OAuth consent screen as **External** and keep it in **Testing** for personal use. Add the Google account you will connect as a test user.
 3. Create an OAuth client ID of type **Web application**. Add the exact site origin under Authorized JavaScript origins. For local development use `http://localhost:8000`; for GitHub Pages use `https://YOUR-USERNAME.github.io`.
 4. Serve this folder over localhost or HTTPS. For example, from this directory run `python -m http.server 8000`, then visit `http://localhost:8000`.
-5. Choose the chain-link button in Daylight, enter the OAuth Client ID, and select **Connect**. Review and approve the read-only scopes.
+5. Choose the chain-link button in Daylight, enter the OAuth Client ID, and select **Connect**. Review and approve Calendar, Gmail (read + send), Tasks, Drive metadata, and Contacts scopes.
 
-Google may show an unverified-app warning while the OAuth app is in Testing. Gmail's metadata scope is restricted by Google; public use may require verification and a security review. The personal test setup is not ready for public account connections.
+If you connected Google before in-app reply shipped, open **Connections → Disconnect**, then **Connect** again so Google prompts for `gmail.send`. Stay-signed-in server users should redeploy the worker (scopes live in `server/src/worker.js`) and sign in again.
+
+Google may show an unverified-app warning while the OAuth app is in Testing. Gmail send/read scopes are restricted by Google; public use may require verification and a security review. The personal test setup is not ready for public account connections.
 
 ## Deploying to GitHub Pages
 
