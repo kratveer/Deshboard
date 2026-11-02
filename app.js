@@ -620,10 +620,11 @@
   const RENEWAL=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial (ends|ending|expires)|expir(es|ing|ation)|auto-?renew)\b/i;
   const PENDING_PAY=/\b(payment (due|failed|reminder|declined)|past due|overdue (bill|payment)|action required.*(pay|bill)|unpaid|failed payment|pay now|outstanding balance|dlužn|nezaplacen|platba (po|je) splatnosti)\b/i;
   const BILL=/\b(invoice|bill(ing)?|statement|utilities?|electric|gas bill|water bill|internet bill|phone bill|faktura|vyúčtování|inkaso|složenka|předpis)\b/i;
-  const STORE_PAY=/\b(order|purchase|bought|shipped|delivered|pickup|in[- ]store|receipt from|your (order|purchase)|objednávka|zalando|amazon|ikea|lidl|tesco|albert|rossmann|dm drogerie|alza|mediamarkt|notino|aboutyou)\b/i;
+  const STORE_PAY=/\b(order|purchase|bought|shipped|delivered|pickup|in[- ]store|receipt from|your (order|purchase)|objednávka|zalando|amazon|ikea|lidl|tesco|albert|rossmann|dm drogerie|alza|mediamarkt|notino|aboutyou|temu|shein|wish\.com|ebay|allegro)\b/i;
+  const SHOPPING_DOMAIN=/(temu\.|alza\.|zalando\.|aboutyou\.|shein\.|aliexpress\.|ebay\.|allegro\.|ikea\.|notino\.|mediamarkt\.|lidl\.|tesco\.|amazon\.|shopify\.|etsy\.)/i;
   const ONLINE_PAY=/\b(paypal|stripe|apple pay|google pay|card ending|charged|payment received|payment confirm|sepa|iban|wise|revolut|sumup|platba (proběhla|přijata)|úhrada)\b/i;
-  const MONEY=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial|expir|payment|invoice|receipt|bill(ing)?|auto-?renew|charged|statement|paypal|stripe|sepa|order|purchase|faktura|platba|předplatné|vyúčtování|účet|premium|plan)\b/i;
-  const MONEY_DOMAIN=/(netflix|spotify|adobe|paypal|stripe|apple\.com|google\.com|amazon|zalando|microsoft|openai|cursor\.|github|notion|figma|dropbox|icloud|youtube|disney|hbo|skyshowtime|vodafone|o2|t-mobile|cez\.|innogy|pre\.cz|upc|vodafone|airbank|revolut|wise|csob|kb\.cz|moneta|fio\.|twilio|vercel|railway|digitalocean|hetzner|namecheap|godaddy|shopify)/i;
+  const MONEY=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial|expir|payment|invoice|receipt|bill(ing)?|auto-?renew|charged|statement|paypal|stripe|sepa|faktura|platba|předplatné|vyúčtování|účet|premium|plan)\b/i;
+  const MONEY_DOMAIN=/(netflix|spotify|adobe|paypal|stripe|apple\.com|google\.com|microsoft|openai|dropbox|icloud|youtube|disney|hbo|skyshowtime|vodafone|o2|t-mobile|cez\.|innogy|pre\.cz|upc|airbank|revolut|wise|csob|kb\.cz|moneta|fio\.|namecheap|godaddy)/i;
   const TRAVEL=/\b(booking|reservation|itinerary|e-?ticket|boarding[\s-]?pass|flights?|train|bahn|rail|eurostar|(?:flight|hotel|airport)\s*check-?in|hotel|airbnb|boarding pass|departure|arrival|gate\s?[A-Z]?\d+|PNR|confirmation code|trip to)\b/i;
   const HOTEL=/\b(hotel|airbnb|booking\.com|accommodation|hostel|marriott|hilton|ibis|check-?in (?:at|on)|lodging|resort)\b/i;
   const FLIGHTISH=/\b(flight|boarding|airline|lufthansa|ryanair|easyjet|wizz|emirates|klm|airport|gate\s?[A-Z]?\d+)\b/i;
@@ -727,14 +728,16 @@
   }
   function moneyKind(subject,from){
     const text=subject+' '+from;
+    // Skip shopping / promotions (Temu, Alza, Amazon orders, etc.)
+    if(SHOPPING_DOMAIN.test(from)||STORE_PAY.test(text))return null;
     if(PENDING_PAY.test(text)||/\bpayment due\b/i.test(text)||/\b(pay|zapla[tť]).{0,20}(tuition|school|fees?|poplat|školn)/i.test(text))return 'pending';
     if(RENEWAL.test(text)||/\bpředplatn/i.test(text)||/\b(premium|pro plan|your plan)\b/i.test(text))return 'subscription';
     if(BILL.test(text))return 'bill';
-    if(STORE_PAY.test(text))return 'store';
-    if(ONLINE_PAY.test(text)||/\breceipt\b/i.test(text)||/\bpotvrzení (platby|objednávky)\b/i.test(text))return 'online';
-    if(MONEY_DOMAIN.test(from)&&MONEY.test(text))return RENEWAL.test(text)?'subscription':'online';
-    if(MONEY_DOMAIN.test(from))return 'online';
-    if(MONEY.test(text))return 'online';
+    // Real payment confirmations → Payments tab
+    if(ONLINE_PAY.test(text)||/\b(payment (received|confirm|successful)|charged)\b/i.test(text)||/\bpotvrzení platby\b/i.test(text))return 'pending';
+    if(MONEY_DOMAIN.test(from)&&RENEWAL.test(text))return 'subscription';
+    if(MONEY_DOMAIN.test(from)&&BILL.test(text))return 'bill';
+    if(MONEY_DOMAIN.test(from)&&MONEY.test(text))return 'pending';
     return null;
   }
   var loopsData=null,loopsFetched=0,loopsShowAll=false;
@@ -812,10 +815,9 @@
       }catch(e){console.warn('gmail list',qs,e);try{if(Store&&accountId)await Store.recordSyncFailure('gmail',e,{retries:gmailRetries,mode:gmailMode},accountId)}catch{}return[]}
     };
     const moneyQ=[
-      'newer_than:120d (subscription OR renew OR renewal OR invoice OR billing OR receipt OR payment OR paid OR charged OR trial OR membership OR premium OR paypal OR stripe OR order OR purchase OR faktura OR platba OR předplatné)',
-      'newer_than:120d category:purchases',
-      'newer_than:90d category:updates (bill OR invoice OR payment OR receipt OR renew OR subscription OR faktura OR platba)',
-      'newer_than:180d (from:paypal.com OR from:stripe.com OR from:apple.com OR from:amazon.com OR from:netflix.com OR from:spotify.com OR from:adobe.com OR from:google.com OR from:microsoft.com OR from:cursor.com OR from:openai.com)'
+      'newer_than:120d (subscription OR renew OR renewal OR invoice OR billing OR bill OR payment OR paid OR charged OR trial OR membership OR premium OR paypal OR stripe OR faktura OR platba OR předplatné OR vyúčtování)',
+      'newer_than:90d category:updates (bill OR invoice OR payment OR receipt OR renew OR subscription OR faktura OR platba OR billing)',
+      'newer_than:180d (from:paypal.com OR from:stripe.com OR from:apple.com OR from:netflix.com OR from:spotify.com OR from:adobe.com OR from:google.com OR from:microsoft.com OR from:revolut.com OR from:wise.com)'
     ];
     // Optional Gmail history probe: if historyId valid, still refresh search windows (queries catch old mail); cursor advances for diagnostics/recovery
     let historyId=syncPrev?.gmail?.cursor||null;
@@ -842,17 +844,16 @@
         }else historyId=prof.historyId;
       }
     }catch{}
-    const [inbox,moneyA,moneyB,moneyC,moneyD,travelMail,docsMail,sent]=await Promise.all([
+    const [inbox,moneyA,moneyB,moneyC,travelMail,docsMail,sent]=await Promise.all([
       listMeta('labelIds=INBOX',50,2),
       listMeta('q='+encodeURIComponent(moneyQ[0]),30,2),
       listMeta('q='+encodeURIComponent(moneyQ[1]),20,1),
-      listMeta('q='+encodeURIComponent(moneyQ[2]),20,1),
-      listMeta('q='+encodeURIComponent(moneyQ[3]),25,1),
+      listMeta('q='+encodeURIComponent(moneyQ[2]),25,1),
       listMeta('q='+encodeURIComponent('(flight OR train OR booking OR itinerary OR "boarding pass" OR hotel OR reservation OR e-ticket) newer_than:45d'),15,1),
       listMeta('q='+encodeURIComponent('(document OR contract OR agreement OR signed OR insurance OR passport OR visa OR pdf OR tax) newer_than:45d has:attachment'),12,1),
       apiRetry(`${G}/messages?labelIds=SENT&maxResults=15`).then(r=>r.data).catch(()=>({messages:[]}))
     ]);
-    const financeMail=[...moneyA,...moneyB,...moneyC,...moneyD];
+    const financeMail=[...moneyA,...moneyB,...moneyC];
     const byId=new Map();[...(listMeta._historyExtras||[]),...inbox,...financeMail,...travelMail,...docsMail].forEach(m=>{if(m?.id)byId.set(m.id,m)});
     const threadIds=[...new Set((sent.messages||[]).map(m=>m.threadId))].slice(0,12);
     const threads=await Promise.all(threadIds.map(t=>apiRetry(`${G}/threads/${encodeURIComponent(t)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`).then(r=>r.data).catch(()=>null)));
@@ -1009,7 +1010,7 @@
     const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1);
     return {id:m.threadId||m.id,title:subject,detail:from.name,meta:ago(when),href:gmailLink(m.threadId||m.id),when:when.getTime(),unread:(m.labelIds||[]).includes('UNREAD')};
   }
-  const MONEY_LABEL={subscription:'Subscription',bill:'Bill',store:'Store',online:'Online',pending:'Pending'};
+  const MONEY_LABEL={subscription:'Subscription',bill:'Bill',pending:'Payment'};
   function moneyFromMail(m){
     const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1);
     const kind=moneyKind(subject,from.name+' '+from.email);if(!kind)return null;
@@ -1018,22 +1019,20 @@
     const brand=from.name.replace(/\s*(billing|noreply|no-?reply|receipts?|support|service)\s*/ig,' ').replace(/\s+/g,' ').trim()||from.email.split('@')[0];
     const subline=kind==='subscription'
       ?(renew.received?`From ${brand}`:`Renews ${renew.label||'soon'}`)+(amt?` · ${amt}`:'')
-      :kind==='pending'?`Payment pending${amt?' · '+amt:''}`
-      :kind==='bill'?`Bill from ${brand}${amt?' · '+amt:''}`
-      :kind==='store'?`Store purchase${amt?' · '+amt:''}`
-      :`Online payment${amt?' · '+amt:''}`;
+      :kind==='pending'?`Payment${amt?' · '+amt:''}`
+      :`Bill from ${brand}${amt?' · '+amt:''}`;
     const domain=brandDomain(from.email,brand);
     return {id:m.threadId||m.id,mailId:m.id,title:brand,subject,detail:subline,from:brand,fromName:from.name,fromEmail:from.email,domain,logo:brandLogoUrls(domain)[0]||'',meta:renew.label||ago(when),href:gmailLink(m.threadId||m.id),when:renew.sort||when.getTime(),whenMs:when.getTime(),kind,tag:MONEY_LABEL[kind]||'Money',urgent:!!renew.urgent||kind==='pending',amount:amt||'',color:brandColor(brand),received:!!renew.received,snippet:m.snippet||''};
   }
   function computeMoney(){
-    const groups={subscription:[],bill:[],store:[],online:[],pending:[]},seen=new Set(),now=Date.now(),day=86400000;
+    const groups={subscription:[],bill:[],pending:[]},seen=new Set(),now=Date.now(),day=86400000;
     const mails=loopsData?[...(loopsData.inbox||[]),...(loopsData.financeMail||[])]:[];
     const uniq=new Map();mails.forEach(m=>{if(m?.id)uniq.set(m.id,m)});
     uniq.forEach(m=>{
       const age=now-new Date((m.payload?.headers&&header(m.payload.headers,'Date'))||m.internalDate*1);
       if(age>180*day)return;
       const item=moneyFromMail(m);if(!item||seen.has(item.id))return;seen.add(item.id);
-      (groups[item.kind]||groups.online).push(item);
+      (groups[item.kind]||groups.pending).push(item);
     });
     // Payment-like tasks (tuition, bills) also belong in Inbox
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
@@ -1041,13 +1040,13 @@
       const title=t.title||'';if(!MONEY.test(title)&&!PENDING_PAY.test(title)&&!/\b(fee|tuition|rent|školn|nájem|poplat)/i.test(title))return;
       const id='task-money:'+(t.id||title)+i;if(seen.has(id))return;seen.add(id);
       const d=t.dueDate?dueDay(t.dueDate):null,urgent=!d||d<=new Date(localMidnight.getTime()+7*day);
-      const item={id,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',meta:d?d.toLocaleDateString(undefined,{day:'numeric',month:'short'}):(t.due||'Open'),href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':'',when:d?d.getTime():now,kind:'pending',tag:'Pending',urgent,amount:'',color:brandColor(title),received:false};
+      const item={id,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',meta:d?d.toLocaleDateString(undefined,{day:'numeric',month:'short'}):(t.due||'Open'),href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':'',when:d?d.getTime():now,kind:'pending',tag:'Payment',urgent,amount:'',color:brandColor(title),received:false};
       groups.pending.push(item);
     });
     const byUrg=(a,b)=>(b.urgent-a.urgent)||(a.when||0)-(b.when||0)||a.title.localeCompare(b.title);
     Object.keys(groups).forEach(k=>groups[k].sort(byUrg));
-    const all=[...groups.pending,...groups.subscription,...groups.bill,...groups.store,...groups.online];
-    return {...groups,all,counts:{subscription:groups.subscription.length,bill:groups.bill.length,store:groups.store.length,online:groups.online.length,pending:groups.pending.length,total:all.length},scanned:loopsData?.scanned||uniq.size};
+    const all=[...groups.pending,...groups.subscription,...groups.bill];
+    return {...groups,store:[],online:[],all,counts:{subscription:groups.subscription.length,bill:groups.bill.length,store:0,online:0,pending:groups.pending.length,total:all.length},scanned:loopsData?.scanned||uniq.size};
   }
   function computeCategories(){
     const money=computeMoney(),finance=money.all.map(i=>({...i,title:i.subject||i.title,detail:i.from,meta:i.meta,kind:'finance'})),travel=[],pending=[],documents=[],now=Date.now(),day=86400000;
@@ -1100,7 +1099,7 @@
   { const ord=readJSON('daylight-order',[]);const hero=$('.hero');
     if(ord.includes('loops'))ord.forEach(id=>{const c=$('#layout').querySelector(`[data-widget="${id}"]`)||(id==='loops'?loopsTile:null);if(c)$('#layout').append(c)});else if(hero)hero.after(loopsTile);else $('#layout').prepend(loopsTile) }
   TILE_NAMES.loops='Open loops';
-  makeTile('finance','finance money-tile',['g-amber','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h2"/></svg>'],'Subscriptions','<span class="loop-count" id="finance-count"></span>','<div class="money-tabs" id="money-tabs" role="tablist"><button type="button" data-money="all" aria-pressed="true">All</button><button type="button" data-money="subscription" aria-pressed="false">Subscriptions</button><button type="button" data-money="pending" aria-pressed="false">Pending</button><button type="button" data-money="bill" aria-pressed="false">Bills</button><button type="button" data-money="store" aria-pressed="false">Store</button><button type="button" data-money="online" aria-pressed="false">Online</button></div><div class="money-sec" id="finance-list"><div class="cat-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div></div><div class="cat-foot" id="finance-foot"></div>');
+  makeTile('finance','finance money-tile',['g-amber','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h2"/></svg>'],'Subscriptions','<span class="loop-count" id="finance-count"></span>','<div class="money-tabs" id="money-tabs" role="tablist"><button type="button" data-money="all" aria-pressed="true">All</button><button type="button" data-money="subscription" aria-pressed="false">Subscriptions</button><button type="button" data-money="pending" aria-pressed="false">Payments</button><button type="button" data-money="bill" aria-pressed="false">Bills</button></div><div class="money-sec" id="finance-list"><div class="cat-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div></div><div class="cat-foot" id="finance-foot"></div>');
   makeTile('travel','travel',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13h18M6 13l2-6h8l2 6M6 17h.01M18 17h.01"/><rect x="3" y="13" width="18" height="5" rx="2"/></svg>'],'Travel','<span class="loop-count" id="travel-count"></span>','<div class="cat-list" id="travel-list"><div class="cat-empty">Flights, trains and bookings from mail and calendar will show up here.</div></div><div class="cat-foot" id="travel-foot"></div>');
   makeTile('pending','pending',['g-rose','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4L19 6"/><circle cx="12" cy="12" r="9"/></svg>'],'Pending tasks','<span class="loop-count" id="pending-count"></span>','<div class="cat-list" id="pending-list"><div class="cat-empty">Due tasks and reminders from Google Tasks and Daylight appear here.</div></div><div class="cat-foot" id="pending-foot"></div>');
   makeTile('documents','documents',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>'],'Documents','<span class="loop-count" id="documents-count"></span>','<div class="cat-list" id="documents-list"><div class="cat-empty">Contracts, PDFs and signed docs from mail and Drive.</div></div><div class="cat-foot" id="documents-foot"></div>');
@@ -1123,7 +1122,7 @@
     if(tabs)$$('#money-tabs [data-money]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.money===moneyFilter?'true':'false'));
     if(!token&&!microsoftAccount&&!DEMO){list.innerHTML='<div class="cat-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div>';if(count)count.textContent='';if(foot)foot.textContent='';return}
     if(!loopsData&&token){list.innerHTML='<div class="cat-empty">Sorting payments from your inbox…</div>';return}
-    const money=computeMoney(),order=['pending','subscription','bill','store','online'],labels={pending:'Pending payments',subscription:'Subscriptions',bill:'Bills',store:'Store payments',online:'Online payments'};
+    const money=computeMoney(),order=['pending','subscription','bill'],labels={pending:'Payments',subscription:'Subscriptions',bill:'Bills'};
     const max=+(wset('finance').max||8);
     let items=moneyFilter==='all'?money.all:money[moneyFilter]||[];
     if(count)count.textContent=money.counts.total||'';
@@ -2057,7 +2056,7 @@
      </div>
      <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
    <section class="m-screen" data-screen="inbox">
-     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subs</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
+     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
      <div id="m-inbox"></div>
    </section>
    <section class="m-screen" data-screen="wallet">
@@ -3401,7 +3400,7 @@
   // Inbox — subscriptions, bills, payments
   function inboxItems(filter){
     const money=computeMoney();
-    let list=filter==='subscription'?money.subscription:filter==='bill'?money.bill:filter==='payments'?[...money.pending,...money.store,...money.online]:money.all;
+    let list=filter==='subscription'?money.subscription:filter==='bill'?money.bill:filter==='payments'?money.pending:money.all;
     const st=loopState(),now=Date.now();
     return list.filter(i=>{const s=st['inbox:'+i.id];return !(s&&(s.done||(s.snooze&&s.snooze>now)))});
   }
@@ -3447,7 +3446,7 @@
       </button>
     </div>`;
   }
-  const INBOX_ORDER=['all','subscription','bill','payments'];
+  const INBOX_ORDER=['all','subscription','payments','bill'];
   let inboxAnim=null;
   function syncInboxThumb(animate=true){
     const tabs=$('#m-inbox-tabs'),thumb=$('#m-inbox-thumb'),on=tabs?.querySelector('[data-inbox].on');

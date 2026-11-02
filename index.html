@@ -152,7 +152,7 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .money-row:hover{background:color-mix(in srgb,var(--accent-soft) 40%,var(--card2));transform:translateY(-1px);box-shadow:0 8px 20px -14px rgba(40,50,90,.35)}
 .money-av{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font:750 13px var(--font);color:#fff;background:linear-gradient(140deg,var(--a1,#6d7cff),var(--a2,#4456d8));overflow:hidden;position:relative}
 .m-brand{position:relative;overflow:hidden}
-.m-brand-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:6px;box-sizing:border-box;z-index:1}
+.m-brand-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:3px;box-sizing:border-box;z-index:1}
 .m-brand-ini{position:relative;z-index:0}
 .m-brand:has(.m-brand-img) .m-brand-ini{opacity:0}
 .td-av.m-brand{overflow:hidden;position:relative}
@@ -1095,18 +1095,17 @@ body.m .m-swipe .m-inbox-card{position:relative;z-index:1;width:100%;transition:
 body.m .m-swipe.open .m-inbox-card{transform:translate3d(-108px,0,0)}
 body.m .m-inbox-card{
   display:flex;align-items:center;gap:12px;padding:12px 14px;border:0;text-align:left;cursor:pointer;color:inherit;font:inherit;
-  border-radius:var(--r-lg);background:var(--m-glass);box-shadow:var(--m-shadow);
-  border:1px solid var(--m-glass-border);
-  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-radius:var(--r-lg);background:var(--card,#fff);box-shadow:0 2px 8px rgba(23,32,51,.06),0 1px 2px rgba(23,32,51,.04);
+  border:1px solid rgba(23,32,51,.06);
 }
 body.m .m-inbox-card:active{opacity:.96}
 body.m .m-inbox-logo{
-  width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none;
-  font:700 13px/1 var(--font);color:#fff;background:linear-gradient(145deg,var(--a1,#6d7cff),var(--a2,#4456d8));
-  box-shadow:0 6px 14px color-mix(in srgb,var(--a1,#6d7cff) 32%,transparent);
+  width:48px;height:48px;border-radius:50%;display:grid;place-items:center;flex:none;
+  font:700 13px/1 var(--font);color:#fff;background:#e8edf5;
+  box-shadow:0 4px 10px rgba(23,32,51,.10);
   overflow:hidden;position:relative;
 }
-body.m .m-inbox-logo .m-brand-img{border-radius:50%;padding:7px}
+body.m .m-inbox-logo .m-brand-img{border-radius:50%;padding:3px}
 body.m .m-inbox-copy{flex:1;min-width:0}
 body.m .m-inbox-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 body.m .m-inbox-copy b{font:650 var(--fs-md)/1.25 var(--font);letter-spacing:-.18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1426,7 +1425,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=48" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=49" defer></script></body></html>
 
 
 
