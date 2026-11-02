@@ -690,6 +690,20 @@
     if(!urls.length)return `<span class="m-brand-ini">${ini}</span>`;
     return `<img class="m-brand-img" src="${esc(urls[0])}" alt="" width="44" height="44" loading="lazy" decoding="async" data-fallback="${esc(urls[1]||'')}" referrerpolicy="no-referrer"><span class="m-brand-ini">${ini}</span>`;
   }
+  function loopSourceBrand(l){
+    let domain=l.domain||brandDomain(l.fromEmail,l.fromName||l.title||l.from);
+    const href=String(l.href||'');
+    if(!domain){
+      if(l.fromEmail)domain=brandDomainFromEmail(l.fromEmail);
+      else if(l.relatedMail?.from?.email)domain=brandDomain(l.relatedMail.from.email,l.relatedMail.from.name);
+      else if(/mail\.google|gmail\.com/i.test(href)||l.mailId)domain='gmail.com';
+      else if(/calendar\.google/i.test(href)||l.type==='prepare'||l.category==='Calendar')domain='google.com';
+      else if(/tasks\.google/i.test(href)||l.category==='Task')domain='google.com';
+      else if(/to-do\.office|outlook\.office|microsoft/i.test(href))domain='microsoft.com';
+    }
+    const title=l.fromName||l.relatedMail?.from?.name||l.title||srcOf(l);
+    return {domain,fromEmail:l.fromEmail||l.relatedMail?.from?.email||'',title,color:l.color||brandColor(title)};
+  }
   function parseMoneyWhen(subject,fallbackDate){
     const s=String(subject||'');
     let m;
@@ -2915,7 +2929,7 @@
     const THRESH=10,TOP=36;
     const y=()=>Nav.scrollEl().scrollTop||window.scrollY||0;
     const isHidden=()=>document.body.classList.contains('tabs-hide');
-    const canHide=()=>mq.matches&&mTab==='home'&&!Nav.anyOpen()&&!document.body.classList.contains('kb-open')&&!document.body.classList.contains('brief-open');
+    const canHide=()=>mq.matches&&mTab==='home'&&!Nav.anyOpen()&&!document.body.classList.contains('kb-open')&&!document.body.classList.contains('brief-open')&&!document.body.classList.contains('loops-open');
     const onScroll=()=>{
       if(ticking)return;ticking=true;
       requestAnimationFrame(()=>{
@@ -3047,11 +3061,18 @@
   function mobileLoopCard(l){
     const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,tags=loopTags(l);
     const meta=[srcOf(l),l.meta].filter(Boolean).join(' · ');
+    const brand=loopSourceBrand(l);
+    const logo=brandLogoHTML(brand,initialsOf(brand.title||l.title));
     return `<button type="button" class="m-row-card ${t.cls}" data-loop="${esc(l.id)}" data-open-loop="${esc(l.id)}">
-      <span class="m-row-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
+      <span class="m-row-ico m-brand" style="--a1:${esc(brand.color)};--a2:${esc(brand.color)}" aria-hidden="true">${logo}</span>
       <span class="m-row-main"><b>${esc(l.title)}</b><small>${esc(meta)}</small>${tags.length?`<span class="m-row-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${esc(x)}</span>`).join('')}</span>`:''}</span>
       <span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>
     </button>`;
+  }
+  function orderedHomeLoops(loops){
+    const priority=loops.filter(l=>l.weight>=2||['reply','overdue','deadline'].includes(l.type));
+    const rest=loops.filter(l=>!priority.includes(l));
+    return [...priority,...rest];
   }
   function scheduleTone(title){
     const t=String(title||'').toLowerCase();
@@ -3131,15 +3152,72 @@
     const grid=$('#m-loop-grid'),total=$('#m-loop-total'),see=$('#m-loops-see');
     if(!grid)return;
     if(total){total.textContent=loops.length||'';total.hidden=!loops.length}
-    if(see)see.hidden=!loops.length;
-    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){grid.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Your day is quiet</b><p>Connect Google to surface replies, renewals and trips.</p></div>';return}
-    if(!loopsData&&token){grid.innerHTML=skelRows(4);return}
-    const priority=loops.filter(l=>l.weight>=2||['reply','overdue','deadline'].includes(l.type));
-    const rest=loops.filter(l=>!priority.includes(l));
-    const ordered=[...priority,...rest];
-    const lmax=loopsShowAll?ordered.length:4,shown=ordered.slice(0,lmax);
+    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){grid.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Your day is quiet</b><p>Connect Google to surface replies, renewals and trips.</p></div>';if(see)see.hidden=true;return}
+    if(!loopsData&&token){grid.innerHTML=skelRows(4);if(see)see.hidden=true;return}
+    const ordered=orderedHomeLoops(loops);
+    const shown=ordered.slice(0,4);
     grid.innerHTML=ordered.length?shown.map(mobileLoopCard).join(''):'<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>You’re caught up</b><p>No open loops right now.</p></div>';
-    if(see){see.textContent='';see.innerHTML=loopsShowAll?`Show less ${svg(ICON.chevron,14)}`:`See All ${svg(ICON.chevron,14)}`}
+    if(see){
+      see.hidden=ordered.length<=4;
+      see.innerHTML=`See All ${svg(ICON.chevron,14)}`;
+    }
+  }
+  function ensureLoopsPop(){
+    let el=$('#loops-pop');
+    if(el)return el;
+    el=document.createElement('div');
+    el.id='loops-pop';el.className='brief-pop loops-pop';el.setAttribute('aria-hidden','true');
+    el.innerHTML=`<button type="button" class="brief-pop-scrim" data-loops-close aria-label="Close priority actions"></button>
+      <div class="brief-pop-card" role="dialog" aria-modal="true" aria-labelledby="loops-pop-title">
+        <div class="brief-pop-head">
+          <div><b id="loops-pop-title">Priority Actions</b><small id="loops-pop-sub">All open loops</small></div>
+          <button type="button" class="brief-pop-x" data-loops-close aria-label="Close">×</button>
+        </div>
+        <div class="brief-pop-body" id="loops-pop-body"></div>
+      </div>`;
+    document.body.append(el);
+    el.addEventListener('click',e=>{
+      if(e.target.closest('[data-loops-close]')){closeLoopsPop();return}
+      const row=e.target.closest('[data-open-loop],[data-loop]');if(!row)return;
+      const id=row.dataset.openLoop||row.dataset.loop;if(!id)return;
+      feel.select();closeLoopsPop();openLoopSheet(id);
+    });
+    return el;
+  }
+  function openLoopsPop(){
+    feel.select();
+    const WORK=['reply','followup','prepare','overdue','deadline'];
+    const loops=(token||microsoftAccount||DEMO)?computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type)):[];
+    const ordered=orderedHomeLoops(loops);
+    const el=ensureLoopsPop();
+    const body=$('#loops-pop-body'),sub=$('#loops-pop-sub');
+    if(sub)sub.textContent=ordered.length?`${ordered.length} open`:'Nothing open';
+    if(body)body.innerHTML=ordered.length
+      ?`<div class="m-loop-list loops-pop-list">${ordered.map(mobileLoopCard).join('')}</div>`
+      :`<div class="brief-empty">You’re caught up — no open priority actions.</div>`;
+    el.classList.add('show');el.setAttribute('aria-hidden','false');
+    document.body.classList.add('loops-open');
+    if(Nav.topView()!=='loops')Nav.push('loops');
+  }
+  function closeLoopsPop(instant){
+    const el=$('#loops-pop');if(!el||!el.classList.contains('show')){if(instant)Nav.drop('loops');return}
+    el.classList.remove('show');el.setAttribute('aria-hidden','true');
+    document.body.classList.remove('loops-open');
+    if(instant){Nav.drop('loops');return}
+    if(Nav.topView()==='loops'||Nav.stack.some(x=>x.view==='loops')){Nav.back();return}
+    Nav.drop('loops');
+  }
+  {
+    const _d=Nav.dismissView.bind(Nav);
+    Nav.dismissView=function(view){if(view==='loops'){closeLoopsPop(true);return}_d(view)};
+    const _i=Nav.dismissInstant.bind(Nav);
+    Nav.dismissInstant=function(view){if(view==='loops'){closeLoopsPop(true);return}_i(view)};
+    const _o=Nav.isOpen.bind(Nav);
+    Nav.isOpen=function(view){return view==='loops'?!!$('#loops-pop')?.classList.contains('show'):_o(view)};
+    const _a=Nav.anyOpen.bind(Nav);
+    Nav.anyOpen=function(){return Nav.isOpen('loops')||_a()};
+    const _t=Nav.dismissTop.bind(Nav);
+    Nav.dismissTop=function(){if(Nav.isOpen('loops')){Nav.dismissView('loops');return}_t()};
   }
   $('#m-home-stats')?.addEventListener('click',e=>{
     const b=e.target.closest('[data-home-jump]');if(!b)return;feel.select();
@@ -3149,7 +3227,7 @@
   });
   $('#m-loop-grid')?.addEventListener('click',onLoopListClick);
   $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
-  $('#m-loops-see')?.addEventListener('click',()=>{loopsShowAll=!loopsShowAll;renderHome()});
+  $('#m-loops-see')?.addEventListener('click',()=>openLoopsPop());
   function collectDailyBrief(){
     const loops=(token||microsoftAccount||DEMO)?computeLoops():[];
     const money=(token||microsoftAccount||DEMO)?computeMoney():{pending:[],bill:[],subscription:[],all:[],counts:{total:0}};

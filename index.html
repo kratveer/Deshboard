@@ -1033,7 +1033,17 @@ body.m .m-row-ico{
   width:42px;height:42px;border-radius:13px;flex:none;display:grid;place-items:center;
   background:var(--tb,var(--accent-soft));color:var(--tc,var(--accent));
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);
+  position:relative;overflow:hidden;
 }
+body.m .m-row-ico.m-brand{
+  background:#fff;color:var(--ink);
+  box-shadow:inset 0 0 0 1px rgba(23,32,51,.08);
+}
+body.m .m-row-ico .m-brand-img{padding:7px;border-radius:13px}
+body.m .m-row-ico .m-brand-ini{font:750 13px/1 var(--font);letter-spacing:-.2px}
+body.dark.m .m-row-ico.m-brand{background:rgba(255,255,255,.92)}
+body.m .loops-pop-list{display:flex;flex-direction:column;gap:10px;padding:4px 0 8px}
+body.m .loops-pop-list .m-row-card{box-shadow:0 4px 14px rgba(23,32,51,.06)}
 body.m .m-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;align-items:flex-start}
 body.m .m-row-main b{font:650 var(--fs-md)/1.25 var(--font);letter-spacing:-.18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 body.m .m-row-main small{font:500 var(--fs-sm)/1.25 var(--font);color:var(--m-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
@@ -1413,7 +1423,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=46" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=47" defer></script></body></html>
 
 
 
