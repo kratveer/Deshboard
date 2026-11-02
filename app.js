@@ -1168,11 +1168,11 @@
       <div class="arow-main"><div class="arow-top"><b>${esc(l.title)}</b><span class="arow-src">${esc([srcOf(l),l.meta].filter(Boolean).join(' · '))}</span></div>
       <div class="arow-detail">${esc(l.detail)}${l.related?` · <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a>`:''}</div>
       <div class="arow-foot"><span class="arow-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${x}</span>`).join('')}</span><span class="arow-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></span></div></div></div>`}
-  // ======== Mobile app (≤680px): Home · Inbox · + · Assistant · Statistics ========
+  // ======== Mobile app (≤680px): Home · Inbox · Wallet · Assistant · Statistics ========
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>'};
+  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>'};
   const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const mapp=document.createElement('div');mapp.id='mapp';mapp.className='mapp';
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,20)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,20)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
@@ -1184,16 +1184,59 @@
      <div class="m-inbox-head"><div class="m-inbox-tabs" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true"></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subs</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,18)}</button></div>
      <div id="m-inbox"></div>
    </section>
+   <section class="m-screen" data-screen="wallet">
+     <div class="m-wallet-head"><div class="m-wallet-tabs" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true"></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-wallet="coupons" aria-selected="false">Coupons</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">Documents</button><button type="button" role="tab" data-wallet="others" aria-selected="false">Others</button></div><button class="m-wallet-scan-btn" id="m-wallet-scan" type="button">Scan</button></div>
+     <div id="m-wallet"></div>
+   </section>
    <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
    <section class="m-screen" data-screen="assistant"><div class="m-chat" id="m-chat"></div><form class="m-msg" id="m-msg"><input id="m-msg-input" placeholder="Message…" autocomplete="off" aria-label="Message Daylight"><button type="submit" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m21 3-9.5 18-2-7.5L2 11.5Z"/><path d="m9.5 13.5 5-5"/></svg></button></form></section>
    <section class="m-screen" data-screen="stats"><div id="m-stats"></div></section>
-   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${svg(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${svg(ICON.inbox)}<span>Inbox</span></button><button class="m-fab" id="m-fab" type="button" aria-label="Quick capture"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button data-tab="assistant" type="button">${svg(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${svg(ICON.stats)}<span>Statistics</span></button></nav>`;
+   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${svg(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${svg(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${svg(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${svg(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${svg(ICON.stats)}<span>Statistics</span></button></nav>`;
   document.body.append(mapp);
+  const scanUI=document.createElement('div');scanUI.id='m-scan';scanUI.className='m-scan';scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');
+  scanUI.innerHTML=`<div class="m-scan-landing" id="m-scan-landing">
+      <div class="m-scan-top"><button class="m-scan-round" type="button" data-scan-close aria-label="Back">${svg(ICON.back,20)}</button><button class="m-scan-round" type="button" data-scan-history aria-label="History">${svg(ICON.clock,20)}</button></div>
+      <div class="m-scan-body"><div class="phone">${svg(ICON.phone,40)}</div><h2>Use your camera to scan document</h2><p>Choose a place with good lighting.</p></div>
+      <div class="m-scan-foot"><button class="m-scan-cta" type="button" id="m-scan-start">Start scanning</button></div>
+    </div>
+    <div class="m-scan-camera" id="m-scan-camera" hidden>
+      <div class="m-scan-top"><button class="m-scan-round" type="button" data-scan-close aria-label="Back">${svg(ICON.back,20)}</button><button class="m-scan-round" type="button" data-scan-history aria-label="History">${svg(ICON.clock,20)}</button></div>
+      <div class="m-scan-view"><video id="m-scan-video" playsinline autoplay muted></video><div class="m-scan-frame"></div><div class="m-scan-beam"></div><canvas id="m-scan-canvas" hidden></canvas></div>
+      <div class="m-scan-foot"><button class="m-scan-shot" type="button" id="m-scan-capture" aria-label="Capture"></button><input id="m-scan-file" type="file" accept="image/*" capture="environment" hidden></div>
+    </div>
+    <div class="m-scan-process" id="m-scan-process" hidden>
+      <div class="spin" aria-hidden="true"></div>
+      <h2 id="m-scan-process-title">Reading document…</h2>
+      <p id="m-scan-process-copy">Detecting edges, extracting text, and structuring fields.</p>
+    </div>
+    <div class="m-scan-review" id="m-scan-review" hidden>
+      <div class="m-scan-top"><button class="m-scan-round" type="button" data-scan-close aria-label="Back">${svg(ICON.back,20)}</button><span style="font:650 16px var(--font)">Confirm details</span><span style="width:44px"></span></div>
+      <div class="m-scan-save">
+        <img id="m-scan-preview" alt="Scan preview">
+        <span class="m-scan-badge" id="m-scan-engine">Ready to confirm</span>
+        <label>Title<input id="m-scan-title" maxlength="60" placeholder="Document name"></label>
+        <div class="m-scan-grid">
+          <label>Category<select id="m-scan-cat"><option value="documents">Documents</option><option value="tickets">Tickets</option><option value="coupons">Coupons</option><option value="others">Others</option></select></label>
+          <label>Date<input id="m-scan-date" maxlength="40" placeholder="Optional"></label>
+        </div>
+        <div class="m-scan-grid">
+          <label>Amount<input id="m-scan-amount" maxlength="24" placeholder="Optional"></label>
+          <label>Note<input id="m-scan-note" maxlength="80" placeholder="Short summary"></label>
+        </div>
+        <label>Extracted text<textarea id="m-scan-ocr" placeholder="OCR text appears here — edit if needed"></textarea></label>
+        <div class="m-scan-actions"><button class="m-scan-cta ghost" type="button" id="m-scan-retake">Retake</button><button class="m-scan-cta" type="button" id="m-scan-save">Confirm & add</button></div>
+      </div>
+    </div>`;
+  document.body.append(scanUI);
   // move overlays out of the desktop shell so they work on the phone too
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
-  let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mSel=new Date(localMidnight),mWeekCache={},mChat=[];
+  let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mWeekCache={},mChat=[],scanStream=null,scanDraft=null;
   if(mTab==='calendar')mTab='inbox';
-  const TITLES={home:'',inbox:'Inbox',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
+  const TITLES={home:'',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
+  const WALLET_COLORS={tickets:['#1f6feb','#0b3d91'],coupons:['#d9480f','#a33b0a'],documents:['#2f9e44','#1b6b2e'],others:['#7048e8','#4c2db3']};
+  const WALLET_LABEL={tickets:'Ticket',coupons:'Coupon',documents:'Document',others:'Pass'};
+  function readWallet(){const list=readJSON('daylight-wallet',null);if(Array.isArray(list))return list;const seed=[{id:'w1',title:'Prague → Berlin',kind:'tickets',note:'Seat 14A · Coach 3',at:new Date().toISOString(),color:WALLET_COLORS.tickets},{id:'w2',title:'Coffee free refill',kind:'coupons',note:'Valid until month end',at:new Date(Date.now()-86400000).toISOString(),color:WALLET_COLORS.coupons},{id:'w3',title:'Legal forms scan',kind:'documents',note:'III. Legal forms',at:new Date(Date.now()-2*86400000).toISOString(),color:WALLET_COLORS.documents},{id:'w4',title:'Library card',kind:'others',note:'Member since 2024',at:new Date(Date.now()-5*86400000).toISOString(),color:WALLET_COLORS.others}];writeJSON('daylight-wallet',seed);return seed}
+  function saveWallet(list){writeJSON('daylight-wallet',list.slice(0,80))}
   function setTab(t){mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
     mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];renderMobile();if(t==='assistant'&&!mChat.length)chatHello()}
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab);else dispatchEvent(new Event('resize'))}
@@ -1313,7 +1356,147 @@
     renderInbox({animate:true,dir:next>=prev?1:-1});
   });
   $('#m-inbox-filter')?.addEventListener('click',()=>toast('Sorted by soonest first'));
-  addEventListener('resize',()=>{if(mq.matches&&mTab==='inbox')syncInboxThumb(false)});
+  addEventListener('resize',()=>{if(mq.matches&&mTab==='inbox')syncInboxThumb(false);if(mq.matches&&mTab==='wallet')syncWalletThumb(false)});
+  // Wallet — Apple-style stacked passes + document scan
+  const WALLET_ORDER=['all','tickets','coupons','documents','others'];
+  function syncWalletThumb(animate=true){
+    const tabs=$('#m-wallet-tabs'),thumb=$('#m-wallet-thumb'),on=tabs?.querySelector('[data-wallet].on');
+    if(!tabs||!thumb||!on)return;
+    if(!animate)thumb.style.transition='none';
+    thumb.style.width=on.offsetWidth+'px';
+    thumb.style.transform=`translateX(${on.offsetLeft}px)`;
+    if(!animate){void thumb.offsetWidth;thumb.style.transition=''}
+  }
+  function walletItems(filter){
+    const all=readWallet().slice().sort((a,b)=>new Date(b.at)-new Date(a.at));
+    return filter==='all'?all:all.filter(i=>i.kind===filter);
+  }
+  function walletPassHTML(item,i,total){
+    const color=item.color||WALLET_COLORS[item.kind]||WALLET_COLORS.others;
+    const top=8+i*26,z=i+1;
+    const when=item.at?new Date(item.at).toLocaleDateString(undefined,{day:'numeric',month:'short'}):'';
+    const open=mWalletOpen===item.id?' is-open':'';
+    const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:'';
+    return `<article class="m-wallet-pass${open}" data-wid="${esc(item.id)}" style="--i:${i};top:${top}px;z-index:${z};background:linear-gradient(145deg,${color[0]},${color[1]})"><div class="wp-top"><span class="wp-kind">${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-mark">${esc((item.title||'?').slice(0,1).toUpperCase())}</span></div><h3 class="wp-title">${esc(item.title)}</h3><div class="wp-foot"><span>${esc(item.note||'')}</span><span>${esc(when)}</span></div>${img}</article>`;
+  }
+  function renderWallet(){
+    const el=$('#m-wallet');if(!el)return;
+    $$('#m-wallet-tabs [data-wallet]').forEach(b=>{const on=b.dataset.wallet===mWalletFilter;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false')});
+    requestAnimationFrame(()=>syncWalletThumb(true));
+    const items=walletItems(mWalletFilter);
+    if(!items.length){el.innerHTML=`<div class="m-wallet-empty"><b>No passes yet</b><p>Scan a ticket, coupon or document and it will stack here like Wallet.</p><button class="m-wallet-scan-btn" type="button" id="m-wallet-empty-scan">Scan document</button></div>`;$('#m-wallet-empty-scan')?.addEventListener('click',openScan);return}
+    const open=items.find(i=>i.id===mWalletOpen);
+    el.innerHTML=`<div class="m-wallet-stack" style="padding-bottom:${Math.max(80,items.length*28)}px">${items.map((item,i)=>walletPassHTML(item,i,items.length)).join('')}</div>${open?`<div class="m-wallet-detail">${open.image?`<img src="${esc(open.image)}" alt="">`:''}<b>${esc(open.title)}</b><div class="m-note">${esc([WALLET_LABEL[open.kind],open.note].filter(Boolean).join(' · '))}</div><div class="wd-actions"><button class="connect" type="button" data-wcat="${esc(open.id)}">Move category</button><button class="connect ghost" type="button" data-wdel="${esc(open.id)}">Remove</button></div></div>`:''}`;
+  }
+  $('#m-wallet-tabs')?.addEventListener('click',e=>{
+    const b=e.target.closest('[data-wallet]');if(!b||b.dataset.wallet===mWalletFilter)return;
+    mWalletFilter=b.dataset.wallet;mWalletOpen='';setLS('daylight-wallet-filter',mWalletFilter);renderWallet();
+  });
+  $('#m-wallet')?.addEventListener('click',e=>{
+    const pass=e.target.closest('[data-wid]');
+    if(pass){mWalletOpen=mWalletOpen===pass.dataset.wid?'':pass.dataset.wid;renderWallet();return}
+    const del=e.target.closest('[data-wdel]');
+    if(del){saveWallet(readWallet().filter(i=>i.id!==del.dataset.wdel));mWalletOpen='';renderWallet();toast('Removed from Wallet');return}
+    const cat=e.target.closest('[data-wcat]');
+    if(cat){const order=['tickets','coupons','documents','others'];const list=readWallet();const item=list.find(i=>i.id===cat.dataset.wcat);if(!item)return;item.kind=order[(order.indexOf(item.kind)+1)%order.length];item.color=WALLET_COLORS[item.kind];saveWallet(list);renderWallet();toast('Moved to '+WALLET_LABEL[item.kind])}
+  });
+  function stopScanCamera(){if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}const v=$('#m-scan-video');if(v)v.srcObject=null}
+  function showScanStep(step){
+    $('#m-scan-landing').hidden=step!=='landing';
+    $('#m-scan-camera').hidden=step!=='camera';
+    $('#m-scan-process').hidden=step!=='process';
+    $('#m-scan-review').hidden=step!=='review';
+  }
+  function openScan(){
+    scanUI.hidden=false;scanUI.classList.add('show');scanUI.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
+    showScanStep('landing');
+  }
+  function closeScan(){
+    stopScanCamera();scanDraft=null;scanUI.classList.remove('show');scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');document.body.style.overflow='';
+  }
+  async function startScanCamera(){
+    const perm=window.DaylightScan?await window.DaylightScan.ensureCameraPermission():{granted:true};
+    if(!perm.granted&&perm.reason==='denied'){toast('Camera permission denied · enable it in system settings');$('#m-scan-file')?.click();return}
+    showScanStep('camera');
+    try{
+      scanStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
+      const v=$('#m-scan-video');v.srcObject=scanStream;await v.play().catch(()=>{});
+    }catch(e){
+      toast('Camera unavailable · pick a photo instead');
+      $('#m-scan-file')?.click();
+    }
+  }
+  function fillScanReview(extracted){
+    scanDraft=extracted.image;
+    $('#m-scan-preview').src=extracted.image;
+    $('#m-scan-title').value=extracted.title||'Scanned document';
+    $('#m-scan-cat').value=extracted.kind||'documents';
+    $('#m-scan-date').value=extracted.date||'';
+    $('#m-scan-amount').value=extracted.amount||'';
+    $('#m-scan-note').value=extracted.note||'';
+    $('#m-scan-ocr').value=extracted.ocrText||'';
+    const eng=$('#m-scan-engine');
+    if(eng)eng.textContent=extracted.engine==='web-heuristic'
+      ?'Web preview · confirm fields'
+      :`Extracted · ${Math.round((extracted.confidence||0.8)*100)}% confidence`;
+    showScanStep('review');
+  }
+  async function processScanImage(dataUrl,hintText){
+    showScanStep('process');
+    $('#m-scan-process-title').textContent='Reading document…';
+    $('#m-scan-process-copy').textContent=window.DaylightScanNative
+      ?'ML Kit OCR and AI are structuring the fields.'
+      :'Detecting what this is. On a native build this uses ML Kit + AI.';
+    await new Promise(r=>setTimeout(r,650));
+    try{
+      const extracted=window.DaylightScan
+        ?await window.DaylightScan.run(dataUrl,{hintText})
+        :{engine:'web-heuristic',image:dataUrl,ocrText:hintText||'',kind:'documents',title:(hintText||'Scanned document').slice(0,60),amount:'',date:'',note:'Confirm details before saving',confidence:0.2};
+      extracted.image=extracted.image||dataUrl;
+      fillScanReview(extracted);
+    }catch(e){
+      toast('Could not extract text · enter details manually');
+      fillScanReview({engine:'web-heuristic',image:dataUrl,ocrText:'',kind:'documents',title:'Scanned document',amount:'',date:'',note:'',confidence:0});
+    }
+  }
+  function captureScanFrame(){
+    const v=$('#m-scan-video'),c=$('#m-scan-canvas');if(!v||!c)return;
+    const w=v.videoWidth||1280,h=v.videoHeight||720;c.width=w;c.height=h;
+    // Crop roughly to the yellow frame region (perspective correction lands in native ML Kit path)
+    const ctx=c.getContext('2d'),sx=Math.round(w*0.1),sy=Math.round(h*0.14),sw=Math.round(w*0.8),sh=Math.round(h*0.72);
+    c.width=sw;c.height=sh;ctx.drawImage(v,sx,sy,sw,sh,0,0,sw,sh);
+    let data='';
+    try{data=c.toDataURL('image/jpeg',0.78)}catch{toast('Could not capture frame');return}
+    stopScanCamera();processScanImage(data,'');
+  }
+  function saveScanToWallet(){
+    if(!scanDraft){toast('Nothing to save');return}
+    const title=($('#m-scan-title').value||'Scanned document').trim().slice(0,60);
+    const kind=$('#m-scan-cat').value||'documents';
+    const amount=($('#m-scan-amount').value||'').trim();
+    const date=($('#m-scan-date').value||'').trim();
+    const note=($('#m-scan-note').value||'').trim()||[date,amount].filter(Boolean).join(' · ')||'Added from scan';
+    const ocr=($('#m-scan-ocr').value||'').trim();
+    const item={id:'w'+Date.now(),title,kind,note,amount,date,ocr,at:new Date().toISOString(),image:scanDraft,color:WALLET_COLORS[kind]||WALLET_COLORS.documents};
+    const list=readWallet();list.unshift(item);saveWallet(list);
+    mWalletFilter='all';mWalletOpen=item.id;setLS('daylight-wallet-filter','all');
+    closeScan();setTab('wallet');toast('Saved to Wallet');
+  }
+  $('#m-wallet-scan')?.addEventListener('click',openScan);
+  scanUI.addEventListener('click',e=>{
+    if(e.target.closest('[data-scan-close]')){if(!$('#m-scan-landing').hidden)closeScan();else if(!$('#m-scan-camera').hidden){stopScanCamera();showScanStep('landing')}else if(!$('#m-scan-process').hidden){/* ignore while processing */}else showScanStep('landing');return}
+    if(e.target.closest('[data-scan-history]')){closeScan();mWalletFilter='all';setTab('wallet')}
+  });
+  $('#m-scan-start')?.addEventListener('click',startScanCamera);
+  $('#m-scan-capture')?.addEventListener('click',captureScanFrame);
+  $('#m-scan-save')?.addEventListener('click',saveScanToWallet);
+  $('#m-scan-retake')?.addEventListener('click',()=>{scanDraft=null;startScanCamera()});
+  $('#m-scan-file')?.addEventListener('change',e=>{
+    const f=e.target.files?.[0];if(!f)return;
+    const reader=new FileReader();
+    reader.onload=()=>processScanImage(String(reader.result||''),(f.name||'').replace(/\.[^.]+$/,''));
+    reader.readAsDataURL(f);e.target.value='';
+  });
   // Calendar
   const weekStart=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
   async function weekEvents(ws){const k=ws.toISOString();if(mWeekCache[k])return mWeekCache[k];if(!token)return [];const ev=await eventsBetween(ws,new Date(ws.getTime()+7*86400000))||[];mWeekCache[k]=ev;setTimeout(()=>delete mWeekCache[k],5*60000);return ev}
@@ -1355,16 +1538,16 @@
       <div class="m-card"><div class="m-card-h">Completed per day</div><div class="m-bars">${perDay.map(x=>`<div class="m-barcol"><i style="height:${Math.round(x.n/maxN*100)}%"></i><span>${x.d.toLocaleDateString(undefined,{weekday:'narrow'})}</span></div>`).join('')}</div><div class="m-note">Counts tasks you tick off in Daylight, from today on.</div></div>
       <div class="m-card"><div class="m-card-h">Open loops right now</div>${[['reply','Waiting for your reply'],['followup','Waiting on others'],['overdue','Overdue'],['deadline','Due soon'],['prepare','Meetings to prepare'],['renewal','Renewals'],['travel','Trips']].map(([t,l])=>`<div class="m-row"><span>${l}</span><b>${by(t)}</b></div>`).join('')}</div>`;
   }
-  // Header buttons, FAB, search
+  // Header buttons, search (FAB removed — Wallet is the center action for scans)
   function renderMTop(){const p=readProfile(),av=$('#m-avatar');av.innerHTML=p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc(((p.name||'K')[0]).toUpperCase());
     const n=$('#bell-badge');$('#mapp .m-dot').hidden=!n||n.hidden}
   $('#m-avatar').onclick=()=>$('#menu-btn').click();
   $('#m-bell').onclick=e=>{e.stopPropagation();$('#bell').click()};
-  const openCmd=capture=>{document.body.classList.add('cmd-open');if(capture)$('#cmd-capture').click();else{$('#cmd-input').focus()}};
-  $('#m-fab').onclick=e=>{e.stopPropagation();openCmd(true)};$('#m-search').onclick=e=>{e.stopPropagation();openCmd(false)};
+  const openCmd=capture=>{document.body.classList.add('cmd-open');if(capture)$('#cmd-capture')?.click();else{$('#cmd-input')?.focus()}};
+  $('#m-search').onclick=e=>{e.stopPropagation();openCmd(false)};
   document.addEventListener('click',e=>{if(document.body.classList.contains('cmd-open')&&!e.composedPath().includes($('#cmd')))document.body.classList.remove('cmd-open')});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('cmd-open')});
-  function renderMobile(){if(!mq.matches)return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(mTab==='calendar')renderCalendar2();else if(mTab==='stats')renderStats()}
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.body.classList.remove('cmd-open');if(!scanUI.hidden)closeScan()}});
+  function renderMobile(){if(!mq.matches)return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(mTab==='wallet')renderWallet();else if(mTab==='calendar')renderCalendar2();else if(mTab==='stats')renderStats()}
   { const o=renderLoops;renderLoops=function(){o();renderMobile()} }
   { const o=renderTasks;renderTasks=function(){o();if(mq.matches&&(mTab==='home'||mTab==='inbox')){if(mTab==='home')renderHome();else renderInbox()}} }
   { const o=renderCategories;renderCategories=function(){o();if(mq.matches&&mTab==='inbox')renderInbox()} }
