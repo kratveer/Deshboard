@@ -167,30 +167,41 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .m-loops-card{margin:0;box-shadow:0 6px 20px rgba(40,50,90,.06)}.m-loops-card .loops-hint{display:none}.m-loops-card .loop-grid.as-list{gap:0}
 .m-loops-card .arow-top b{white-space:normal}.m-loops-card .arow-detail{white-space:normal}
 .arow,.loop{cursor:pointer}.arow:focus-visible,.loop:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:12px}
-/* Open loop expand sheet */
-.loop-sheet{position:fixed;inset:0;z-index:55;display:none;align-items:flex-end;justify-content:center;padding:18px;background:rgba(17,24,39,.42);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.loop-sheet.show{display:flex}
-.loop-sheet-card{width:min(520px,100%);max-height:min(86vh,720px);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:28px;box-shadow:0 28px 80px rgba(30,40,70,.28);overflow:hidden;font-family:var(--font)}
-.loop-sheet-top{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 12px;border-bottom:1px solid var(--line)}
+/* Open loop expand sheet — floating card + glassy blur */
+.loop-sheet{position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;padding:max(18px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom));background:rgba(22,28,42,.34);backdrop-filter:blur(18px) saturate(1.35);-webkit-backdrop-filter:blur(18px) saturate(1.35);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .28s ease,visibility .28s ease}
+.loop-sheet.show{opacity:1;visibility:visible;pointer-events:auto}
+.loop-sheet-card{width:min(420px,100%);max-height:min(78vh,640px);display:flex;flex-direction:column;background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid rgba(255,255,255,.55);border-radius:26px;box-shadow:0 24px 60px rgba(20,30,55,.28),inset 0 1px 0 rgba(255,255,255,.65);overflow:hidden;font-family:var(--font);backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);opacity:0;transform:translateY(22px) scale(.96);transition:transform .34s cubic-bezier(.2,.85,.25,1),opacity .28s ease}
+.loop-sheet-top{display:flex;align-items:flex-start;gap:10px;padding:16px 16px 12px}
 .loop-sheet-top .ls-copy{flex:1;min-width:0}
-.loop-sheet-top .ls-source{display:inline-flex;align-items:center;gap:6px;font:650 12px var(--font);letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.loop-sheet-top .ls-source .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
-.loop-sheet-top h2{margin:0;font:700 22px/1.25 var(--font);letter-spacing:-.35px;color:var(--ink)}
-.loop-sheet-x{width:40px;height:40px;border:0;border-radius:14px;background:var(--card2);color:var(--muted);font-size:22px;line-height:1;flex:none;cursor:pointer}
-.loop-sheet-body{flex:1;overflow:auto;padding:18px 20px 8px;display:grid;gap:14px}
-.loop-sheet-body .ls-type{display:inline-flex;width:fit-content;font:650 12px var(--font);padding:5px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text)}
-.loop-sheet-body .ls-meta{font:500 13.5px/1.4 var(--font);color:var(--muted)}
-.loop-sheet-body .ls-content{font:500 16px/1.55 var(--font);color:var(--ink);white-space:pre-wrap;word-break:break-word}
-.loop-sheet-body .ls-block{background:var(--card2);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
-.loop-sheet-body .ls-block b{display:block;font:650 12px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
-.loop-sheet-body .ls-block p{margin:0;font:500 15px/1.5 var(--font);color:var(--ink);white-space:pre-wrap}
-.loop-sheet-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:color-mix(in srgb,var(--card) 92%,var(--card2))}
-.loop-sheet-foot .ls-left{display:flex;gap:6px;flex-wrap:wrap}
-.loop-sheet-foot .ls-right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.loop-sheet-foot .connect{min-height:40px;padding:8px 14px;border-radius:12px;font:650 13.5px var(--font)}
-@media(min-width:681px){.loop-sheet{align-items:center;padding:24px}.loop-sheet-card{border-radius:24px}}
-@media(max-width:680px){.loop-sheet{padding:0;align-items:stretch}.loop-sheet-card{width:100%;max-height:none;height:100%;border-radius:0;border:0}}
+.loop-sheet-top .ls-source{display:inline-flex;align-items:center;gap:7px;font:650 11.5px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.loop-sheet-top .ls-source .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.loop-sheet-top h2{margin:0;font:700 19px/1.28 var(--font);letter-spacing:-.35px;color:var(--ink)}
+.loop-sheet-x{width:34px;height:34px;border:0;border-radius:50%;background:rgba(120,130,150,.12);color:var(--muted);font-size:20px;line-height:1;flex:none;cursor:pointer}
+.loop-sheet-body{flex:1;min-height:0;overflow:auto;padding:0 16px 14px;display:flex;flex-direction:column;gap:12px}
+.loop-sheet-body .ls-type{display:inline-flex;width:fit-content;font:650 11.5px var(--font);padding:4px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text)}
+.loop-sheet-body .ls-subject{margin:0;font:650 15.5px/1.4 var(--font);color:var(--ink);letter-spacing:-.15px}
+.loop-sheet-body .ls-note{margin:0;font:500 13.5px/1.45 var(--font);color:var(--muted)}
+.loop-sheet-body .ls-meta a{color:var(--accent-text);font-weight:650;text-decoration:none}
+.loop-sheet-body .ls-block{margin-top:auto;background:rgba(255,255,255,.55);border:1px solid rgba(230,234,242,.9);border-radius:16px;padding:12px 14px}
+.loop-sheet-body .ls-block b{display:block;font:650 11px var(--font);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.loop-sheet-body .ls-block p{margin:0;font:500 14px/1.45 var(--font);color:var(--ink);white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.loop-sheet-foot{display:flex;align-items:center;gap:10px;padding:12px 14px 14px;border-top:1px solid rgba(230,234,242,.85);background:rgba(255,255,255,.35)}
+.loop-sheet-foot .ls-left{display:flex;gap:6px;flex:1;min-width:0}
+.loop-sheet-foot .ls-right{flex:none}
+.loop-sheet-foot .connect{min-height:38px;padding:8px 12px;border-radius:12px;font:650 13px var(--font);white-space:nowrap}
+.loop-sheet-foot .connect.ghost{background:rgba(255,255,255,.7);border:1px solid var(--line)}
+.loop-sheet-foot .connect.primary{padding:8px 16px;box-shadow:0 8px 18px rgba(59,108,246,.28)}
+.loop-sheet-foot .ls-open{display:none}
+body.dark .loop-sheet{background:rgba(8,10,16,.5)}
+body.dark .loop-sheet-card{background:color-mix(in srgb,var(--card) 82%,transparent);border-color:rgba(255,255,255,.08);box-shadow:0 24px 60px rgba(0,0,0,.45)}
+body.dark .loop-sheet-body .ls-block{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08)}
+body.dark .loop-sheet-foot{background:rgba(0,0,0,.18);border-top-color:rgba(255,255,255,.08)}
+body.dark .loop-sheet-foot .connect.ghost{background:rgba(255,255,255,.06)}
+.loop-sheet.show .loop-sheet-card{opacity:1;transform:none}
+.loop-sheet.closing .loop-sheet-card{opacity:0;transform:translateY(14px) scale(.97);transition-duration:.24s}
 body.loop-open{overflow:hidden}
+@media(max-width:680px){.loop-sheet{padding:max(28px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom))}.loop-sheet-card{width:100%;max-height:min(72vh,620px)}}
+@media(prefers-reduced-motion:reduce){.loop-sheet,.loop-sheet-card{transition:none!important}.loop-sheet-card{transform:none!important}}
 .mapp,.mapp button,.mapp input,.mapp a,.mapp h2,.mapp h3,.shell,.shell button,.shell input,.shell textarea,.shell select{font-family:var(--font)}
 .mapp[data-screen="inbox"] .m-title{font:700 28px/1.15 var(--font);letter-spacing:-.6px}
 .m-inbox-head{display:flex;align-items:center;gap:10px;margin:10px 0 20px}
@@ -561,7 +572,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=1" defer></script><script src="app.js?v=25" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=1" defer></script><script src="app.js?v=27" defer></script></body></html>
 
 
 

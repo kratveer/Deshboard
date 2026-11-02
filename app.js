@@ -1173,19 +1173,16 @@
   function srcOf(l){const h=l.href||'';return h.includes('mail.google')?'Gmail':h.includes('calendar.google')?'Calendar':h.includes('tasks.google')?'Google Tasks':h.includes('to-do.office')?'To Do':'Daylight'}
   const TAGS={overdue:['Overdue','hot'],deadline:['Due soon','warm'],reply:['Suggested action',''],followup:['Suggested action',''],prepare:['Upcoming',''],renewal:['Review',''],travel:['Reminder','']};
   function findLoop(id){return computeLoops().find(l=>l.id===id)||null}
-  function loopBody(l){
-    const parts=[];
-    if(l.detail)parts.push(l.detail);
-    if(l.meta)parts.push(l.meta);
-    if(l.related?.name)parts.push(`Related file: ${l.related.name}`);
-    if(l.type==='reply')parts.push('This message looks like it still needs a reply from you.');
-    if(l.type==='followup')parts.push('You sent this and haven’t heard back yet — a short nudge may help.');
-    if(l.type==='prepare')parts.push('Meeting is coming up. Review attendees, notes and any linked files before it starts.');
-    if(l.type==='overdue')parts.push('This task is past due. Reschedule it to a realistic time or mark it done.');
-    if(l.type==='deadline')parts.push('Deadline is close. Finish the remaining work or move the due date.');
-    if(l.type==='renewal')parts.push('Check whether you still need this subscription, and cancel or confirm before it renews.');
-    if(l.type==='travel')parts.push('Confirm tickets, accommodation, documents and timing for this trip.');
-    return parts.filter(Boolean).join('\n\n');
+  function loopSubject(l){return l.detail||l.title||''}
+  function loopNote(l){
+    if(l.type==='reply')return 'This message still needs a reply from you.';
+    if(l.type==='followup')return 'You sent this and haven’t heard back — a short nudge may help.';
+    if(l.type==='prepare')return 'Review attendees, notes and linked files before it starts.';
+    if(l.type==='overdue')return 'Past due. Reschedule to a realistic time or mark it done.';
+    if(l.type==='deadline')return 'Deadline is close. Finish the work or move the due date.';
+    if(l.type==='renewal')return 'Confirm you still need this before it renews.';
+    if(l.type==='travel')return 'Confirm tickets, stay, documents and timing.';
+    return '';
   }
   function loopSuggestion(l){
     const subject=(l.type==='reply'||l.type==='followup')?(l.detail||l.title):l.title;
@@ -1198,10 +1195,17 @@
     if(l.type==='travel')return{kind:'task',label:'Suggested checklist',text:`Confirm tickets & stay · ${l.title}`,cta:'Add task'};
     return{kind:'task',label:'Suggested action',text:l.title,cta:'Add task'};
   }
-  let openLoopId=null;
-  function closeLoopSheet(){const sheet=$('#loop-sheet');if(!sheet)return;sheet.classList.remove('show');sheet.setAttribute('aria-hidden','true');openLoopId=null;document.body.classList.remove('loop-open')}
+  let openLoopId=null,loopSheetTimer=0;
+  function closeLoopSheet(){
+    const sheet=$('#loop-sheet');if(!sheet||(!sheet.classList.contains('show')&&!sheet.classList.contains('closing')))return;
+    clearTimeout(loopSheetTimer);openLoopId=null;sheet.setAttribute('aria-hidden','true');
+    sheet.classList.add('closing');sheet.classList.remove('show');
+    const finish=()=>{sheet.classList.remove('closing');document.body.classList.remove('loop-open');sheet.removeEventListener('transitionend',onEnd)};
+    const onEnd=e=>{if(e.target!==sheet&&!e.target?.classList?.contains('loop-sheet-card'))return;finish()};
+    sheet.addEventListener('transitionend',onEnd);loopSheetTimer=setTimeout(finish,320);
+  }
   function openLoopSheet(id){
-    const l=findLoop(id);if(!l)return;openLoopId=id;
+    const l=findLoop(id);if(!l)return;openLoopId=id;clearTimeout(loopSheetTimer);
     let sheet=$('#loop-sheet');
     if(!sheet){
       sheet=document.createElement('div');sheet.id='loop-sheet';sheet.className='loop-sheet';sheet.setAttribute('aria-hidden','true');
@@ -1231,15 +1235,18 @@
         }
       });
     }
-    const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,sug=loopSuggestion(l),body=loopBody(l);
+    const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,sug=loopSuggestion(l),subject=loopSubject(l),note=loopNote(l);
     $('#ls-source').innerHTML=`<span class="dot" aria-hidden="true"></span>${esc(srcOf(l))}${l.meta?` · ${esc(l.meta)}`:''}`;
     $('#ls-title').textContent=l.title;
     $('#ls-body').innerHTML=`<span class="ls-type">${esc(t.label)}</span>
-      <div class="ls-content">${esc(body)}</div>
-      ${l.related?`<div class="ls-meta">Related: <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a></div>`:''}
+      <p class="ls-subject">${esc(subject)}</p>
+      ${note?`<p class="ls-note">${esc(note)}</p>`:''}
+      ${l.related?`<div class="ls-meta"><a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a></div>`:''}
+      ${l.href?`<div class="ls-meta"><button class="connect ghost" type="button" data-ls-act="open" style="min-height:32px;padding:5px 10px;font-size:12.5px">Open in ${esc(srcOf(l))}</button></div>`:''}
       <div class="ls-block"><b>${esc(sug.label)}</b><p>${esc(sug.text)}</p></div>`;
-    $('#ls-left').innerHTML=`<button class="connect ghost" type="button" data-ls-act="snooze">Snooze</button><button class="connect ghost" type="button" data-ls-act="done">Done</button>${l.href?`<button class="connect ghost" type="button" data-ls-act="open">Open in ${esc(srcOf(l))}</button>`:''}`;
+    $('#ls-left').innerHTML=`<button class="connect ghost" type="button" data-ls-act="snooze">Snooze</button><button class="connect ghost" type="button" data-ls-act="done">Done</button>`;
     $('#ls-right').innerHTML=`<button class="connect primary" type="button" data-ls-act="suggest">${esc(sug.cta)}</button>`;
+    sheet.classList.remove('closing','show');void sheet.offsetWidth;
     sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('loop-open');
   }
   function loopHTML(l){const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply;const list=(wset('loops').view||'List')==='List';
