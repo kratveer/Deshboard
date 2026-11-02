@@ -561,7 +561,7 @@
   // ======== Daylight 2.0: every tile is a widget on one GridStack layout ========
   // Layout (which widgets, where, how big) is stored in 'daylight-layout-v2'; settings in 'daylight-widget-settings'.
   const WIDGETS={
-    summary:{name:'Smart summary',desc:'Your day in a sentence or two',size:{w:12,h:3},min:{w:3,h:2},settings:{detail:{label:'Detail',options:['Short','Detailed']}}},
+    summary:{name:'Daily briefing',desc:'What matters today, in a few lines',size:{w:12,h:3},min:{w:3,h:2},settings:{detail:{label:'Detail',options:['Short','Detailed']}}},
     overview:{name:'Day at a glance',desc:'Counts, up next and today’s timeline',size:{w:12,h:4},min:{w:4,h:3}},
     loops:{name:'Open loops',desc:'Things you started but haven’t finished',size:{w:12,h:5},min:{w:3,h:3},settings:{view:{label:'View',options:['List','Cards']},max:{label:'Items shown',options:['3','6','9','12']},include:{label:'Include',options:['Everything','Work only']}}},
     calendar:{name:'Calendar',desc:'Today’s events',size:{w:4,h:5},min:{w:3,h:3}},
@@ -584,7 +584,7 @@
 
   // Smart summary (rules for now; an AI-written version can replace renderSmart later)
   const sumCard=document.createElement('article');sumCard.className='card summary-w';sumCard.dataset.widget='summary';
-  sumCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">✦</span>Smart summary</div></div><div class="smart" id="smart-summary"></div><div class="smart-chips" id="smart-chips"></div>';
+  sumCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">✦</span>Daily briefing</div></div><div class="smart" id="smart-summary"></div><div class="smart-chips" id="smart-chips"></div>';
   $('#layout').prepend(sumCard);
   function renderSmart(){
     const el=$('#smart-summary');if(!el)return;const chips=$('#smart-chips');
