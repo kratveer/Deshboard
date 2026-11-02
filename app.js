@@ -25,6 +25,14 @@
     let stored='';try{stored=localStorage.getItem('daylight-google-scopes')||''}catch{}
     return /gmail\.send|gmail\.compose|gmail\.modify|mail\.google\.com/.test(googleGrantedScope||stored);
   };
+  const FITNESS_SCOPES=(window.DaylightHealth?.FITNESS_SCOPES||[
+    'https://www.googleapis.com/auth/fitness.activity.read',
+    'https://www.googleapis.com/auth/fitness.heart_rate.read',
+    'https://www.googleapis.com/auth/fitness.sleep.read',
+    'https://www.googleapis.com/auth/fitness.body.read'
+  ]).join(' ');
+  const googleScopeBlob=()=>{let stored='';try{stored=localStorage.getItem('daylight-google-scopes')||''}catch{};return googleGrantedScope||stored||''};
+  const hasFitnessRead=()=>window.DaylightHealth?.hasGoogleFitnessScope?.(googleScopeBlob())||/fitness\.(activity|heart_rate|sleep|body)\.read/i.test(googleScopeBlob());
   const esc = (s='') => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   /* Light native-feel feedback (Capacitor Haptics → vibrate → no-op) */
   const feel={
@@ -278,6 +286,26 @@
     if(serverUrl&&serverSession){toast('Reconnect Google from Connections to grant send access',{type:'warn'});connectDialog({setup:false});return}
     if(!clientId){toast('Connect Google first',{type:'warn'});connectDialog({setup:true,focusId:true});return}
     authorize(clientId);
+  }
+  function requestFitnessAccess(){
+    const clientId=(localStorage.getItem('daylight-client-id')||'').trim();
+    if(!clientId){toast('Connect Google first',{type:'warn'});connectDialog({setup:true,focusId:true});return}
+    if(!window.google?.accounts?.oauth2){toast('Google sign-in is still loading',{type:'warn'});return}
+    const fitnessClient=google.accounts.oauth2.initTokenClient({
+      client_id:clientId,
+      scope:FITNESS_SCOPES,
+      include_granted_scopes:true,
+      callback:async response=>{
+        if(response.error){toast(googleAuthError(response.error),{type:'err'});return}
+        if(response.access_token)token=response.access_token;
+        rememberGoogleScopes([googleScopeBlob(),response.scope||FITNESS_SCOPES].filter(Boolean).join(' '));
+        toast('Google Fit connected',{type:'ok',haptic:'success'});
+        if(typeof renderStats==='function')renderStats({force:true});
+      },
+      error_callback:e=>toast(googleAuthError(e?.type||e?.message||'popup_closed_by_user'),{type:'err'})
+    });
+    try{fitnessClient.requestAccessToken({prompt:''})}
+    catch{try{fitnessClient.requestAccessToken({prompt:'consent'})}catch(e){toast('Could not open Google Fit consent',{type:'err'})}}
   }
   const microsoftScopes=['User.Read','Mail.ReadBasic','Calendars.ReadBasic','Tasks.Read'];
   async function authorizeMicrosoft() {
@@ -2236,9 +2264,12 @@
     const favBtn=sheet.querySelector('[data-ls-fav]');if(favBtn){const on=isFav(l.id);favBtn.classList.toggle('on',on);favBtn.textContent=on?'★':'☆';favBtn.setAttribute('aria-pressed',on?'true':'false')}
     paintLoopDetail(l,null);
     const wasOpen=sheet.classList.contains('show');
-    sheet.classList.remove('closing','show');void sheet.offsetWidth;
-    sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('loop-open');
-    if(!wasOpen)feel.tap();
+    clearTimeout(loopSheetTimer);sheet.classList.remove('closing');
+    if(!wasOpen){
+      sheet.classList.remove('show');void sheet.offsetWidth;
+      sheet.classList.add('show');feel.tap();
+    }else sheet.classList.add('show');
+    sheet.setAttribute('aria-hidden','false');document.body.classList.add('loop-open');
     const N=window.DaylightNav;
     if(N){
       if(wasOpen&&N.topView()==='loop')N.replace('loop',l.id);
@@ -2261,12 +2292,13 @@
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>',chevron:'<path d="m9 6 6 6-6 6"/>',spark:'<path d="M12 3.5 13.2 8l4.3.4-3.3 2.9.9 4.2L12 13.4 8.9 15.5l.9-4.2-3.3-2.9L10.8 8 12 3.5Z"/>',scan:'<path d="M8 4H6a2 2 0 0 0-2 2v2M16 4h2a2 2 0 0 1 2 2v2M8 20H6a2 2 0 0 1-2-2v-2M16 20h2a2 2 0 0 0 2-2v-2"/><path d="M8 12h8"/>',chat:'<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V13a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.2V15.5H7.5A2.5 2.5 0 0 1 5 13Z"/>',suitcase:'<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M9 8V6.5A1.5 1.5 0 0 1 10.5 5h3A1.5 1.5 0 0 1 15 6.5V8M5 13h14"/>',chevDown:'<path d="m7 10 5 5 5-5"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',laptop:'<rect x="3.5" y="5" width="17" height="11" rx="2"/><path d="M2.5 18.5h19M9 15.5h6"/>'};
+  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<path d="M19.5 13.5c0 4.1-3.4 7.5-7.5 7.5S4.5 17.6 4.5 13.5 7.9 6 12 6c.6 0 1.2.1 1.8.2"/><path d="M16.5 4.5c1.7.9 3.1 2.4 3.8 4.2"/><path d="M12.2 9.2c.9-.3 1.9 0 2.5.7.7.8.7 2 0 2.7-.7.8-1.8 1-2.7.5"/><path d="M11.2 12.8c-.4.9-.2 2 .6 2.6.9.7 2.1.5 2.8-.3"/>',heart:'<path d="M12 20s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 3.8C19 15.6 12 20 12 20Z"/>',flame:'<path d="M12 21c3.3 0 5.5-2.2 5.5-5.3 0-2.4-1.2-3.9-2.5-5.2-.3 1.5-1.2 2.2-1.2 2.2S15 9.2 12.8 6.4C11.8 8.2 10 9.8 10 12c0 0-.9-.7-1.2-2.1C7.7 11.3 6.5 12.9 6.5 15.7 6.5 18.8 8.7 21 12 21Z"/>',shoe:'<path d="M4 15.5h9.2c1.4 0 2.3.4 3.3 1.3l1.5 1.2H4v-2.5Z"/><path d="M5 15.5c.4-2.2 1.5-5.2 4.2-6.4 1.5-.7 3.3-.3 4.3 1l1.2 1.5"/><path d="M8.5 11.5h2"/>',bed:'<path d="M3 18v-5.5A2.5 2.5 0 0 1 5.5 10H10a3 3 0 0 1 3 3v5"/><path d="M13 13h5.5A2.5 2.5 0 0 1 21 15.5V18"/><path d="M3 18h18M6 10V7.5A1.5 1.5 0 0 1 7.5 6h2A1.5 1.5 0 0 1 11 7.5V10"/>',run:'<circle cx="14.5" cy="5.5" r="1.6"/><path d="m8 20 2.2-4.2L13 14l2 2 3.5 1"/><path d="m11 9.5 1.8 2.2L9.5 15"/><path d="m13 11.5 3-1.5 2 2"/>',bulb:'<path d="M9.5 17h5M10 20h4"/><path d="M12 3.5a5 5 0 0 1 3.5 8.4c-.7.7-1.1 1.5-1.2 2.6h-4.6c-.1-1.1-.5-1.9-1.2-2.6A5 5 0 0 1 12 3.5Z"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>',chevron:'<path d="m9 6 6 6-6 6"/>',spark:'<path d="M12 3.5 13.2 8l4.3.4-3.3 2.9.9 4.2L12 13.4 8.9 15.5l.9-4.2-3.3-2.9L10.8 8 12 3.5Z"/>',scan:'<path d="M8 4H6a2 2 0 0 0-2 2v2M16 4h2a2 2 0 0 1 2 2v2M8 20H6a2 2 0 0 1-2-2v-2M16 20h2a2 2 0 0 0 2-2v-2"/><path d="M8 12h8"/>',chat:'<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V13a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.2V15.5H7.5A2.5 2.5 0 0 1 5 13Z"/>',suitcase:'<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M9 8V6.5A1.5 1.5 0 0 1 10.5 5h3A1.5 1.5 0 0 1 15 6.5V8M5 13h14"/>',chevDown:'<path d="m7 10 5 5 5-5"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',laptop:'<rect x="3.5" y="5" width="17" height="11" rx="2"/><path d="M2.5 18.5h19M9 15.5h6"/>'};
   const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const tabIco=(d)=>`<span class="m-tab-ico" aria-hidden="true">${svg(d,26)}</span>`;
   const mapp=document.createElement('div');mapp.id='mapp';mapp.className='mapp';
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,18)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,18)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
-   <section class="m-screen" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
+   <div class="m-stage" id="m-stage">
+   <section class="m-screen is-active" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
      <button class="m-brief" id="m-brief" type="button"></button>
      <div class="m-stat-grid" id="m-home-stats" hidden></div>
      <section class="m-schedule" id="m-schedule" aria-label="Today’s schedule">
@@ -2279,16 +2311,16 @@
        <div class="loops-foot" id="m-loops-foot" hidden></div>
      </div>
      <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
-   <section class="m-screen" data-screen="inbox">
+   <section class="m-screen" data-screen="inbox" hidden>
      <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="ticket" aria-selected="false">Tickets</button><button type="button" role="tab" data-inbox="shopping" aria-selected="false">Shopping</button><button type="button" role="tab" data-inbox="other" aria-selected="false">Other</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
      <div id="m-inbox"></div>
    </section>
-   <section class="m-screen" data-screen="wallet">
+   <section class="m-screen" data-screen="wallet" hidden>
      <div class="m-wallet-head"><div class="m-wallet-tabs m-pills" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-wallet="coupons" aria-selected="false">Coupons</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">Documents</button><button type="button" role="tab" data-wallet="others" aria-selected="false">Others</button></div></div>
      <div id="m-wallet"></div>
    </section>
    <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
-   <section class="m-screen" data-screen="assistant">
+   <section class="m-screen" data-screen="assistant" hidden>
      <div class="tl-top">
        <h1 class="tl-title">Timeline</h1>
        <button type="button" class="tl-ask-btn" id="tl-ask-btn" aria-expanded="false" aria-controls="tl-chat-wrap">
@@ -2312,8 +2344,9 @@
        <form class="m-msg" id="m-msg"><input id="m-msg-input" placeholder="Ask about your day…" autocomplete="off" aria-label="Message Daylight"><button type="submit" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m21 3-9.5 18-2-7.5L2 11.5Z"/><path d="m9.5 13.5 5-5"/></svg></button></form>
      </div>
    </section>
-   <section class="m-screen" data-screen="stats"><div id="m-stats"></div></section>
-   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.calendar)}<span>Timeline</span></button><button data-tab="stats" type="button">${tabIco(ICON.stats)}<span>Statistics</span></button></nav>
+   <section class="m-screen" data-screen="stats" hidden><div id="m-stats"></div></section>
+   </div>
+   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.calendar)}<span>Timeline</span></button><button data-tab="stats" type="button">${tabIco(ICON.heart)}<span>Health</span></button></nav>
    <button type="button" class="m-wallet-fab" id="m-wallet-fab" aria-label="Scan document" hidden>${svg(ICON.scan,22)}</button>`;
   document.body.append(mapp);
   const scanUI=document.createElement('div');scanUI.id='m-scan';scanUI.className='m-scan';scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');
@@ -2356,7 +2389,7 @@
   let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mAssistDay=new Date(localMidnight),mAssistAsk=false,mWeekCache={},mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
   if(!['all','subscription','payments','bill','ticket','shopping','other'].includes(mInboxFilter))mInboxFilter='all';
   if(mTab==='calendar')mTab='inbox';
-  const TITLES={home:'Daylight',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Timeline',stats:'Statistics'};
+  const TITLES={home:'Daylight',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Timeline',stats:'Health'};
   const WALLET_COLORS={tickets:['#1f6feb','#0b3d91'],coupons:['#d9480f','#a33b0a'],documents:['#2f9e44','#1b6b2e'],others:['#7048e8','#4c2db3']};
   const WALLET_LABEL={tickets:'Ticket',coupons:'Coupon',documents:'Document',others:'Pass'};
   function qrUrl(payload,size){return(window.DaylightScan?.qrImageUrl?.(payload,size))||('https://api.qrserver.com/v1/create-qr-code/?size='+(size||200)+'x'+(size||200)+'&margin=8&data='+encodeURIComponent(payload))}
@@ -3069,7 +3102,7 @@
       if(this.backing||!view)return;
       this.backing=true;this.silentPop=true;
       if(this.stack.length&&this.stack[this.stack.length-1].view===view)this.stack.pop();
-      const root=view==='notif'?$('#notif-panel'):view==='loop'?$('#loop-sheet'):view==='pass'?$('#pass-sheet'):view==='brief'?$('#brief-pop'):view==='loops'?$('#loops-pop'):scanUI;
+      const root=view==='health'?$('#hx-detail'):view==='notif'?$('#notif-panel'):view==='loop'?$('#loop-sheet'):view==='pass'?$('#pass-sheet'):view==='brief'?$('#brief-pop'):view==='loops'?$('#loops-pop'):scanUI;
       const finish=()=>{
         if(el){el.style.transition='';el.style.transform='';el.style.opacity=''}
         if(root&&root!==el){root.style.transition='';root.style.opacity='';root.style.transform=''}
@@ -3124,21 +3157,97 @@
     if(!mq.matches){document.body.classList.remove('tabs-hide');return}
     document.body.classList.toggle('tabs-hide',!!hide);
   }
-  function setTab(t,opts){
-    const soft=opts&&opts.soft;
-    if(!soft&&t!==mTab){Nav.saveTab();feel.select()}
-    mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  const TAB_ORDER=['home','inbox','wallet','assistant','stats'];
+  let tabAnimating=false,tabAnimTimer=0;
+  function screenEl(name){return $(`#mapp .m-screen[data-screen="${name}"]`)}
+  function clearTabAnimClasses(el){
+    if(!el)return;
+    el.classList.remove('is-entering','is-leaving','from-right','from-left','to-left','to-right','slide-run','is-active');
+    el.style.transform='';el.style.opacity='';el.style.transition='';
+  }
+  function finishTabSwitch(from,to){
+    const out=screenEl(from),inn=screenEl(to);
+    $$('#mapp .m-screen').forEach(s=>{
+      const on=s.dataset.screen===to;
+      clearTabAnimClasses(s);
+      s.hidden=!on;
+      s.classList.toggle('is-active',on);
+    });
+    const stage=$('#m-stage');
+    if(stage){stage.style.minHeight='';stage.classList.remove('is-sliding')}
+    tabAnimating=false;
+    Nav.restoreTab();
+  }
+  function applyTabChrome(t){
+    mTab=t;setLS('daylight-mtab',t);
+    $$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
     mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];
     const fab=$('#m-wallet-fab');if(fab)fab.hidden=t!=='wallet';
     const top=$('#mapp .m-top');if(top)top.hidden=t==='assistant';
     if(t!=='assistant'&&mAssistAsk)setAssistAsk(false);
     setTabsHidden(false);
+  }
+  function setTab(t,opts){
+    const soft=opts&&opts.soft;
+    if(!TAB_ORDER.includes(t))t='home';
+    if(t===mTab&&!opts.force){
+      applyTabChrome(t);
+      $$('#mapp .m-screen').forEach(s=>{const on=s.dataset.screen===t;s.hidden=!on;s.classList.toggle('is-active',on);clearTabAnimClasses(s);if(on)s.classList.add('is-active')});
+      renderMobile();
+      return;
+    }
+    if(tabAnimating&&!soft)return;
+    const from=mTab;
+    const fromIdx=TAB_ORDER.indexOf(from),toIdx=TAB_ORDER.indexOf(t);
+    const forward=toIdx>fromIdx;
+    const canSlide=mq.matches&&!soft&&fromIdx>=0&&toIdx>=0&&fromIdx!==toIdx&&!Nav.reduced();
+
+    if(!soft){Nav.saveTab();feel.select()}
+    applyTabChrome(t);
+
+    if(!canSlide){
+      clearTimeout(tabAnimTimer);tabAnimating=false;
+      $$('#mapp .m-screen').forEach(s=>{
+        clearTabAnimClasses(s);
+        const on=s.dataset.screen===t;
+        s.hidden=!on;s.classList.toggle('is-active',on);
+      });
+      renderMobile();
+      if(!soft)Nav.restoreTab();
+      return;
+    }
+
+    const out=screenEl(from),inn=screenEl(t);
+    if(!out||!inn){
+      $$('#mapp .m-screen').forEach(s=>{s.hidden=s.dataset.screen!==t;s.classList.toggle('is-active',s.dataset.screen===t)});
+      renderMobile();Nav.restoreTab();return;
+    }
+
+    tabAnimating=true;clearTimeout(tabAnimTimer);
+    const stage=$('#m-stage');
+    const h=Math.max(out.offsetHeight||0,inn.offsetHeight||0,stage?.offsetHeight||0,innerHeight*0.5);
+    if(stage){stage.style.minHeight=h+'px';stage.classList.add('is-sliding')}
+
+    // Keep outgoing visible; prepare incoming off-screen
+    out.hidden=false;inn.hidden=false;
+    clearTabAnimClasses(out);clearTabAnimClasses(inn);
+    out.classList.add('is-leaving',forward?'to-left':'to-right');
+    inn.classList.add('is-entering',forward?'from-right':'from-left');
+    // Render destination content while it is still off-screen (no flicker)
     renderMobile();
-    if(!soft)Nav.restoreTab();
+    void inn.offsetWidth;
+    requestAnimationFrame(()=>{
+      out.classList.add('slide-run');
+      inn.classList.add('slide-run','is-active');
+      out.classList.add(forward?'go-left':'go-right');
+      inn.classList.add('go-center');
+    });
+    const ms=Nav.reduced()?0:380;
+    tabAnimTimer=setTimeout(()=>finishTabSwitch(from,t),ms+20);
   }
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab,{soft:true});else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);
-  $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+  $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>{if(tabAnimating)return;setTab(b.dataset.tab)});
   window.addEventListener('popstate',()=>Nav.onPop());
   document.addEventListener('backbutton',e=>{if(Nav.back()){feel.tap();e.preventDefault?.();e.stopPropagation?.()}},true);
   try{
@@ -3161,7 +3270,7 @@
       const t=e.touches[0];if(!t)return;
       const fromLeft=t.clientX<=edge,fromRight=t.clientX>=innerWidth-edge;
       if(!fromLeft&&!fromRight)return;
-      const view=Nav.topView()||(Nav.isOpen('notif')?'notif':Nav.isOpen('scan')?'scan':Nav.isOpen('pass')?'pass':Nav.isOpen('loop')?'loop':null);
+      const view=Nav.topView()||(Nav.isOpen('health')?'health':Nav.isOpen('notif')?'notif':Nav.isOpen('scan')?'scan':Nav.isOpen('pass')?'pass':Nav.isOpen('loop')?'loop':null);
       if(!view)return;
       s={x0:t.clientX,y0:t.clientY,fromLeft,active:false,view,el:Nav.sheetEl(view)};
     },{passive:true});
@@ -3652,32 +3761,37 @@
   }
   const _navDismiss=Nav.dismissView.bind(Nav);
   Nav.dismissView=function(view){
+    if(view==='health'){dismissHealthDetail(false);return}
     if(view==='notif'){closeNotifPanel();return}
     if(view==='brief'){closeBriefPop(true);return}
     _navDismiss(view);
   };
   const _navInstant=Nav.dismissInstant.bind(Nav);
   Nav.dismissInstant=function(view){
+    if(view==='health'){dismissHealthDetail(true);return}
     if(view==='notif'){closeNotifPanel(true);return}
     if(view==='brief'){closeBriefPop(true);return}
     _navInstant(view);
   };
   const _navIsOpen=Nav.isOpen.bind(Nav);
   Nav.isOpen=function(view){
+    if(view==='health')return !!$('#hx-detail')?.classList.contains('show');
     if(view==='notif')return isNotifOpen();
     if(view==='brief')return !!$('#brief-pop')?.classList.contains('show');
     return _navIsOpen(view);
   };
   const _navAny=Nav.anyOpen.bind(Nav);
-  Nav.anyOpen=function(){return Nav.isOpen('notif')||Nav.isOpen('brief')||_navAny()};
+  Nav.anyOpen=function(){return Nav.isOpen('health')||Nav.isOpen('notif')||Nav.isOpen('brief')||_navAny()};
   const _navDismissTop=Nav.dismissTop.bind(Nav);
   Nav.dismissTop=function(){
+    if(Nav.isOpen('health')){Nav.dismissView('health');return}
     if(Nav.isOpen('notif')){Nav.dismissView('notif');return}
     if(Nav.isOpen('brief')){Nav.dismissView('brief');return}
     _navDismissTop();
   };
   const _navSheet=Nav.sheetEl.bind(Nav);
   Nav.sheetEl=function(view){
+    if(view==='health')return $('#hx-detail');
     if(view==='notif')return $('#notif-panel')?.querySelector('.notif-sheet')||$('#notif-panel');
     if(view==='brief')return $('#brief-pop')?.querySelector('.brief-pop-card')||$('#brief-pop');
     return _navSheet(view);
@@ -4385,19 +4499,235 @@
     const w=e.target.closest('[data-open-wallet]');if(w){feel.select();setTab('wallet');openPassSheet(w.dataset.openWallet);return}
     const a=e.target.closest('[data-tl-href]');if(a)window.open(a.dataset.tlHref,'_blank','noopener');
   });
-  // Statistics
-  async function renderStats(){
-    const el=$('#m-stats'),now=new Date(),ws=new Date(localMidnight.getTime()-6*86400000);
-    const doneLog=readJSON('daylight-done-log',[]).filter(d=>new Date(d.at)>=ws),focus=readJSON('daylight-focus-log',[]).filter(d=>new Date(d.at)>=ws);
-    const perDay=[...Array(7)].map((_,i)=>{const d=new Date(ws.getTime()+i*86400000),e=new Date(d.getTime()+86400000);return {d,n:doneLog.filter(x=>{const t=new Date(x.at);return t>=d&&t<e}).length}});
-    const maxN=Math.max(1,...perDay.map(x=>x.n)),fmin=focus.reduce((a,b)=>a+(+b.min||0),0);
-    let meet=null;if(token){const ev=await eventsBetween(ws,now)||[];const m=ev.filter(e=>e.start?.dateTime&&(e.attendees||[]).length>1);meet={n:m.length,h:m.reduce((a,e)=>a+(new Date(e.end?.dateTime||e.start.dateTime)-new Date(e.start.dateTime))/3600000,0)}}
-    const loops=(token||microsoftAccount)?computeLoops():[],by=t=>loops.filter(l=>l.type===t).length;
-    el.innerHTML=`<div class="m-dt">Last 7 days</div>
-      <div class="m-kpis"><div class="m-kpi"><b>${doneLog.length}</b><span>tasks completed</span></div><div class="m-kpi"><b>${fmin>=60?Math.floor(fmin/60)+'h '+(fmin%60)+'m':fmin+'m'}</b><span>focus time</span></div><div class="m-kpi"><b>${meet?meet.n:'—'}</b><span>meetings</span></div><div class="m-kpi"><b>${meet?meet.h.toFixed(1)+'h':'—'}</b><span>in meetings</span></div></div>
-      <div class="m-card"><div class="m-card-h">Completed per day</div><div class="m-bars">${perDay.map(x=>`<div class="m-barcol"><i style="height:${Math.round(x.n/maxN*100)}%"></i><span>${x.d.toLocaleDateString(undefined,{weekday:'narrow'})}</span></div>`).join('')}</div><div class="m-note">Counts tasks you tick off in Daylight, from today on.</div></div>
-      <div class="m-card"><div class="m-card-h">Open loops right now</div>${[['reply','Waiting for your reply'],['followup','Waiting on others'],['overdue','Overdue'],['deadline','Due soon'],['prepare','Meetings to prepare'],['renewal','Renewals'],['travel','Trips']].map(([t,l])=>`<div class="m-row"><span>${l}</span><b>${by(t)}</b></div>`).join('')}</div>`;
+  // Health (Statistics tab) — Apple Health–style overview
+  let healthCache=null,healthLoading=false;
+  function fmtSleep(min){
+    const m=Math.max(0,Math.round(min||0)),h=Math.floor(m/60),r=m%60;
+    return h?`${h}h ${String(r).padStart(2,'0')}m`:`${r}m`;
   }
+  function fmtSteps(n){return Math.round(n||0).toLocaleString()}
+  function sparkHTML(values,color){
+    const vals=(values||[]).slice(-7),max=Math.max(1,...vals);
+    return `<span class="hx-spark" style="color:${color}" aria-hidden="true">${vals.map(v=>`<i style="height:${Math.max(12,Math.round((v/max)*100))}%"></i>`).join('')}</span>`;
+  }
+  function healthSourceLabel(h){
+    if(h?.source==='apple-health')return 'From Apple Health';
+    if(h?.source==='google-fit')return 'From Google Fit';
+    if(h?.source==='demo')return 'Sample health data · connect Fit or Apple Health for yours';
+    if(h?.fromCache)return 'Showing last synced health data';
+    return 'Connect a health source to fill this tab';
+  }
+  function healthRangeLabel(days){
+    return days===30?'Last 30 Days':days===14?'Last 14 Days':'Last 7 Days';
+  }
+  async function loadHealthSummary(force){
+    const H=window.DaylightHealth;
+    if(!H?.loadHealth)return null;
+    if(!force&&healthCache&&Date.now()-(healthCache.fetchedAt||0)<60000)return healthCache;
+    const days=H.getRangeDays();
+    healthCache=await H.loadHealth({
+      days,
+      token,
+      googleScopes:googleScopeBlob(),
+      demo:DEMO||(!token&&!H.capacitorAvailable?.()),
+      fetchImpl:async(url,opts)=>{
+        // Prefer Daylight api() for auth refresh when URL is string GET; Fitness uses POST
+        if(typeof url==='string'&&opts?.method&&opts.method!=='GET'){
+          const r=await fetch(url,{...opts,headers:{...(opts.headers||{}),Authorization:opts.headers?.Authorization||('Bearer '+token)}});
+          return r;
+        }
+        return fetch(url,opts);
+      }
+    });
+    return healthCache;
+  }
+  function paintHealth(el,h,prod){
+    const days=h?.rangeDays||7;
+    const series=h?.series||[];
+    const stepMax=Math.max(12000,...series.map(d=>d.steps||0));
+    const yTicks=[0,Math.round(stepMax/3),Math.round(stepMax*2/3),Math.round(stepMax)].reverse();
+    const yLabel=n=>n>=1000?`${Math.round(n/1000)}K`:String(n);
+    const deltaCls=(h?.scoreDelta||0)<0?' is-down':'';
+    const deltaTxt=`${(h?.scoreDelta||0)>=0?'+':''}${h?.scoreDelta||0} from last week`;
+    const stepsDeltaTxt=`${(h?.stepsDelta||0)>=0?'+':''}${h?.stepsDelta||0}% vs. last week`;
+    const sleepDeltaTxt=`${(h?.sleepDeltaMin||0)>=0?'+':''}${Math.abs(h?.sleepDeltaMin||0)}m vs. last week`;
+    const note=(h?.scoreDelta||0)>=0?'Good progress! Keep your activity and sleep consistent.':'Steady sleep and daily movement will lift your score.';
+      const live=h?.source==='apple-health'||(h?.source==='google-fit'&&h?.connected&&!h?.needsScope);
+      const native=window.DaylightHealth?.capacitorAvailable?.();
+      const showConnect=!live;
+      el.innerHTML=`
+      <div class="hx-head">
+        <div><h2>Health</h2><p>Your wellbeing, at a glance.</p></div>
+        <button type="button" class="hx-range" id="hx-range" aria-label="Change health range">${esc(healthRangeLabel(days))} ${svg(ICON.chevDown,14)}</button>
+      </div>
+      ${showConnect?`<div class="hx-connect"><b>${h?.needsScope?'Allow Google Fit access':'Connect your health app'}</b>
+        <p>${native?'Daylight can read Apple Health or Health Connect on this device.':'Connect Google Fit to pull steps, sleep, heart rate and activity. Sample data is shown until you connect.'}</p>
+        <div class="hx-connect-actions">
+          ${token||h?.needsScope?`<button type="button" class="primary" data-hx="fit">Connect Google Fit</button>`:`<button type="button" class="primary" data-hx="google">Connect Google</button>`}
+          ${h?.source==='demo'?'':`<button type="button" class="ghost" data-hx="demo">Preview sample data</button>`}
+        </div></div>`:''}
+      <button type="button" class="hx-score" aria-label="Health score" data-hx-detail="score">
+        <div class="hx-ring" style="--p:${esc(String(h?.score||0))}"><span>${svg(ICON.heart,26)}</span></div>
+        <div class="hx-score-copy"><small>Health Score</small><b>${esc(String(h?.score||0))}/100</b><span class="hx-delta${deltaCls}">${esc(deltaTxt)}</span></div>
+        <p class="hx-score-note">${esc(note)}</p>
+      </button>
+      <div class="hx-metrics" role="list">
+        <button type="button" class="hx-metric" role="listitem" data-hx-detail="calories"><span class="hx-metric-ico is-cal">${svg(ICON.flame,16)}</span><b>${esc(fmtSteps(h?.caloriesAvg))} kcal</b><small>avg / day</small>${sparkHTML(series.map(d=>d.calories),'#ff9f0a')}</button>
+        <button type="button" class="hx-metric" role="listitem" data-hx-detail="steps"><span class="hx-metric-ico is-steps">${svg(ICON.shoe,16)}</span><b>${esc(fmtSteps(h?.stepsAvg))}</b><small>steps / day</small>${sparkHTML(series.map(d=>d.steps),'#30d158')}</button>
+        <button type="button" class="hx-metric" role="listitem" data-hx-detail="sleep"><span class="hx-metric-ico is-sleep">${svg(ICON.bed,16)}</span><b>${esc(fmtSleep(h?.sleepAvgMin))}</b><small>sleep / night</small>${sparkHTML(series.map(d=>d.sleepMin),'#5e5ce6')}</button>
+        <button type="button" class="hx-metric" role="listitem" data-hx-detail="hr"><span class="hx-metric-ico is-hr">${svg(ICON.heart,16)}</span><b>${esc(String(h?.restingHr||'—'))} bpm</b><small>resting HR</small>${sparkHTML(series.map(d=>d.heartRate||60),'#bf5af2')}</button>
+      </div>
+      <button type="button" class="hx-chart" data-hx-detail="steps">
+        <div class="hx-chart-h"><div><b>Steps</b><small>${esc(fmtSteps(h?.stepsAvg))} avg/day</small></div><span class="hx-delta">${esc(stepsDeltaTxt)}</span></div>
+        <div class="hx-bars">
+          <div class="hx-yaxis" aria-hidden="true">${yTicks.map(t=>`<span>${yLabel(t)}</span>`).join('')}</div>
+          <div class="hx-bargrid">${series.slice(-7).map(d=>{
+            const ht=Math.max(6,Math.round(((d.steps||0)/stepMax)*100));
+            const label=new Date(d.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short'}).slice(0,2);
+            return `<div class="hx-barcol"><i style="height:${ht}%"></i><span>${esc(label)}</span></div>`;
+          }).join('')}</div>
+        </div>
+      </button>
+      <div class="hx-split">
+        <button type="button" class="hx-tile" data-hx-detail="sleep">
+          <div class="hx-tile-h"><span class="is-sleep">${svg(ICON.bed,15)}</span><b>Sleep</b></div>
+          <strong>${esc(fmtSleep(h?.sleepAvgMin))} / night</strong>
+          <small>${esc(sleepDeltaTxt)}</small>
+          <div class="hx-stages" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        </button>
+        <button type="button" class="hx-tile" data-hx-detail="activity">
+          <div class="hx-tile-h"><span class="is-act">${svg(ICON.run,15)}</span><b>Activity</b></div>
+          <div class="hx-act-row">
+            <div><strong>${esc(String(h?.activeMinWeek||0))} min</strong><small>/ week moderate</small></div>
+            <div class="hx-mini-ring" style="--p:${esc(String(h?.activityPct||0))}"><b>${esc(String(h?.activityPct||0))}%</b></div>
+          </div>
+        </button>
+      </div>
+      <section class="hx-insights">
+        <h3>Health Insights</h3>
+        <button type="button" class="hx-insight" data-hx="insight">
+          <span class="hx-insight-ico" aria-hidden="true">${svg(ICON.bulb,18)}</span>
+          <p>${esc(h?.insight||'Connect a health source to unlock insights.')}</p>
+          <span class="chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>
+        </button>
+      </section>
+      <p class="hx-source">${esc(healthSourceLabel(h))}</p>
+      <div class="hx-prod">
+        <div class="m-dt">Also this week in Daylight</div>
+        <div class="m-kpis">
+          <div class="m-kpi"><b>${prod.done}</b><span>tasks completed</span></div>
+          <div class="m-kpi"><b>${esc(prod.focus)}</b><span>focus time</span></div>
+          <div class="m-kpi"><b>${prod.meetings}</b><span>meetings</span></div>
+          <div class="m-kpi"><b>${esc(prod.meetHours)}</b><span>in meetings</span></div>
+        </div>
+      </div>`;
+  }
+  async function renderStats(opts={}){
+    const el=$('#m-stats');if(!el)return;
+    if(healthLoading&&!opts.force)return;
+    healthLoading=true;
+    if(!el.dataset.ready)el.innerHTML='<div class="m-empty">Loading health…</div>';
+    try{
+      const now=new Date(),ws=new Date(localMidnight.getTime()-6*86400000);
+      const doneLog=readJSON('daylight-done-log',[]).filter(d=>new Date(d.at)>=ws);
+      const focus=readJSON('daylight-focus-log',[]).filter(d=>new Date(d.at)>=ws);
+      const fmin=focus.reduce((a,b)=>a+(+b.min||0),0);
+      let meetN=0,meetH=0;
+      if(token){
+        try{
+          const ev=await eventsBetween(ws,now)||[];
+          const m=ev.filter(e=>e.start?.dateTime&&(e.attendees||[]).length>1);
+          meetN=m.length;
+          meetH=m.reduce((a,e)=>a+(new Date(e.end?.dateTime||e.start.dateTime)-new Date(e.start.dateTime))/3600000,0);
+        }catch{}
+      }
+      const prod={
+        done:doneLog.length,
+        focus:fmin>=60?`${Math.floor(fmin/60)}h ${fmin%60}m`:`${fmin}m`,
+        meetings:token?meetN:'—',
+        meetHours:token?`${meetH.toFixed(1)}h`:'—'
+      };
+      const h=await loadHealthSummary(!!opts.force);
+      paintHealth(el,h,prod);
+      el.dataset.ready='1';
+    }catch(e){
+      console.warn('health render',e);
+      el.innerHTML=`<div class="m-empty"><b>Couldn’t load health</b><p>${esc(e.message||'Try again in a moment.')}</p></div>`;
+    }finally{healthLoading=false}
+  }
+  let healthDetailTimer=0;
+  function healthDetailCopy(kind,h){
+    const map={
+      score:{title:'Health Score',stat:`${h?.score||0}/100`,body:h?.insight||'Your score blends steps, sleep and weekly activity.'},
+      steps:{title:'Steps',stat:fmtSteps(h?.stepsAvg),body:`Average ${fmtSteps(h?.stepsAvg)} steps/day over the selected range. ${(h?.stepsDelta||0)>=0?'Up':'Down'} ${Math.abs(h?.stepsDelta||0)}% versus the prior period.`},
+      calories:{title:'Calories',stat:`${fmtSteps(h?.caloriesAvg)} kcal`,body:`Average active energy around ${fmtSteps(h?.caloriesAvg)} kcal per day.`},
+      sleep:{title:'Sleep',stat:fmtSleep(h?.sleepAvgMin),body:`You averaged ${fmtSleep(h?.sleepAvgMin)} of sleep per night. Aim for a steady 7–9 hour window.`},
+      hr:{title:'Resting Heart Rate',stat:`${h?.restingHr||'—'} bpm`,body:h?.restingHr?`Resting heart rate averaged ${h.restingHr} bpm.`:'Heart rate samples will appear once a health source is connected.'},
+      activity:{title:'Activity',stat:`${h?.activeMinWeek||0} min`,body:`${h?.activeMinWeek||0} minutes of moderate activity this week toward a ${h?.activityGoal||150}-minute goal (${h?.activityPct||0}%).`},
+      insight:{title:'Health Insight',stat:'',body:h?.insight||'Keep logging movement and sleep to unlock personalised tips.'}
+    };
+    return map[kind]||map.insight;
+  }
+  function openHealthDetail(kind){
+    const h=healthCache||{};
+    const copy=healthDetailCopy(kind,h);
+    let el=$('#hx-detail');
+    if(!el){
+      el=document.createElement('div');el.id='hx-detail';el.className='hx-detail';el.setAttribute('aria-hidden','true');
+      el.innerHTML=`<div class="hx-detail-inner">
+        <div class="hx-detail-nav"><button type="button" class="td-nav-btn" data-hx-close aria-label="Back">‹</button><b id="hx-detail-title">Health</b><span style="width:36px"></span></div>
+        <div class="hx-detail-body" id="hx-detail-body"></div>
+      </div>`;
+      document.body.append(el);
+      el.addEventListener('click',e=>{if(e.target.closest('[data-hx-close]'))closeHealthDetail()});
+    }
+    $('#hx-detail-title').textContent=copy.title;
+    $('#hx-detail-body').innerHTML=`<article class="hx-detail-card">${copy.stat?`<div class="hx-detail-stat">${esc(copy.stat)}</div>`:''}<h3>${esc(copy.title)}</h3><p>${esc(copy.body)}</p></article>
+      <article class="hx-detail-card"><h3>Source</h3><p>${esc(healthSourceLabel(h))}</p></article>`;
+    const wasOpen=el.classList.contains('show');
+    clearTimeout(healthDetailTimer);el.classList.remove('closing');
+    if(!wasOpen){el.classList.remove('show');void el.offsetWidth;feel.tap()}
+    el.classList.add('show');el.setAttribute('aria-hidden','false');document.body.classList.add('hx-detail-open');
+    if(wasOpen&&Nav.topView()==='health')Nav.replace('health',kind);
+    else if(Nav.topView()!=='health')Nav.push('health',kind);
+  }
+  function dismissHealthDetail(instant){
+    const el=$('#hx-detail');
+    if(!el||(!el.classList.contains('show')&&!el.classList.contains('closing'))){Nav.drop('health');document.body.classList.remove('hx-detail-open');return}
+    const finish=()=>{
+      el.classList.remove('show','closing');el.setAttribute('aria-hidden','true');
+      el.style.transform='';el.style.opacity='';
+      document.body.classList.remove('hx-detail-open');Nav.drop('health');
+    };
+    if(instant||Nav.reduced()){finish();return}
+    el.classList.add('closing');el.classList.remove('show');
+    clearTimeout(healthDetailTimer);healthDetailTimer=setTimeout(finish,260);
+  }
+  function closeHealthDetail(){
+    if(Nav.topView()==='health'||Nav.stack.some(x=>x.view==='health')){Nav.back();return}
+    dismissHealthDetail(false);
+  }
+  $('#m-stats')?.addEventListener('click',e=>{
+    const range=e.target.closest('#hx-range');
+    if(range){
+      const H=window.DaylightHealth;if(!H)return;
+      const cur=H.getRangeDays(),order=[7,14,30],next=order[(order.indexOf(cur)+1)%order.length];
+      H.setRangeDays(next);feel.select();renderStats({force:true});return;
+    }
+    const detail=e.target.closest('[data-hx-detail]');
+    if(detail){openHealthDetail(detail.dataset.hxDetail);return}
+    const act=e.target.closest('[data-hx]');if(!act)return;
+    const kind=act.dataset.hx;
+    if(kind==='fit'){requestFitnessAccess();return}
+    if(kind==='google'){connectDialog({setup:true,focusId:true});return}
+    if(kind==='demo'){
+      try{localStorage.setItem('daylight-demo','1')}catch{}
+      const H=window.DaylightHealth;
+      if(H){healthCache=H.summarize(H.demoSeries(H.getRangeDays()),'demo',true);paintHealth($('#m-stats'),healthCache,{done:0,focus:'0m',meetings:'—',meetHours:'—'})}
+      toast('Showing sample health data',{type:'ok'});return;
+    }
+    if(kind==='insight'){openHealthDetail('insight')}
+  });
   // Header buttons, search (FAB removed — Wallet is the center action for scans)
   function renderMTop(){const p=readProfile(),av=$('#m-avatar');av.innerHTML=p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc(((p.name||'K')[0]).toUpperCase());
     const n=$('#bell-badge');$('#mapp .m-dot').hidden=!n||n.hidden}
