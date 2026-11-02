@@ -1385,14 +1385,13 @@
   function closeCompose(){composeState=null}
   async function openCompose(loop,mail,prefill){
     if(!loop)return;
-    if(!token){toast('Connect Google to reply in Daylight',{type:'warn'});connectDialog({setup:true});return}
     if(!loop.mailId){
       toast('Open this in Gmail to reply',{type:'warn'});
       if(loop.href)window.open(loop.href,'_blank','noopener');
       return;
     }
     let detail=mail||mailDetailCache[loop.mailId]||null;
-    if(!detail){
+    if(!detail&&token){
       detail=await fetchMailDetail(loop.mailId);
       if(openLoopId!==loop.id)return;
     }
@@ -1548,6 +1547,7 @@
         if(a==='reply'){openCompose(loop,loop.mailId?mailDetailCache[loop.mailId]||null:null);return}
         if(a==='send-reply'){
           if(!composeState||act.dataset.sending==='1')return;
+          if(!token){toast('Connect Google to send this reply',{type:'warn'});connectDialog({setup:true});return}
           const bodyEl=$('#td-compose-body'),subjEl=$('#td-compose-subj');
           const body=(bodyEl?.value??composeState.body??'').trim();
           const subject=(subjEl?.value??composeState.subject??'').trim();
