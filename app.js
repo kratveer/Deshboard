@@ -1957,13 +1957,18 @@
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>',chevron:'<path d="m9 6 6 6-6 6"/>',spark:'<path d="M12 3.5 13.2 8l4.3.4-3.3 2.9.9 4.2L12 13.4 8.9 15.5l.9-4.2-3.3-2.9L10.8 8 12 3.5Z"/>',scan:'<path d="M8 4H6a2 2 0 0 0-2 2v2M16 4h2a2 2 0 0 1 2 2v2M8 20H6a2 2 0 0 1-2-2v-2M16 20h2a2 2 0 0 0 2-2v-2"/><path d="M8 12h8"/>',chat:'<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V13a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.2V15.5H7.5A2.5 2.5 0 0 1 5 13Z"/>',suitcase:'<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M9 8V6.5A1.5 1.5 0 0 1 10.5 5h3A1.5 1.5 0 0 1 15 6.5V8M5 13h14"/>',chevDown:'<path d="m7 10 5 5 5-5"/>'};
+  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>',chevron:'<path d="m9 6 6 6-6 6"/>',spark:'<path d="M12 3.5 13.2 8l4.3.4-3.3 2.9.9 4.2L12 13.4 8.9 15.5l.9-4.2-3.3-2.9L10.8 8 12 3.5Z"/>',scan:'<path d="M8 4H6a2 2 0 0 0-2 2v2M16 4h2a2 2 0 0 1 2 2v2M8 20H6a2 2 0 0 1-2-2v-2M16 20h2a2 2 0 0 0 2-2v-2"/><path d="M8 12h8"/>',chat:'<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V13a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.2V15.5H7.5A2.5 2.5 0 0 1 5 13Z"/>',suitcase:'<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M9 8V6.5A1.5 1.5 0 0 1 10.5 5h3A1.5 1.5 0 0 1 15 6.5V8M5 13h14"/>',chevDown:'<path d="m7 10 5 5 5-5"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',laptop:'<rect x="3.5" y="5" width="17" height="11" rx="2"/><path d="M2.5 18.5h19M9 15.5h6"/>'};
   const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const tabIco=(d)=>`<span class="m-tab-ico" aria-hidden="true">${svg(d,22)}</span>`;
   const mapp=document.createElement('div');mapp.id='mapp';mapp.className='mapp';
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,18)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,18)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
    <section class="m-screen" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
      <button class="m-brief" id="m-brief" type="button"></button>
      <div class="m-stat-grid" id="m-home-stats" hidden></div>
+     <section class="m-schedule" id="m-schedule" aria-label="Today’s schedule">
+       <div class="m-schedule-head"><h3>Today’s Schedule</h3><button type="button" class="m-schedule-link" id="m-schedule-cal">View Calendar ${svg(ICON.chevron,14)}</button></div>
+       <ol class="m-schedule-rail" id="m-schedule-rail"></ol>
+     </section>
      <div class="m-home-block" id="m-loops-block">
        <div class="m-sec-head"><h3 class="m-sec-title">Priority Actions <span class="m-count-pill" id="m-loop-total" hidden></span></h3><button class="m-see-all" type="button" id="m-loops-see">See All ${svg(ICON.chevron,14)}</button></div>
        <div class="m-loop-list" id="m-loop-grid"></div>
@@ -2008,7 +2013,7 @@
      </div>
    </section>
    <section class="m-screen" data-screen="stats"><div id="m-stats"></div></section>
-   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${svg(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${svg(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${svg(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${svg(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${svg(ICON.stats)}<span>Statistics</span></button></nav>
+   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${tabIco(ICON.stats)}<span>Statistics</span></button></nav>
    <button type="button" class="m-wallet-fab" id="m-wallet-fab" aria-label="Scan document" hidden>${svg(ICON.scan,22)}</button>`;
   document.body.append(mapp);
   const scanUI=document.createElement('div');scanUI.id='m-scan';scanUI.className='m-scan';scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');
@@ -2983,6 +2988,52 @@
       <span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>
     </button>`;
   }
+  function scheduleTone(title){
+    const t=String(title||'').toLowerCase();
+    if(/\b(focus|deep work|heads.?down|writing|coding)\b/.test(t))return {tone:'green',icon:ICON.target};
+    if(/\b(project|build|design|laptop|studio|work block)\b/.test(t))return {tone:'purple',icon:ICON.laptop};
+    if(/\b(meet|call|sync|standup|1:?1|interview|research)\b/.test(t))return {tone:'blue',icon:ICON.calendar};
+    return {tone:'blue',icon:ICON.calendar};
+  }
+  function renderHomeSchedule(){
+    const rail=$('#m-schedule-rail');if(!rail)return;
+    let {timed,allDay,connected}=todayEvents();
+    // Demo preview when no live calendar events (keeps Home as design reference)
+    if(DEMO&&!timed.length){
+      const base=new Date(localMidnight.getTime());
+      timed=[
+        {title:'Research meeting',start:new Date(base.getTime()+9*3600000),end:new Date(base.getTime()+10*3600000)},
+        {title:'Focus time',start:new Date(base.getTime()+10*3600000),end:new Date(base.getTime()+12.5*3600000)},
+        {title:'Project work',start:new Date(base.getTime()+13*3600000),end:new Date(base.getTime()+14*3600000)}
+      ];
+      connected=true;
+    }
+    const items=timed.slice(0,6);
+    if(!connected&&!DEMO){
+      rail.innerHTML=`<li class="m-schedule-empty">Connect Google Calendar to see today’s timeline here.</li>`;
+      return;
+    }
+    if(!items.length&&!allDay.length){
+      rail.innerHTML=`<li class="m-schedule-empty">Nothing on the calendar for today — enjoy the open block.</li>`;
+      return;
+    }
+    const rows=items.map(ev=>{
+      const {tone,icon}=scheduleTone(ev.title);
+      const start=hm(ev.start),end=hm(ev.end);
+      const where=/\b(online|zoom|meet\.google|teams|research meeting)\b/i.test(ev.title)?'Online':(/\bfocus\b/i.test(ev.title)?'Deep work':'');
+      const sub=[`${start} – ${end}`,where].filter(Boolean).join(' · ');
+      return `<li class="m-schedule-item is-${tone}">
+        <time class="m-schedule-time" datetime="${esc(ev.start.toISOString())}">${esc(start)}</time>
+        <span class="m-schedule-axis" aria-hidden="true"><i class="m-schedule-dot"></i></span>
+        <div class="m-schedule-card" role="group">
+          <span class="m-schedule-ico">${svg(icon,18)}</span>
+          <span class="m-schedule-copy"><b>${esc(ev.title)}</b><small>${esc(sub)}</small></span>
+        </div>
+      </li>`;
+    }).join('');
+    const dayBits=allDay.slice(0,2).map(t=>`<li class="m-schedule-empty" style="padding-top:0">All day · ${esc(t)}</li>`).join('');
+    rail.innerHTML=(rows||'')+dayBits;
+  }
   function renderHome(){
     const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
     $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
@@ -3011,6 +3062,7 @@
         <button type="button" class="m-stat-pill" data-home-jump="payments"><b>${payments}</b><span>Payments</span></button>
         <button type="button" class="m-stat-pill" data-home-jump="upcoming"><b>${upcoming}</b><span>Upcoming</span></button>`;
     }
+    renderHomeSchedule();
     const grid=$('#m-loop-grid'),total=$('#m-loop-total'),see=$('#m-loops-see');
     if(!grid)return;
     if(total){total.textContent=loops.length||'';total.hidden=!loops.length}
@@ -3039,6 +3091,7 @@
     if(loops[0]){openLoopSheet(loops[0].id);return}
     setTab('assistant');ask('What needs my attention today?');
   });
+  $('#m-schedule-cal')?.addEventListener('click',()=>{feel.select();setTab('assistant')});
   // Inbox — subscriptions, bills, payments
   function inboxItems(filter){
     const money=computeMoney();
