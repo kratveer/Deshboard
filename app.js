@@ -1301,6 +1301,10 @@
     };
   }
   function currentDetail(){return openDetail||findLoop(openLoopId)||null}
+  function readFavs(){return readJSON('daylight-favs',{})}
+  function isFav(id){return!!readFavs()[id]}
+  function toggleFav(id){const f=readFavs();f[id]=!f[id];if(!f[id])delete f[id];writeJSON('daylight-favs',f);feel.select();return!!f[id]}
+  let tdTab='details';
   function paintLoopDetail(l,mail){
     const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,sug=loopSuggestion(l),prio=l.weight>=2||l.type==='overdue'||l.urgent;
     const whenTxt=l.meta||(l.whenMs?ago(new Date(l.whenMs)):'');
@@ -1311,24 +1315,45 @@
     const timeStr=mail?.date?mail.date.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):(l.whenMs?new Date(l.whenMs).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):'');
     const isMail=!!(l.mailId||l._inbox||l.type==='reply'||l.type==='followup'||l.type==='renewal'||(l.href&&String(l.href).includes('mail.google')));
     const navTitle=l._inbox?'Inbox Detail':'Task Detail';
+    const fav=isFav(l.id);
+    const tab=tdTab==='email'&&isMail?'email':tdTab==='notes'?'notes':tdTab==='activity'?'activity':'details';
     const nav=$('.td-nav b');if(nav)nav.textContent=navTitle;
+    const star=$('.td-nav [data-ls-fav]');if(star){star.classList.toggle('on',fav);star.setAttribute('aria-pressed',fav?'true':'false')}
     $('#ls-head').innerHTML=`<span class="td-ico ${t.cls}" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
-      <div class="td-head-copy">${prio?`<span class="td-prio">High Priority</span>`:''}<h2 id="ls-title">${esc(l.title)}</h2><p class="td-sub">${esc([srcOf(l),whenTxt].filter(Boolean).join(' · '))}</p></div>`;
-    $('#ls-body').innerHTML=`
+      <div class="td-head-copy">${prio?`<span class="td-prio">High Priority</span>`:''}<h2 id="ls-title">${esc(l.title)}</h2>
+      <div class="td-meta-row"><span class="td-chip">${esc(srcOf(l)||'Daylight')}</span><span class="td-chip accent">${esc(due||whenTxt||'—')}</span>${prio?`<span class="td-chip hot">Priority · High</span>`:''}</div></div>`;
+    const details=`
       <div class="td-card td-attrs">
-        <div class="td-attr"><span class="td-attr-l">${l._inbox?'Date':'Due today'}</span><span class="td-attr-v accent">${esc(due)}</span></div>
+        <div class="td-attr"><span class="td-attr-l">${l._inbox?'Date':'Due'}</span><span class="td-attr-v accent">${esc(due)}</span></div>
         ${l.amount?`<div class="td-attr"><span class="td-attr-l">Amount</span><span class="td-attr-v accent">${esc(l.amount)}</span></div>`:''}
         <div class="td-attr"><span class="td-attr-l">Status</span><span class="td-status">${l.urgent||l.type==='overdue'||l.type==='deadline'?'Needs Action':'Review'}</span></div>
         <div class="td-attr"><span class="td-attr-l">Category</span><span class="td-attr-v accent">${esc(cat)}</span></div>
       </div>
       <div class="td-card td-need"><span class="td-need-l">What needs to be done</span><p>${esc(need)}</p></div>
-      ${isMail?`<div class="td-card td-mail" id="ls-mail">
+      <div class="td-card td-ai"><div class="td-ai-top"><span class="td-ai-ico" aria-hidden="true">✦</span><b>${esc(sug.label)}</b></div><p>${esc(sug.text)}</p><button class="td-draft" type="button" data-ls-act="suggest">${esc(sug.cta)}</button></div>`;
+    const email=`${isMail?`<div class="td-card td-mail" id="ls-mail">
         <div class="td-mail-h"><span class="td-av">${esc(initialsOf(fromName))}</span><div><b>${esc(fromName)}</b><small>${esc(subject)}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
         <p class="td-mail-b">${mail?esc(body):(l.mailId?'Loading email from Gmail…':esc(body))}</p>
-      </div>`:`<div class="td-card td-mail"><p class="td-mail-b">${esc(body)}</p>${l.related?`<a class="td-link" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}</div>`}
-      <div class="td-card td-ai"><div class="td-ai-top"><span class="td-ai-ico" aria-hidden="true">✦</span><b>${esc(sug.label)}</b></div><p>${esc(sug.text)}</p><button class="td-draft" type="button" data-ls-act="suggest">${esc(sug.cta)}</button></div>`;
-    $('#ls-foot').innerHTML=`<button class="td-primary" type="button" data-ls-act="${l.href?'open':'suggest'}">${esc(l._inbox?(l.href?'Open in Gmail':sug.primary):sug.primary||'Open')}</button>
-      <div class="td-sec"><button class="td-sec-btn" type="button" data-ls-act="snooze">Snooze</button><button class="td-sec-btn" type="button" data-ls-act="done">Mark as Done</button></div>`;
+        ${l.href?`<a class="td-link" href="${esc(l.href)}" target="_blank" rel="noopener">Open original</a>`:''}
+      </div>`:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>`}`;
+    const notes=`<div class="td-card td-need"><span class="td-need-l">Notes</span><p>${esc(l.detail||l.snippet||'No notes yet. Capture a reminder from Assistant.')}</p></div>
+      ${l.related?`<div class="td-card"><a class="td-link" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a></div>`:''}`;
+    const activity=`<div class="td-card td-attrs">
+        <div class="td-attr"><span class="td-attr-l">Source</span><span class="td-attr-v">${esc(srcOf(l))}</span></div>
+        <div class="td-attr"><span class="td-attr-l">Updated</span><span class="td-attr-v">${esc(whenTxt||'—')}</span></div>
+        <div class="td-attr"><span class="td-attr-l">Favourite</span><span class="td-attr-v">${fav?'Yes':'No'}</span></div>
+      </div>`;
+    $('#ls-body').innerHTML=`
+      <div class="td-tabs" role="tablist">
+        <button type="button" class="td-tab${tab==='details'?' on':''}" data-td-tab="details">Details</button>
+        <button type="button" class="td-tab${tab==='email'?' on':''}" data-td-tab="email" ${isMail?'':'disabled'}>Email</button>
+        <button type="button" class="td-tab${tab==='notes'?' on':''}" data-td-tab="notes">Notes</button>
+        <button type="button" class="td-tab${tab==='activity'?' on':''}" data-td-tab="activity">Activity</button>
+      </div>
+      ${tab==='email'?email:tab==='notes'?notes:tab==='activity'?activity:details}`;
+    const primary=l._inbox?(l.href?'Open in Gmail':(sug.primary||'Review')):(l.type==='reply'||sug.kind==='reply'?'Reply Now':(sug.primary||'Open'));
+    $('#ls-foot').innerHTML=`<button class="td-primary" type="button" data-ls-act="${l.href&&(l._inbox||primary==='Open'||primary==='Open in Gmail')?'open':(primary==='Reply Now'||sug.kind==='reply'?'suggest':'open')}">${esc(primary)}</button>
+      <div class="td-sec td-sec-3"><button class="td-sec-btn" type="button" data-ls-act="snooze">Snooze</button><button class="td-sec-btn" type="button" data-ls-act="remind">Reminder</button><button class="td-sec-btn" type="button" data-ls-act="done">Mark Done</button></div>`;
   }
   async function openLoopSheet(idOrObj){
     const l=typeof idOrObj==='object'&&idOrObj?idOrObj:findLoop(idOrObj);if(!l)return;
@@ -1337,7 +1362,7 @@
     if(!sheet){
       sheet=document.createElement('div');sheet.id='loop-sheet';sheet.className='loop-sheet';sheet.setAttribute('aria-hidden','true');
       sheet.innerHTML=`<div class="loop-sheet-card td-sheet" role="dialog" aria-modal="true" aria-labelledby="ls-title">
-        <div class="td-nav"><button class="td-nav-btn" type="button" data-ls-close aria-label="Back">‹</button><b>Task Detail</b><button class="td-nav-btn" type="button" data-ls-more aria-label="More">⋯</button></div>
+        <div class="td-nav"><button class="td-nav-btn" type="button" data-ls-close aria-label="Back">‹</button><b>Task Detail</b><span class="td-nav-right"><button class="td-nav-btn td-fav" type="button" data-ls-fav aria-label="Favourite" aria-pressed="false">☆</button><button class="td-nav-btn" type="button" data-ls-more aria-label="More">⋯</button></span></div>
         <div class="td-head" id="ls-head"></div>
         <div class="loop-sheet-body td-body" id="ls-body"></div>
         <div class="loop-sheet-foot td-foot" id="ls-foot"></div>
@@ -1345,24 +1370,29 @@
       document.body.append(sheet);
       sheet.addEventListener('click',e=>{
         if(e.target.closest('[data-ls-close]')){closeLoopSheet();return}
+        if(e.target.closest('[data-ls-fav]')){const loop=currentDetail();if(!loop)return;const on=toggleFav(loop.id);e.target.closest('[data-ls-fav]').classList.toggle('on',on);e.target.closest('[data-ls-fav]').textContent=on?'★':'☆';toast(on?'Added to favourites':'Removed from favourites',{type:'ok',ms:1600});return}
         if(e.target.closest('[data-ls-more]')){const loop=currentDetail();if(loop?.href)window.open(loop.href,'_blank','noopener');return}
+        const tab=e.target.closest('[data-td-tab]');if(tab&&!tab.disabled){tdTab=tab.dataset.tdTab;feel.select();paintLoopDetail(currentDetail(),null);if(currentDetail()?.mailId&&token&&tdTab==='email'){fetchMailDetail(currentDetail().mailId).then(m=>{if(m&&openLoopId===currentDetail()?.id)paintLoopDetail(currentDetail(),m)})}return}
         const act=e.target.closest('[data-ls-act]');if(!act||!openLoopId)return;
         const loop=currentDetail();if(!loop)return;
         const a=act.dataset.lsAct;
         if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Snoozed until tomorrow',{type:'ok',haptic:'success'});return}
+        if(a==='remind'){capture('Remind me: '+loop.title+(loop.dueLabel?' by '+loop.dueLabel:''));toast('Reminder added',{type:'ok',haptic:'success'});return}
         if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Marked as done',{type:'ok',haptic:'success'});return}
         if(a==='open'&&loop.href){window.open(loop.href,'_blank','noopener');return}
         if(a==='suggest'){
           const sug=loopSuggestion(loop);
           if(sug.kind==='reply'||loop._inbox){
-            (async()=>{try{await navigator.clipboard.writeText(sug.text);toast('Draft copied')}catch{toast('Copy the draft from the card')}})();
+            (async()=>{try{await navigator.clipboard.writeText(sug.text);toast('Draft copied',{type:'ok',haptic:'success'})}catch{toast('Copy the draft from the card',{type:'warn'})}})();
             if(loop.href)window.open(loop.href,'_blank','noopener');
             return;
           }
-          capture(sug.text);toast(sug.cta==='Add reminder'?'Reminder added':'Task added');
+          capture(sug.text);toast(sug.cta==='Add reminder'?'Reminder added':'Task added',{type:'ok',haptic:'success'});
         }
       });
     }
+    tdTab='details';
+    const favBtn=sheet.querySelector('[data-ls-fav]');if(favBtn){const on=isFav(l.id);favBtn.classList.toggle('on',on);favBtn.textContent=on?'★':'☆';favBtn.setAttribute('aria-pressed',on?'true':'false')}
     paintLoopDetail(l,null);
     const wasOpen=sheet.classList.contains('show');
     sheet.classList.remove('closing','show');void sheet.offsetWidth;
@@ -1395,8 +1425,9 @@
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,18)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,18)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
    <section class="m-screen" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
      <button class="m-brief" id="m-brief" type="button"></button>
+     <div class="m-stat-grid" id="m-home-stats" hidden></div>
      <div class="m-home-block" id="m-loops-block">
-       <div class="m-sec-head"><h3 class="m-sec-title">Open Loops <span class="m-count-pill" id="m-loop-total" hidden></span></h3><button class="m-see-all" type="button" id="m-loops-see">See All ${svg(ICON.chevron,14)}</button></div>
+       <div class="m-sec-head"><h3 class="m-sec-title">Priority Actions <span class="m-count-pill" id="m-loop-total" hidden></span></h3><button class="m-see-all" type="button" id="m-loops-see">See All ${svg(ICON.chevron,14)}</button></div>
        <div class="m-loop-list" id="m-loop-grid"></div>
        <div class="loops-foot" id="m-loops-foot" hidden></div>
      </div>
@@ -1732,41 +1763,71 @@
     vv.addEventListener('resize',sync);vv.addEventListener('scroll',sync);sync();
   })();
   // Home — compact Daily Brief + Open Loops cards (reference layout)
-  function loopTags(l){const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&l.type!=='overdue')tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);return tags}
+  function loopTags(l){
+    const tags=[];
+    if(l.weight>=2||l.type==='overdue')tags.push(['High','hot']);
+    const short={reply:'Reply',followup:'Waiting',prepare:'Prepare',renewal:'Renewal',travel:'Trip',deadline:'Due'};
+    if(short[l.type]&&l.type!=='overdue')tags.push([short[l.type],l.type==='deadline'?'warm':'']);
+    if(l.type==='overdue')tags.push(['Reschedule','']);
+    if(isFav(l.id))tags.push(['★','']);
+    return tags;
+  }
   function mobileLoopCard(l){
     const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,tags=loopTags(l);
     const meta=[srcOf(l),l.meta].filter(Boolean).join(' · ');
     return `<button type="button" class="m-row-card ${t.cls}" data-loop="${esc(l.id)}" data-open-loop="${esc(l.id)}">
-      <span class="m-row-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
+      <span class="m-row-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
       <span class="m-row-main"><b>${esc(l.title)}</b><small>${esc(meta)}</small>${tags.length?`<span class="m-row-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${esc(x)}</span>`).join('')}</span>`:''}</span>
       <span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>
     </button>`;
   }
   function renderHome(){
     const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
-    $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+    $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     $('#m-hello').textContent=`${part}${first?', '+first:''}`;
     const WORK=['reply','followup','prepare','overdue','deadline'];
     const loops=(token||microsoftAccount||DEMO)?computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type)):[],money=computeMoney(),pendingPay=money.pending||[];
+    const todo=loops.filter(l=>['reply','overdue','deadline'].includes(l.type)).length;
+    const waiting=loops.filter(l=>l.type==='followup').length;
+    const payments=pendingPay.length||(money.bill||[]).length;
+    const upcoming=loops.filter(l=>l.type==='travel'||l.type==='prepare'||l.type==='renewal').length;
     const bits=[];
     if(!token&&!microsoftAccount&&!DEMO)bits.push('Connect Google to brief your day');
     else{
-      if(loops.length)bits.push(`${loops.length} open loop${loops.length===1?'':'s'}`);
-      if(pendingPay.length)bits.push(`${pendingPay.length} pending payment${pendingPay.length===1?'':'s'}`);
-      else if(money.counts.total)bits.push(`${money.counts.total} in Inbox`);
+      if(todo)bits.push(`${todo} action${todo===1?'':'s'}`);
+      if(payments)bits.push(`${payments} payment${payments===1?'':'s'}`);
+      if(upcoming)bits.push(`${upcoming} upcoming`);
       if(!bits.length)bits.push('Nothing pressing today');
     }
     $('#m-brief').innerHTML=`<span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span><span class="m-brief-copy"><b>Daily Brief</b><small>${esc(bits.join(' · '))}</small></span><span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>`;
+    const stats=$('#m-home-stats');
+    if(stats){
+      stats.hidden=false;
+      stats.innerHTML=`
+        <button type="button" class="m-stat-pill" data-home-jump="todo"><b>${todo}</b><span>To Do</span></button>
+        <button type="button" class="m-stat-pill" data-home-jump="waiting"><b>${waiting}</b><span>Waiting</span></button>
+        <button type="button" class="m-stat-pill" data-home-jump="payments"><b>${payments}</b><span>Payments</span></button>
+        <button type="button" class="m-stat-pill" data-home-jump="upcoming"><b>${upcoming}</b><span>Upcoming</span></button>`;
+    }
     const grid=$('#m-loop-grid'),total=$('#m-loop-total'),see=$('#m-loops-see');
     if(!grid)return;
     if(total){total.textContent=loops.length||'';total.hidden=!loops.length}
     if(see)see.hidden=!loops.length;
-    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){grid.innerHTML='<div class="m-empty">Connect Google to surface replies, renewals and trips here.</div>';return}
+    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){grid.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Your day is quiet</b><p>Connect Google to surface replies, renewals and trips.</p></div>';return}
     if(!loopsData&&token){grid.innerHTML=skelRows(4);return}
-    const lmax=loopsShowAll?loops.length:4,shown=loops.slice(0,lmax);
-    grid.innerHTML=loops.length?shown.map(mobileLoopCard).join(''):'<div class="m-empty">No open loops. You’re caught up.</div>';
-    if(see)see.textContent='';see.innerHTML=loopsShowAll?`Show less ${svg(ICON.chevron,14)}`:`See All ${svg(ICON.chevron,14)}`;
+    const priority=loops.filter(l=>l.weight>=2||['reply','overdue','deadline'].includes(l.type));
+    const rest=loops.filter(l=>!priority.includes(l));
+    const ordered=[...priority,...rest];
+    const lmax=loopsShowAll?ordered.length:4,shown=ordered.slice(0,lmax);
+    grid.innerHTML=ordered.length?shown.map(mobileLoopCard).join(''):'<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>You’re caught up</b><p>No open loops right now.</p></div>';
+    if(see){see.textContent='';see.innerHTML=loopsShowAll?`Show less ${svg(ICON.chevron,14)}`:`See All ${svg(ICON.chevron,14)}`}
   }
+  $('#m-home-stats')?.addEventListener('click',e=>{
+    const b=e.target.closest('[data-home-jump]');if(!b)return;feel.select();
+    const j=b.dataset.homeJump;
+    if(j==='payments'){setTab('inbox');mInboxFilter='payments';setLS('daylight-inbox-filter','payments');renderInbox({animate:false});return}
+    if(j==='todo'||j==='waiting'||j==='upcoming'){const loops=(token||microsoftAccount||DEMO)?computeLoops():[];const hit=loops.find(l=>j==='todo'?['reply','overdue','deadline'].includes(l.type):j==='waiting'?l.type==='followup':['travel','prepare','renewal'].includes(l.type));if(hit)openLoopSheet(hit.id)}
+  });
   $('#m-loop-grid')?.addEventListener('click',onLoopListClick);
   $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
   $('#m-loops-see')?.addEventListener('click',()=>{loopsShowAll=!loopsShowAll;renderHome()});
@@ -1801,12 +1862,29 @@
     if(days===1)return '1 day';
     return `${days} days`;
   }
+  function inboxAgo(item){
+    if(item.whenMs||item.when){try{return ago(new Date(item.whenMs||item.when))}catch{}}
+    return inboxDateLabel(item)||'';
+  }
   function inboxCard(item){
     const initial=(item.title||'?').trim().slice(0,2).toUpperCase();
-    const tag=item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||inboxDaysLabel(item)||'');
-    const tagCls=item.kind==='pending'||item.urgent?' is-urgent':'';
-    const body=`<span class="m-inbox-logo" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span><span class="m-inbox-copy"><b>${esc(item.title)}</b><small>${esc(inboxDateLabel(item))}</small></span><span class="m-inbox-side">${tag?`<span class="m-pill-tag${tagCls}">${esc(tag)}</span>`:''}<span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span></span>`;
-    return `<button type="button" class="m-inbox-card m-row-card${item.urgent||item.kind==='pending'?' is-urgent':''}" data-inbox-open="${esc(item.id)}">${body}</button>`;
+    const tag=item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||MONEY_LABEL[item.kind]||inboxDaysLabel(item)||'');
+    const tagCls=item.kind==='pending'||item.urgent?' is-urgent':item.kind==='subscription'?' is-sub':item.kind==='bill'?' is-bill':'';
+    const snip=(item.snippet||item.subject||item.detail||'').replace(/\s+/g,' ').trim().slice(0,72);
+    const amt=item.amount?`<span class="m-inbox-amt">${esc(item.amount)}</span>`:'';
+    return `<div class="m-swipe" data-swipe-id="${esc(item.id)}">
+      <div class="m-swipe-actions" aria-hidden="true">
+        <button type="button" class="m-sw m-sw-snooze" data-sw="snooze" data-id="${esc(item.id)}">Snooze</button>
+        <button type="button" class="m-sw m-sw-task" data-sw="task" data-id="${esc(item.id)}">Task</button>
+        <button type="button" class="m-sw m-sw-arch" data-sw="archive" data-id="${esc(item.id)}">Done</button>
+      </div>
+      <button type="button" class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}" data-inbox-open="${esc(item.id)}">
+        <span class="m-inbox-logo" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span>
+        <span class="m-inbox-copy"><span class="m-inbox-top"><b>${esc(item.title)}</b><time>${esc(inboxAgo(item))}</time></span>
+        <small>${esc(snip||inboxDateLabel(item)||'Open for details')}</small></span>
+        <span class="m-inbox-side">${amt}${tag?`<span class="m-pill-tag${tagCls}">${esc(tag)}</span>`:''}</span>
+      </button>
+    </div>`;
   }
   const INBOX_ORDER=['all','subscription','bill','payments'];
   let inboxAnim=null;
@@ -1819,16 +1897,17 @@
     if(!animate){void thumb.offsetWidth;thumb.style.transition=''}
   }
   function paintInbox(el){
-    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div>';return}
-    if(!loopsData&&token){el.innerHTML='<div class="m-empty">Sorting money mail…</div>';return}
+    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Connect to fill Inbox</b><p>Subscriptions, bills and payments from Gmail appear here.</p></div>';return}
+    if(!loopsData&&token){el.innerHTML=skelRows(5);return}
     const items=inboxItems(mInboxFilter);
-    if(!items.length){el.innerHTML=`<div class="m-empty">${mInboxFilter==='all'?'Nothing in Inbox yet.':'Nothing in this category.'}</div>`;return}
-    const coming=items.filter(i=>i.kind==='pending'||i.urgent||(!i.received&&i.when&&(i.when-localMidnight.getTime())<=7*86400000));
-    const comingIds=new Set(coming.map(i=>i.id));
-    const due=items.filter(i=>!comingIds.has(i.id)&&!i.received&&i.when);
-    const recent=items.filter(i=>!comingIds.has(i.id)&&!due.includes(i));
+    if(!items.length){el.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Inbox is clear</b><p>${mInboxFilter==='all'?'Nothing needs attention right now.':'Nothing in this category.'}</p></div>`;return}
+    const needs=items.filter(i=>i.kind==='pending'||i.urgent||(i.kind==='bill'&&!i.received));
+    const needsIds=new Set(needs.map(i=>i.id));
+    const week=items.filter(i=>!needsIds.has(i.id)&&!i.received&&i.when&&(i.when-localMidnight.getTime())<=14*86400000);
+    const weekIds=new Set(week.map(i=>i.id));
+    const recent=items.filter(i=>!needsIds.has(i.id)&&!weekIds.has(i.id));
     const block=(title,list)=>list.length?`<div class="m-inbox-sec"><h3 class="m-inbox-sec-h">${title}</h3><div class="m-inbox-list">${list.map(inboxCard).join('')}</div></div>`:'';
-    el.innerHTML=block('Coming Up',coming)+block('Due Soon',due)+block(mInboxFilter==='payments'?'Recent payments':'Recent',recent);
+    el.innerHTML=block('Needs Attention',needs)+block('This Week',week)+block(mInboxFilter==='payments'?'Recent payments':'Recent',recent);
   }
   function renderInbox(opts={}){
     const el=$('#m-inbox');if(!el)return;
@@ -1854,12 +1933,48 @@
     mInboxFilter=b.dataset.inbox;setLS('daylight-inbox-filter',mInboxFilter);
     renderInbox({animate:true,dir:next>=prev?1:-1});
   });
-  $('#m-inbox-filter')?.addEventListener('click',()=>toast('Sorted by soonest first'));
+  $('#m-inbox-filter')?.addEventListener('click',()=>toast('Sorted by soonest first',{type:'ok',ms:1600}));
   $('#m-inbox')?.addEventListener('click',e=>{
+    const sw=e.target.closest('[data-sw]');
+    if(sw){
+      const id=sw.dataset.id,item=computeMoney().all.find(i=>i.id===id);if(!item)return;
+      const key='inbox:'+id;
+      if(sw.dataset.sw==='snooze'){const s=loopState();s[key]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);renderInbox({animate:false});toast('Snoozed until tomorrow',{type:'ok',haptic:'success'});return}
+      if(sw.dataset.sw==='task'){capture(item.title+(item.amount?' · '+item.amount:''));toast('Saved as task',{type:'ok',haptic:'success'});return}
+      if(sw.dataset.sw==='archive'){const s=loopState();s[key]={done:true,t:Date.now()};saveLoopState(s);renderInbox({animate:false});toast('Marked as done',{type:'ok',haptic:'success'});return}
+    }
     const b=e.target.closest('[data-inbox-open]');if(!b)return;
+    if(b.closest('.m-swipe.open')){b.closest('.m-swipe').classList.remove('open');return}
     const item=computeMoney().all.find(i=>i.id===b.dataset.inboxOpen);if(!item)return;
     openLoopSheet(inboxToDetail(item));
   });
+  (function bindInboxSwipe(){
+    let s=null;
+    const host=$('#m-inbox');if(!host)return;
+    host.addEventListener('touchstart',e=>{
+      const row=e.target.closest('.m-swipe');if(!row)return;
+      const t=e.touches[0];s={row,x0:t.clientX,y0:t.clientY,active:false,start:row.classList.contains('open')?-108:0};
+    },{passive:true});
+    host.addEventListener('touchmove',e=>{
+      if(!s)return;
+      const t=e.touches[0],dx=t.clientX-s.x0,dy=Math.abs(t.clientY-s.y0);
+      if(!s.active){if(dy>12&&dy>Math.abs(dx)){s=null;return}if(Math.abs(dx)<8)return;s.active=true;$$('#m-inbox .m-swipe.open').forEach(r=>{if(r!==s.row)r.classList.remove('open')})}
+      if(e.cancelable)e.preventDefault();
+      const x=Math.min(0,Math.max(-108,s.start+dx));
+      s.row.style.transition='none';
+      const card=s.row.querySelector('.m-inbox-card');if(card)card.style.transform=`translate3d(${x}px,0,0)`;
+      s.x=x;
+    },{passive:false});
+    const end=()=>{
+      if(!s)return;
+      const row=s.row,x=s.x||0,card=row.querySelector('.m-inbox-card');
+      row.style.transition='';if(card){card.style.transition='transform .22s var(--ease-out,cubic-bezier(.22,.9,.28,1))';card.style.transform=''}
+      if(x<-54){row.classList.add('open');feel.select()}else row.classList.remove('open');
+      s=null;
+    };
+    host.addEventListener('touchend',end,{passive:true});
+    host.addEventListener('touchcancel',end,{passive:true});
+  })();
   addEventListener('resize',()=>{if(mq.matches&&mTab==='inbox')syncInboxThumb(false);if(mq.matches&&mTab==='wallet')syncWalletThumb(false)});
   // Wallet — Apple-style stacked passes + document scan
   const WALLET_ORDER=['all','tickets','coupons','documents','others'];
@@ -1876,15 +1991,34 @@
     return filter==='all'?all:all.filter(i=>i.kind===filter);
   }
   const WALLET_ICO={tickets:ICON.calendar,coupons:'<path d="M4 9a2.5 2.5 0 0 0 0 5v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2.5 2.5 0 0 0 0-5V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2Z"/><path d="M9 12h.01M15 12h.01"/>',documents:'<path d="M8 4h6l4 4v12H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M13 4v5h5M10 13h5M10 17h3"/>',others:ICON.wallet};
-  function walletPassHTML(item){
+  function walletExpiryLabel(item){
+    const raw=item.expiry||item.pass?.expiry||item.date||'';
+    if(!raw)return '';
+    const d=new Date(raw);if(Number.isNaN(d.getTime()))return String(raw);
+    const days=Math.ceil((d-localMidnight)/86400000);
+    if(days<0)return 'Expired';
+    if(days===0)return 'Expires today';
+    if(days<=14)return `Expires in ${days}d`;
+    return d.toLocaleDateString(undefined,{day:'numeric',month:'short'});
+  }
+  function walletPassHTML(item,mode){
     const color=item.color||WALLET_COLORS[item.kind]||WALLET_COLORS.others;
     const when=item.at?new Date(item.at).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
-    const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:(item.qrImage?`<img class="wp-thumb" src="${esc(item.qrImage)}" alt="">`:'');
     const ico=WALLET_ICO[item.kind]||WALLET_ICO.others;
-    return `<article class="m-wallet-pass" data-wid="${esc(item.id)}" style="background:linear-gradient(135deg,${color[0]},${color[1]})">
-      <div class="wp-top"><span class="wp-kind">${svg(ico,14)} ${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-when">${esc(when)}</span></div>
-      <h3 class="wp-title">${esc(item.title)}</h3>
-      ${item.note?`<p class="wp-note">${esc(item.note)}</p>`:''}
+    const exp=walletExpiryLabel(item);
+    if(mode==='row'){
+      return `<button type="button" class="m-wallet-row kind-${esc(item.kind||'others')}" data-wid="${esc(item.id)}">
+        <span class="m-wallet-row-ico" style="--a1:${esc(color[0])};--a2:${esc(color[1])}" aria-hidden="true">${svg(ico,18)}</span>
+        <span class="m-wallet-row-copy"><b>${esc(item.title)}</b><small>${esc([WALLET_LABEL[item.kind],exp||item.note||when].filter(Boolean).join(' · '))}</small></span>
+        <span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>
+      </button>`;
+    }
+    const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:(item.qrImage?`<img class="wp-thumb" src="${esc(item.qrImage)}" alt="">`:'');
+    const route=item.flight&&(item.flight.from||item.flight.to)?`<div class="wp-route"><b>${esc(item.flight.from||'—')}</b><span>→</span><b>${esc(item.flight.to||'—')}</b></div>`:'';
+    return `<article class="m-wallet-pass kind-${esc(item.kind||'others')}" data-wid="${esc(item.id)}" style="background:linear-gradient(145deg,${color[0]},${color[1]})">
+      <div class="wp-top"><span class="wp-kind">${svg(ico,14)} ${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-when">${esc(exp||when)}</span></div>
+      ${route||`<h3 class="wp-title">${esc(item.title)}</h3>`}
+      ${route?`<p class="wp-note">${esc(item.title)}${item.flight?.flight?' · '+item.flight.flight:''}</p>`:(item.note?`<p class="wp-note">${esc(item.note)}</p>`:'')}
       ${img}
     </article>`;
   }
@@ -1928,6 +2062,12 @@
           it.kind=order[(order.indexOf(it.kind)+1)%order.length];it.color=WALLET_COLORS[it.kind];saveWallet(list);
           openPassSheet(it.id);toast('Moved to '+WALLET_LABEL[it.kind],{type:'ok',haptic:'selection'});return;
         }
+        if(e.target.closest('[data-pass-cal]')){
+          const it=readWallet().find(i=>i.id===mWalletOpen);if(!it)return;
+          const title=it.flight?`${it.flight.from||''} → ${it.flight.to||''}`.trim():it.title;
+          capture('Calendar: '+title+(it.flight?.depart?' at '+it.flight.depart:''));
+          toast('Added to reminders',{type:'ok',haptic:'success'});return;
+        }
         if(e.target.closest('[data-pass-del]')){
           saveWallet(readWallet().filter(i=>i.id!==mWalletOpen));closePassSheet();renderWallet();toast('Removed from Wallet',{type:'warn',haptic:'warning'});return;
         }
@@ -1959,25 +2099,30 @@
       if(item.amount)fields.push(['Amount',item.amount]);
     }
     const fieldHTML=fields.map(([k,v])=>`<div class="pass-field"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+    const status=f?'Confirmed':(walletExpiryLabel(item)==='Expired'?'Expired':'Active');
+    const statusCls=status==='Confirmed'||status==='Active'?'is-ok':status==='Expired'?'is-bad':'';
     $('#pass-scroll').innerHTML=`
-      <article class="pass-card" style="--p1:${esc(color[0])};--p2:${esc(color[1])}">
-        <div class="pass-brand"><span class="pass-logo" aria-hidden="true">${esc((org||'D')[0])}</span><span>${esc(org)}</span></div>
-        <div class="pass-hero">
-          <div><h2>${esc(item.title)}</h2><p>${esc(item.note||typeLabel)}</p></div>
-          ${item.image?`<img class="pass-photo" src="${esc(item.image)}" alt="">`:''}
-        </div>
+      <article class="pass-card kind-${esc(item.kind||'others')}" style="--p1:${esc(color[0])};--p2:${esc(color[1])}">
+        <div class="pass-brand"><span class="pass-logo" aria-hidden="true">${esc((org||'D')[0])}</span><span>${esc(org)}</span><span class="pass-status ${statusCls}">${esc(status)}</span></div>
+        ${f?`<div class="pass-route"><div><small>From</small><b>${esc(f.from||'—')}</b></div><span aria-hidden="true">→</span><div><small>To</small><b>${esc(f.to||'—')}</b></div></div>
+        <p class="pass-flight-line">${esc([f.flight,item.title].filter(Boolean).join(' · '))}</p>`:
+        `<div class="pass-hero"><div><h2>${esc(item.title)}</h2><p>${esc(item.note||typeLabel)}</p></div>${item.image?`<img class="pass-photo" src="${esc(item.image)}" alt="">`:''}</div>`}
         <div class="pass-fields">${fieldHTML}</div>
         <div class="pass-code">
-          ${item.qrImage||code?`<img class="pass-qr" src="${esc(item.qrImage||qrUrl(code,220))}" alt="QR code">`:''}
+          ${item.qrImage||code?`<div class="pass-qr-wrap"><img class="pass-qr" src="${esc(item.qrImage||qrUrl(code,240))}" alt="QR code"></div>`:''}
           ${item.barcodeImage||code?`<img class="pass-bar" src="${esc(item.barcodeImage||barcodeUrl(code))}" alt="Barcode">`:''}
           <span class="pass-code-id">${esc(number||code||'')}</span>
         </div>
+        ${item.image&&f?`<img class="pass-scan-preview" src="${esc(item.image)}" alt="Original scan">`:''}
       </article>
       <div class="pass-meta-foot">
         <div><span>Type</span><b>${esc(typeLabel)}</b></div>
-        <div><span>Expiry</span><b>${esc(expiry||'—')}</b></div>
+        <div><span>Expiry</span><b>${esc(expiry||walletExpiryLabel(item)||'—')}</b></div>
       </div>
-      <div class="pass-actions"><button type="button" class="connect ghost" data-pass-del>Remove</button></div>`;
+      <div class="pass-actions">
+        <button type="button" class="connect primary" data-pass-cal>Add to Calendar</button>
+        <button type="button" class="connect ghost" data-pass-del>Remove</button>
+      </div>`;
     const wasOpen=sheet.classList.contains('show');
     clearTimeout(Nav.passTimer);sheet.classList.remove('closing');
     if(!wasOpen){sheet.classList.remove('show');void sheet.offsetWidth;feel.tap()}
@@ -1992,8 +2137,13 @@
     $$('#m-wallet-tabs [data-wallet]').forEach(b=>{const on=b.dataset.wallet===mWalletFilter;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false')});
     requestAnimationFrame(()=>syncWalletThumb(true));
     const items=walletItems(mWalletFilter);
-    if(!items.length){el.innerHTML=`<div class="m-wallet-empty"><b>No passes yet</b><p>Scan a ticket, coupon or document and it will appear here.</p><button class="m-wallet-scan-btn" type="button" id="m-wallet-empty-scan">Scan document</button></div>`;$('#m-wallet-empty-scan')?.addEventListener('click',openScan);return}
-    el.innerHTML=`<div class="m-wallet-list">${items.map(walletPassHTML).join('')}</div>`;
+    if(!items.length){el.innerHTML=`<div class="m-wallet-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>No passes yet</b><p>Scan a ticket, coupon or document and it will appear here.</p><button class="m-wallet-scan-btn" type="button" id="m-wallet-empty-scan">Scan document</button></div>`;$('#m-wallet-empty-scan')?.addEventListener('click',openScan);return}
+    const pinned=items.filter(i=>i.kind==='tickets'||i.flight).slice(0,3);
+    const pinnedIds=new Set(pinned.map(i=>i.id));
+    const recent=items.filter(i=>!pinnedIds.has(i.id));
+    el.innerHTML=`
+      ${pinned.length?`<div class="m-wallet-sec"><h3 class="m-inbox-sec-h">Pinned</h3><div class="m-wallet-list">${pinned.map(i=>walletPassHTML(i,'card')).join('')}</div></div>`:''}
+      <div class="m-wallet-sec"><h3 class="m-inbox-sec-h">${pinned.length?'Recent':'Passes'}</h3><div class="m-wallet-rows">${(pinned.length?recent:items).map(i=>walletPassHTML(i,pinned.length?'row':'card')).join('')||'<div class="m-empty">No other items.</div>'}</div></div>`;
   }
   $('#m-wallet-tabs')?.addEventListener('click',e=>{
     const b=e.target.closest('[data-wallet]');if(!b||b.dataset.wallet===mWalletFilter)return;
