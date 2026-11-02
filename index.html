@@ -640,32 +640,51 @@ body.m .tl-chat{padding-top:4px}
 .m-card{background:var(--card);border-radius:22px;padding:18px;margin-bottom:12px;box-shadow:0 6px 20px rgba(40,50,90,.05)}.m-card-h{font:600 15px var(--font);margin-bottom:12px}
 .m-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;height:120px;align-items:end}.m-barcol{display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}.m-barcol i{width:100%;max-width:26px;min-height:4px;border-radius:8px;background:linear-gradient(180deg,#8f9bff,var(--accent))}.m-barcol span{font-size:12px;color:var(--muted)}
 .m-note{font-size:12px;color:var(--muted);margin-top:10px}.m-row{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line);font-size:14.5px}.m-row:first-of-type{border-top:0}
-/* tab bar — higher contrast + depth */
+/* tab bar — floating glass pill (Music-style) */
 .m-tabs{
-  position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(5,1fr);align-items:end;
-  background:linear-gradient(180deg,#FFFFFF 0%,#F8F9FC 100%);
-  border-radius:26px 26px 0 0;padding:8px 6px calc(10px + env(safe-area-inset-bottom));
-  box-shadow:var(--shadow-tab);
-  border-top:1px solid rgba(23,32,51,.06);
+  position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:30;
+  display:grid;grid-template-columns:repeat(5,1fr);align-items:center;gap:2px;
+  width:auto;margin:0;padding:6px 8px;
+  border-radius:999px;
+  background:rgba(255,255,255,.72);
+  backdrop-filter:saturate(180%) blur(28px);-webkit-backdrop-filter:saturate(180%) blur(28px);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.75) inset,
+    0 10px 30px rgba(23,32,51,.12),
+    0 4px 12px rgba(23,32,51,.08),
+    0 0 0 0.5px rgba(23,32,51,.04);
 }
-body.dark .m-tabs{background:linear-gradient(180deg,#1c1f27 0%,#15171c 100%);box-shadow:0 -10px 32px rgba(0,0,0,.5);border-top-color:rgba(255,255,255,.06)}
+body.dark .m-tabs{
+  background:rgba(28,30,38,.72);border-color:rgba(255,255,255,.1);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 14px 36px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.35);
+}
 .m-tabs [data-tab]{
-  border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:5px;
-  color:#8B92A3;font:600 11px var(--font);cursor:pointer;padding:6px 0 4px;
-  transition:color .18s ease,transform .18s var(--ease-out);
+  border:0;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:#172033;font:650 10px/1.1 var(--font);letter-spacing:-.1px;cursor:pointer;
+  min-width:0;padding:8px 4px;border-radius:999px;
+  transition:color .18s ease,background .18s ease,transform .16s var(--ease-out),box-shadow .18s ease;
 }
 .m-tabs [data-tab] .m-tab-ico{
-  width:40px;height:32px;border-radius:14px;display:grid;place-items:center;
-  color:inherit;transition:background .18s ease,box-shadow .18s ease,color .18s ease,transform .18s var(--ease-out);
+  width:auto;height:auto;border-radius:0;display:grid;place-items:center;
+  background:none;box-shadow:none;color:inherit;
 }
-.m-tabs [data-tab] svg{width:22px;height:22px;stroke-width:2;filter:drop-shadow(0 1px 0 rgba(255,255,255,.55))}
-.m-tabs [data-tab].on{color:var(--primary)}
-.m-tabs [data-tab].on .m-tab-ico{
-  background:var(--accent-soft);color:var(--primary);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 4px 10px rgba(53,99,235,.18);
+.m-tabs [data-tab] svg{
+  width:26px;height:26px;stroke-width:2.25;
+  filter:drop-shadow(0 0.5px 0.5px rgba(23,32,51,.18));
 }
-.m-tabs [data-tab].on svg{stroke-width:2.15;filter:drop-shadow(0 1px 1px rgba(53,99,235,.25))}
-.m-tabs [data-tab]:active .m-tab-ico{transform:scale(.94)}
+.m-tabs [data-tab] > span:not(.m-tab-ico){opacity:.92}
+.m-tabs [data-tab].on{
+  color:var(--primary,#3563EB);
+  background:color-mix(in srgb,var(--primary,#3563EB) 14%,rgba(255,255,255,.55));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 2px 8px rgba(53,99,235,.12);
+  font-weight:700;
+}
+.m-tabs [data-tab].on svg{
+  stroke-width:2.4;
+  filter:drop-shadow(0 1px 1px rgba(53,99,235,.28));
+}
+.m-tabs [data-tab]:active{transform:scale(.94)}
 /* Wallet */
 .mapp[data-screen="wallet"] .m-title{font:700 28px/1.15 var(--font);letter-spacing:-.6px}
 .m-wallet-head{display:flex;align-items:center;gap:10px;margin:8px 0 18px}
@@ -777,7 +796,7 @@ body.m{
 }
 body.m,body.m .mapp{background:var(--m-bg)}
 body.m .mapp{
-  padding:0 var(--m-space-4) calc(92px + env(safe-area-inset-bottom));
+  padding:0 var(--m-space-4) calc(108px + env(safe-area-inset-bottom));
   background:var(--bg)!important;
   min-height:100vh;
 }
@@ -1092,34 +1111,8 @@ body.m .m-empty-art::after{content:'';position:absolute;inset:22px;border:2px da
 .pass-flight-line{margin:0 0 12px;font:500 14px/1.3 var(--font);opacity:.92}
 .pass-qr-wrap{background:#fff;border-radius:16px;padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
 .pass-scan-preview{width:100%;max-height:160px;object-fit:cover;border-radius:14px;margin-top:12px;border:1px solid rgba(255,255,255,.25)}
-body.m .m-tabs [data-tab].on{position:relative}
-body.m .m-tabs [data-tab].on::after{
-  content:'';position:absolute;bottom:2px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;
-}
-/* Bottom nav — floating glass with soft backdrop shadow */
-body.m .m-tabs{
-  left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
-  width:auto;border-radius:24px;padding:8px 6px 10px;
-  background:rgba(255,255,255,.88);
-  backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);
-  border:1px solid rgba(255,255,255,.7);
-  box-shadow:
-    0 -1px 0 rgba(255,255,255,.8) inset,
-    0 1px 2px rgba(16,24,40,.04),
-    0 12px 40px rgba(16,24,40,.12),
-    0 4px 12px rgba(16,24,40,.06);
-}
-body.m .m-tabs [data-tab]{
-  gap:3px;padding:6px 0;font:600 10px/1.1 var(--font);color:#9ca3af;min-width:0;
-  border-radius:14px;background:transparent;
-  transition:color .2s ease,transform .16s ease,background .18s ease;
-}
-body.m .m-tabs [data-tab]:active{transform:scale(.94);background:rgba(16,24,40,.04)}
-body.m .m-tabs [data-tab] span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-body.m .m-tabs [data-tab] svg{width:21px;height:21px;transition:transform .2s ease}
-body.m .m-tabs [data-tab].on{color:var(--accent);font-weight:700}
-body.m .m-tabs [data-tab].on svg{transform:translateY(-.5px)}
-body.m .m-msg{bottom:96px;border-radius:22px;padding:6px 6px 6px 16px;margin-top:12px;box-shadow:var(--m-shadow-lift)}
+body.m .m-tabs [data-tab] > span:not(.m-tab-ico){max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.m .m-msg{bottom:110px;border-radius:22px;padding:6px 6px 6px 16px;margin-top:12px;box-shadow:var(--m-shadow-lift)}
 body.m .m-b{padding:12px 14px;border-radius:16px;font:400 14.5px/1.45 var(--font);box-shadow:var(--m-shadow)}
 body.m .m-kpi,body.m .m-card{
   border-radius:var(--m-radius);padding:14px;box-shadow:var(--m-shadow);margin-bottom:8px;
@@ -1153,8 +1146,13 @@ body.dark.m{
   --m-shadow-lift:0 6px 20px rgba(0,0,0,.4);--m-shadow-brief:0 10px 32px rgba(0,0,0,.45);
 }
 body.dark.m .m-tabs{
-  background:rgba(26,28,34,.9);border-color:rgba(255,255,255,.08);
-  box-shadow:0 12px 40px rgba(0,0,0,.45),0 4px 12px rgba(0,0,0,.3);
+  background:rgba(28,30,38,.72);border-color:rgba(255,255,255,.1);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 14px 36px rgba(0,0,0,.5),0 4px 12px rgba(0,0,0,.35);
+}
+body.dark.m .m-tabs [data-tab]{color:#E8EDF6}
+body.dark.m .m-tabs [data-tab].on{
+  color:#8FB0FF;
+  background:color-mix(in srgb,#3563EB 28%,rgba(255,255,255,.08));
 }
 body.dark.m .m-circle,body.dark.m .m-inbox-filter{background:var(--m-glass);color:var(--ink)}
 body.dark.m .m-pills button{background:rgba(255,255,255,.08);color:var(--muted)}
@@ -1172,7 +1170,7 @@ body.m .m-screen{animation:mScreenIn .28s cubic-bezier(.22,.9,.28,1)}
   body.m .mapp[data-screen="inbox"] .m-title,body.m .mapp[data-screen="wallet"] .m-title{font-size:24px}
   body.m .m-pills button{padding:7px 12px;font-size:12.5px}
   body.m .m-wallet-pass .wp-title{font-size:20px;max-width:68%}
-  body.m .m-tabs{left:8px;right:8px}
+  body.m .m-tabs{left:10px;right:10px}
 }
 /* ===== Native feel: touch targets, press, PTR, skeletons, action sheet, toast, keyboard ===== */
 body.m{
@@ -1287,7 +1285,7 @@ body.m.kb-open .m-msg{bottom:calc(12px + var(--kb,0px));box-shadow:0 10px 28px r
 body.m .mapp[data-screen="assistant"]{padding-bottom:calc(120px + var(--kb,0px))}
 /* Wallet scan FAB — bottom-right above tab bar */
 body.m .m-wallet-fab{
-  position:fixed;right:18px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:28;
+  position:fixed;right:18px;bottom:calc(108px + env(safe-area-inset-bottom));z-index:28;
   width:58px;height:58px;border:0;border-radius:50%;padding:0;cursor:pointer;
   display:grid;place-items:center;color:#fff;background:var(--m-navy,#1f2937);
   box-shadow:0 14px 32px rgba(31,41,55,.28),0 2px 6px rgba(16,24,40,.12);
@@ -1338,7 +1336,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=42" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=43" defer></script></body></html>
 
 
 
