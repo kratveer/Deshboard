@@ -1178,7 +1178,13 @@
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,20)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,20)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
    <section class="m-screen" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
      <div class="m-brief" id="m-brief"></div>
-     <div class="m-home-block" id="m-loops-block"><h3 class="m-sub">Open loops</h3><div class="m-list" id="m-list"></div></div>
+     <div class="m-home-block" id="m-loops-block">
+       <article class="card loops wide m-loops-card">
+         <div class="card-head"><div class="card-title"><span class="glyph g-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 12a5 5 0 1 1 5 5"/><path d="M12 17H5m0 0 3-3m-3 3 3 3"/></svg></span>Open loops <span class="loop-count" id="m-loop-total"></span></div><span class="tiny loops-hint">Things you started but haven’t finished</span></div>
+         <div class="loop-grid as-list" id="m-loop-grid"></div>
+         <div class="loops-foot" id="m-loops-foot"></div>
+       </article>
+     </div>
      <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
    <section class="m-screen" data-screen="inbox">
      <div class="m-inbox-head"><div class="m-inbox-tabs" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true"></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subs</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,18)}</button></div>
@@ -1242,11 +1248,12 @@
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab);else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);
   $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-  // Home — daily brief + open loops only
+  // Home — daily brief + same Open loops list tile as desktop
   function renderHome(){
     const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
     $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});$('#m-hello').textContent=`${part}${first?', '+first:''}`;
-    const loops=(token||microsoftAccount||DEMO)?computeLoops():[],money=computeMoney(),{timed,connected}=todayEvents(),now=new Date();
+    const WORK=['reply','followup','prepare','overdue','deadline'];
+    const loops=(token||microsoftAccount||DEMO)?computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type)):[],money=computeMoney(),{timed,connected}=todayEvents(),now=new Date();
     const left=timed.filter(e=>e.end>now),next=left[0],pendingPay=money.pending||[];
     let brief=`${part}${first?', '+esc(first):''}.`;
     if(!token&&!microsoftAccount&&!DEMO)brief=`${brief} Connect Google and I’ll brief you from mail, calendar and tasks.`;
@@ -1262,16 +1269,30 @@
     if(loops[0])chips.push(loops[0].href?`<a href="${esc(loops[0].href)}" target="_blank" rel="noopener">Open first loop</a>`:`<button type="button" data-ask="Who is waiting for a reply?">Review loops</button>`);
     if(pendingPay.length||money.counts.total)chips.push(`<button type="button" data-goto-inbox>Open Inbox</button>`);
     $('#m-brief').innerHTML=`<div class="eyebrow">Daily brief</div><p>${brief}</p>${chips.length?`<div class="m-chips">${chips.join('')}</div>`:''}`;
-    const loopList=loops.slice(0,8);
-    $('#m-list').innerHTML=(!token&&!microsoftAccount&&!DEMO)
-      ?`<div class="m-empty">Connect Google from the menu to surface replies, renewals and trips here.</div>`
-      :loopList.length?loopList.map(l=>`<${l.href?`a href="${esc(l.href)}" target="_blank" rel="noopener"`:'div'} class="m-item s-attn ${LOOP_TYPES[l.type]?.cls||''}"><span class="m-bar"></span><span class="m-item-main"><b>${esc(l.title)}</b><small>${esc([LOOP_TYPES[l.type]?.label||l.type,l.detail,l.meta].filter(Boolean).join(' · '))}</small></span><button class="m-check" type="button" data-loop-done="${esc(l.id)}" aria-label="Mark done"></button></${l.href?'a':'div'}>`).join('')
-      :`<div class="m-empty">No open loops. You’re caught up.</div>`;
+    const grid=$('#m-loop-grid'),foot=$('#m-loops-foot'),total=$('#m-loop-total');
+    if(!grid)return;
+    if(total)total.textContent=loops.length?loops.length:'';
+    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){
+      grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';
+      if(foot)foot.innerHTML='';
+      return;
+    }
+    if(!loopsData&&token){grid.innerHTML='<div class="empty">Looking through your inbox, calendar and tasks…</div>';if(foot)foot.innerHTML='';return}
+    const lmax=+(wset('loops').max||6),shown=loopsShowAll?loops:loops.slice(0,lmax);
+    grid.classList.add('as-list');
+    try{grid.innerHTML=loops.length?shown.map(loopHTML).join(''):'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>'}
+    catch(e){console.warn('mobile loops render',e);grid.innerHTML=loops.length?shown.map(l=>`<div class="arow ${LOOP_TYPES[l.type]?.cls||''}"><div class="arow-main"><b>${esc(l.title)}</b><div class="arow-detail">${esc(l.detail||'')}</div></div></div>`).join(''):'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>'}
+    if(foot){
+      foot.innerHTML=loops.length>lmax?`<button class="connect" type="button" id="m-loops-more">${loopsShowAll?'Show fewer':`Show all ${loops.length}`}</button>`:'';
+      if($('#m-loops-more'))$('#m-loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
+    }
   }
-  $('#m-list').addEventListener('click',e=>{
-    const loopDone=e.target.closest('[data-loop-done]');
-    if(loopDone){e.preventDefault();e.stopPropagation();const s=loopState();s[loopDone.dataset.loopDone]={done:true,t:Date.now()};saveLoopState(s);renderLoops();toast('Marked as done');return}
-    const b=e.target.closest('[data-done]');if(!b)return;e.preventDefault();const t=personalTasks.find(x=>x.id===b.dataset.done);logDone(t);personalTasks=personalTasks.filter(x=>x.id!==b.dataset.done);savePersonal();renderTasks();renderLoops();toast('Done · nice work')
+  $('#m-loop-grid')?.addEventListener('click',e=>{
+    const b=e.target.closest('[data-act]');if(!b)return;
+    const row=b.closest('[data-loop]');if(!row)return;
+    e.preventDefault();e.stopPropagation();
+    const s=loopState();s[row.dataset.loop]=b.dataset.act==='done'?{done:true,t:Date.now()}:{snooze:Date.now()+86400000,t:Date.now()};
+    saveLoopState(s);renderLoops();toast(b.dataset.act==='done'?'Marked as done':'Snoozed until tomorrow');
   });
   $('#m-brief')?.addEventListener('click',e=>{
     if(e.target.closest('[data-goto-inbox]')){setTab('inbox');return}

@@ -164,6 +164,8 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .m-brief p{margin:0;font:500 15.5px/1.45 var(--font)}.m-brief em{font-style:normal;font-weight:750;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--brief-icon) 55%,transparent);text-underline-offset:3px}
 .m-brief .m-chips{margin-top:12px}.m-brief .m-chips a,.m-brief .m-chips button{border:0;border-radius:999px;padding:8px 12px;background:color-mix(in srgb,var(--brief-ink) 12%,transparent);color:var(--brief-ink);font:650 12.5px var(--font);text-decoration:none;cursor:pointer}
 .m-home-block{margin-top:18px}.m-home-block .m-sub{margin-top:0}
+.m-loops-card{margin:0;box-shadow:0 6px 20px rgba(40,50,90,.06)}.m-loops-card .loops-hint{display:none}.m-loops-card .loop-grid.as-list{gap:0}
+.m-loops-card .arow-top b{white-space:normal}.m-loops-card .arow-detail{white-space:normal}
 .mapp,.mapp button,.mapp input,.mapp a,.mapp h2,.mapp h3,.shell,.shell button,.shell input,.shell textarea,.shell select{font-family:var(--font)}
 .mapp[data-screen="inbox"] .m-title{font:700 28px/1.15 var(--font);letter-spacing:-.6px}
 .m-inbox-head{display:flex;align-items:center;gap:10px;margin:10px 0 20px}
@@ -534,7 +536,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=1" defer></script><script src="app.js?v=23" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=1" defer></script><script src="app.js?v=24" defer></script></body></html>
 
 
 
