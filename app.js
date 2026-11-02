@@ -11,6 +11,7 @@
     'openid','email','profile',
     'https://www.googleapis.com/auth/calendar.events.readonly',
     'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/tasks.readonly',
     'https://www.googleapis.com/auth/drive.metadata.readonly',
     'https://www.googleapis.com/auth/contacts.readonly'
@@ -107,7 +108,7 @@
       </div>`:`<input id="client-id" type="hidden" value="${esc(savedId)}">`)}
       ${row('microsoft','M','ms-icon','Microsoft 365',ms?'<span class="dot"></span>Connected':'Outlook · Calendar · To Do',ms,ms?'<button class="connect ghost" id="microsoft-disconnect" type="button">Disconnect</button>':`<button class="connect ${msReady?'primary':''}" id="microsoft-connect" type="button">${msReady?'Connect':'Set up'}</button>`)}
       <div id="connect-error" class="error" role="alert" hidden></div>
-      <details class="conn-more"><summary>What Daylight can see</summary><ul class="conn-list"><li>Today’s calendar events</li><li>Sender and subject of recent emails, never the message text</li><li>Open tasks, recently opened Drive file names, and contact birthdays</li><li>Everything is read only. Tokens stay in this browser’s memory; nothing is uploaded to Daylight.</li></ul><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></details>
+      <details class="conn-more"><summary>What Daylight can see</summary><ul class="conn-list"><li>Today’s calendar events</li><li>Recent Gmail threads you open in Daylight (headers and body text)</li><li>Replies you send from Daylight go through Gmail as you</li><li>Open tasks, recently opened Drive file names, and contact birthdays</li><li>Tokens stay in this browser’s memory; nothing is uploaded to Daylight. After adding send access, reconnect Google once to approve the new permission.</li></ul><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></details>
       <details class="conn-more" id="conn-advanced"><summary>Optional: stay signed in / Microsoft</summary>
         <p class="hint" style="margin:8px 0 0">Only if you deployed the Daylight server. Never paste a Google <b>Client Secret</b> here — that belongs in Cloudflare secrets only.</p>
         <label class="client-label" for="server-url">Daylight server URL</label><input class="client-input" id="server-url" type="url" autocomplete="off" spellcheck="false" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
@@ -220,6 +221,15 @@
     if(r.status===401&&serverSession&&!retried&&await serverToken())return api(url,true);
     if(!r.ok){let detail='';try{detail=(await r.json()).error?.message||''}catch{}throw new Error(detail||`Google API error (${r.status})`)}
     return r.json();
+  }
+  async function apiWrite(url, body, retried) {
+    if(serverSession&&Date.now()>tokenExpiry-60000)await serverToken();
+    const r=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.status===401&&serverSession&&!retried&&await serverToken())return apiWrite(url,body,true);
+    if(!r.ok){let detail='';try{detail=(await r.json()).error?.message||''}catch{}throw new Error(detail||`Google API error (${r.status})`)}
+    const text=await r.text();
+    if(!text)return {};
+    try{return JSON.parse(text)}catch{return {}}
   }
   const header=(headers,name)=>headers?.find(x=>x.name?.toLowerCase()===name.toLowerCase())?.value||'';
   function renderAll(){renderCalendar();renderMail();renderTasks();renderInsights();renderDrive();renderBirthdays();if(typeof renderLoops==='function'){renderLoops();renderUpNext()}}
@@ -1312,6 +1322,7 @@
     return{kind:'task',label:'AI Suggestion',text:l.title,cta:'Add task',primary:'Open'};
   }
   const mailDetailCache={};
+  let composeState=null;
   function decodeMailText(payload){
     const decode=d=>{try{const bin=atob(String(d).replace(/-/g,'+').replace(/_/g,'/'));try{return decodeURIComponent(escape(bin))}catch{return bin}}catch{return''}};
     const walk=p=>{
@@ -1323,13 +1334,46 @@
     };
     return(walk(payload)||'').trim().slice(0,1400);
   }
+  function toBase64Url(str){
+    const bytes=new TextEncoder().encode(str);
+    let bin='';for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function replySubject(subject){
+    const s=String(subject||'(No subject)').trim()||'(No subject)';
+    return /^re:\s*/i.test(s)?s:`Re: ${s}`;
+  }
+  function buildReplyRaw({to,subject,body,inReplyTo,references}){
+    const lines=[`To: ${to}`,`Subject: ${subject}`,'MIME-Version: 1.0','Content-Type: text/plain; charset="UTF-8"'];
+    if(inReplyTo)lines.push(`In-Reply-To: ${inReplyTo}`);
+    if(references)lines.push(`References: ${references}`);
+    lines.push('',String(body||'').replace(/\r?\n/g,'\r\n'));
+    return toBase64Url(lines.join('\r\n'));
+  }
+  async function sendGmailReply({threadId,to,subject,body,messageId,references}){
+    if(!token)throw new Error('Connect Google to send mail');
+    if(!to)throw new Error('Missing recipient');
+    const refs=[references,messageId].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+    const raw=buildReplyRaw({to,subject:replySubject(subject),body,inReplyTo:messageId||undefined,references:refs||undefined});
+    const payload={raw};if(threadId)payload.threadId=threadId;
+    return apiWrite('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',payload);
+  }
+  function canComposeReply(l){return !!(token&&l&&l.mailId&&(l.type==='reply'||l.type==='followup'||(!l._inbox&&l.fromEmail)))}
   async function fetchMailDetail(mailId){
     if(!mailId||!token)return null;
     if(mailDetailCache[mailId])return mailDetailCache[mailId];
     try{
       const m=await api(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mailId)}?format=full`);
       const h=m.payload?.headers||[],from=parseFrom(header(h,'From'));
-      const detail={id:m.id,threadId:m.threadId,snippet:m.snippet||'',subject:header(h,'Subject')||'(No subject)',from,date:new Date(header(h,'Date')||m.internalDate*1),body:decodeMailText(m.payload)||m.snippet||''};
+      const replyToRaw=header(h,'Reply-To'),replyTo=replyToRaw?parseFrom(replyToRaw):from;
+      const messageId=header(h,'Message-ID')||header(h,'Message-Id')||'';
+      const references=header(h,'References')||'';
+      const inReplyTo=header(h,'In-Reply-To')||'';
+      const detail={
+        id:m.id,threadId:m.threadId,snippet:m.snippet||'',subject:header(h,'Subject')||'(No subject)',
+        from,date:new Date(header(h,'Date')||m.internalDate*1),body:decodeMailText(m.payload)||m.snippet||'',
+        messageId,references,inReplyTo,replyTo,replyEmail:replyTo.email||from.email,replyName:replyTo.name||from.name
+      };
       mailDetailCache[mailId]=detail;return detail;
     }catch(e){
       console.warn('mail detail',e);
@@ -1338,10 +1382,42 @@
       return null;
     }
   }
+  function closeCompose(){composeState=null}
+  async function openCompose(loop,mail,prefill){
+    if(!loop)return;
+    if(!loop.mailId){
+      toast('Open this in Gmail to reply',{type:'warn'});
+      if(loop.href)window.open(loop.href,'_blank','noopener');
+      return;
+    }
+    let detail=mail||mailDetailCache[loop.mailId]||null;
+    if(!detail&&token){
+      detail=await fetchMailDetail(loop.mailId);
+      if(openLoopId!==loop.id)return;
+    }
+    const to=detail?.replyEmail||loop.fromEmail||detail?.from?.email||'';
+    if(!to){toast('No reply address on this message',{type:'warn'});if(loop.href)window.open(loop.href,'_blank','noopener');return}
+    const sug=loopSuggestion(loop);
+    const draft=(prefill!=null?prefill:(sug.kind==='reply'?sug.text:''))||'';
+    composeState={
+      mailId:loop.mailId,
+      threadId:detail?.threadId||loop.threadId||'',
+      to,
+      toName:detail?.replyName||loop.fromName||to,
+      subject:replySubject(detail?.subject||loopSubject(loop)),
+      body:draft,
+      messageId:detail?.messageId||'',
+      references:detail?.references||''
+    };
+    tdTab='email';
+    feel.select();
+    paintLoopDetail(loop,detail);
+    requestAnimationFrame(()=>{const ta=$('#td-compose-body');if(ta){ta.focus();const n=ta.value.length;ta.setSelectionRange(n,n)}});
+  }
   let openLoopId=null,openDetail=null,loopSheetTimer=0;
   function dismissLoopSheet(instant){
     const sheet=$('#loop-sheet');if(!sheet||(!sheet.classList.contains('show')&&!sheet.classList.contains('closing')&&!instant))return;
-    clearTimeout(loopSheetTimer);openLoopId=null;openDetail=null;sheet.setAttribute('aria-hidden','true');
+    clearTimeout(loopSheetTimer);openLoopId=null;openDetail=null;composeState=null;sheet.setAttribute('aria-hidden','true');
     const card=sheet.querySelector('.loop-sheet-card');
     if(card){card.style.transition='';card.style.transform='';card.style.opacity=''}
     sheet.style.transition='';sheet.style.opacity='';
@@ -1383,7 +1459,8 @@
     const isMail=!!(l.mailId||l._inbox||l.type==='reply'||l.type==='followup'||l.type==='renewal'||(l.href&&String(l.href).includes('mail.google')));
     const navTitle=l._inbox?'Inbox Detail':'Task Detail';
     const fav=isFav(l.id);
-    const tab=tdTab==='email'&&isMail?'email':tdTab==='notes'?'notes':tdTab==='activity'?'activity':'details';
+    const composing=!!composeState&&composeState.mailId===(l.mailId||'');
+    const tab=composing?'email':tdTab==='email'&&isMail?'email':tdTab==='notes'?'notes':tdTab==='activity'?'activity':'details';
     const nav=$('.td-nav b');if(nav)nav.textContent=navTitle;
     const star=$('.td-nav [data-ls-fav]');if(star){star.classList.toggle('on',fav);star.setAttribute('aria-pressed',fav?'true':'false')}
     $('#ls-head').innerHTML=`<span class="td-ico ${t.cls}" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
@@ -1402,7 +1479,13 @@
         <div class="td-mail-h"><span class="td-av m-brand" style="--a1:${esc(l.color||brandColor(fromName))};--a2:${esc(l.color||brandColor(fromName))}">${brandLogoHTML({fromEmail:l.fromEmail,title:fromName,domain:l.domain,logo:l.logo},initialsOf(fromName))}</span><div><b>${esc(fromName)}</b><small>${esc(subject)}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
         <p class="td-mail-b">${mail?esc(body):(l.mailId?'Loading email from Gmail…':esc(body))}</p>
         ${l.href?`<a class="td-link" href="${esc(l.href)}" target="_blank" rel="noopener">Open original</a>`:''}
-      </div>`:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>`}`;
+      </div>`:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>`}
+      ${composing?`<div class="td-card td-compose" id="td-compose">
+        <div class="td-compose-h"><b>Reply</b><span>via Gmail</span></div>
+        <label class="td-compose-field"><span>To</span><input type="text" id="td-compose-to" value="${esc(composeState.toName?`${composeState.toName} <${composeState.to}>`:composeState.to)}" readonly aria-label="To"></label>
+        <label class="td-compose-field"><span>Subject</span><input type="text" id="td-compose-subj" value="${esc(composeState.subject)}" aria-label="Subject"></label>
+        <label class="td-compose-field td-compose-body"><span>Message</span><textarea id="td-compose-body" rows="7" aria-label="Reply message" placeholder="Write your reply…">${esc(composeState.body)}</textarea></label>
+      </div>`:''}`;
     const notes=`<div class="td-card td-need"><span class="td-need-l">Notes</span><p>${esc(l.detail||l.snippet||'No notes yet. Capture a reminder from Assistant.')}</p></div>
       ${l.related?`<div class="td-card"><a class="td-link" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a></div>`:''}`;
     const activity=`<div class="td-card td-attrs">
@@ -1412,15 +1495,22 @@
       </div>`;
     $('#ls-body').innerHTML=`
       <div class="td-tabs" role="tablist">
-        <button type="button" class="td-tab${tab==='details'?' on':''}" data-td-tab="details">Details</button>
+        <button type="button" class="td-tab${tab==='details'?' on':''}" data-td-tab="details" ${composing?'disabled':''}>Details</button>
         <button type="button" class="td-tab${tab==='email'?' on':''}" data-td-tab="email" ${isMail?'':'disabled'}>Email</button>
-        <button type="button" class="td-tab${tab==='notes'?' on':''}" data-td-tab="notes">Notes</button>
-        <button type="button" class="td-tab${tab==='activity'?' on':''}" data-td-tab="activity">Activity</button>
+        <button type="button" class="td-tab${tab==='notes'?' on':''}" data-td-tab="notes" ${composing?'disabled':''}>Notes</button>
+        <button type="button" class="td-tab${tab==='activity'?' on':''}" data-td-tab="activity" ${composing?'disabled':''}>Activity</button>
       </div>
       ${tab==='email'?email:tab==='notes'?notes:tab==='activity'?activity:details}`;
-    const primary=l._inbox?(l.href?'Open in Gmail':(sug.primary||'Review')):(l.type==='reply'||sug.kind==='reply'?'Reply Now':(sug.primary||'Open'));
-    $('#ls-foot').innerHTML=`<button class="td-primary" type="button" data-ls-act="${l.href&&(l._inbox||primary==='Open'||primary==='Open in Gmail')?'open':(primary==='Reply Now'||sug.kind==='reply'?'suggest':'open')}">${esc(primary)}</button>
-      <div class="td-sec td-sec-3"><button class="td-sec-btn" type="button" data-ls-act="snooze">Snooze</button><button class="td-sec-btn" type="button" data-ls-act="remind">Reminder</button><button class="td-sec-btn" type="button" data-ls-act="done">Mark Done</button></div>`;
+    const replyable=canComposeReply(l)||(l.mailId&&(l.type==='reply'||l.type==='followup'));
+    let primary,primaryAct;
+    if(composing){primary='Send';primaryAct='send-reply'}
+    else if(replyable){primary=l.type==='followup'?'Send follow-up':'Reply';primaryAct='reply'}
+    else if(l._inbox){primary=l.href?'Open in Gmail':(sug.primary||'Review');primaryAct=l.href?'open':'open'}
+    else{primary=sug.primary||'Open';primaryAct=l.href?'open':'open'}
+    $('#ls-foot').innerHTML=`<button class="td-primary" type="button" data-ls-act="${primaryAct}" ${composing?'data-sending="0"':''}>${esc(primary)}</button>
+      ${composing
+        ?`<div class="td-sec"><button class="td-sec-btn" type="button" data-ls-act="cancel-compose">Cancel</button><button class="td-sec-btn" type="button" data-ls-act="open">${l.href?'Open in Gmail':'Close'}</button></div>`
+        :`<div class="td-sec td-sec-3"><button class="td-sec-btn" type="button" data-ls-act="snooze">Snooze</button><button class="td-sec-btn" type="button" data-ls-act="remind">Reminder</button><button class="td-sec-btn" type="button" data-ls-act="done">Mark Done</button></div>`}`;
   }
   async function openLoopSheet(idOrObj){
     const l=typeof idOrObj==='object'&&idOrObj?idOrObj:findLoop(idOrObj);if(!l)return;
@@ -1439,16 +1529,63 @@
         if(e.target.closest('[data-ls-close]')){closeLoopSheet();return}
         if(e.target.closest('[data-ls-fav]')){const loop=currentDetail();if(!loop)return;const on=toggleFav(loop.id);e.target.closest('[data-ls-fav]').classList.toggle('on',on);e.target.closest('[data-ls-fav]').textContent=on?'★':'☆';toast(on?'Added to favourites':'Removed from favourites',{type:'ok',ms:1600});return}
         if(e.target.closest('[data-ls-more]')){const loop=currentDetail();if(loop?.href)window.open(loop.href,'_blank','noopener');return}
-        const tab=e.target.closest('[data-td-tab]');if(tab&&!tab.disabled){tdTab=tab.dataset.tdTab;feel.select();paintLoopDetail(currentDetail(),null);if(currentDetail()?.mailId&&token&&tdTab==='email'){fetchMailDetail(currentDetail().mailId).then(m=>{if(m&&openLoopId===currentDetail()?.id)paintLoopDetail(currentDetail(),m)})}return}
+        const tab=e.target.closest('[data-td-tab]');if(tab&&!tab.disabled){
+          if(composeState){const body=$('#td-compose-body'),subj=$('#td-compose-subj');if(body)composeState.body=body.value;if(subj)composeState.subject=subj.value}
+          tdTab=tab.dataset.tdTab;feel.select();
+          const cur=currentDetail();
+          paintLoopDetail(cur,cur?.mailId?mailDetailCache[cur.mailId]||null:null);
+          if(cur?.mailId&&token&&tdTab==='email'&&!mailDetailCache[cur.mailId]){fetchMailDetail(cur.mailId).then(m=>{if(m&&openLoopId===currentDetail()?.id)paintLoopDetail(currentDetail(),m)})}
+          return;
+        }
         const act=e.target.closest('[data-ls-act]');if(!act||!openLoopId)return;
         const loop=currentDetail();if(!loop)return;
         const a=act.dataset.lsAct;
         if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Snoozed until tomorrow',{type:'ok',haptic:'success'});return}
         if(a==='remind'){capture('Remind me: '+loop.title+(loop.dueLabel?' by '+loop.dueLabel:''));toast('Reminder added',{type:'ok',haptic:'success'});return}
         if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Marked as done',{type:'ok',haptic:'success'});return}
+        if(a==='cancel-compose'){closeCompose();feel.select();paintLoopDetail(loop,loop.mailId?mailDetailCache[loop.mailId]||null:null);return}
+        if(a==='reply'){openCompose(loop,loop.mailId?mailDetailCache[loop.mailId]||null:null);return}
+        if(a==='send-reply'){
+          if(!composeState||act.dataset.sending==='1')return;
+          if(!token){toast('Connect Google to send this reply',{type:'warn'});connectDialog({setup:true});return}
+          const bodyEl=$('#td-compose-body'),subjEl=$('#td-compose-subj');
+          const body=(bodyEl?.value??composeState.body??'').trim();
+          const subject=(subjEl?.value??composeState.subject??'').trim();
+          if(!body){toast('Write a reply first',{type:'warn'});bodyEl?.focus();return}
+          act.dataset.sending='1';act.textContent='Sending…';act.disabled=true;
+          (async()=>{
+            try{
+              let mail=mailDetailCache[composeState.mailId]||await fetchMailDetail(composeState.mailId);
+              const sent=await sendGmailReply({
+                threadId:composeState.threadId||mail?.threadId||loop.threadId,
+                to:composeState.to,
+                subject:subject||composeState.subject,
+                body,
+                messageId:mail?.messageId||composeState.messageId,
+                references:mail?.references||composeState.references
+              });
+              delete mailDetailCache[composeState.mailId];
+              const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);
+              composeState=null;
+              toast('Reply sent',{type:'ok',haptic:'success'});
+              if(sent?.id&&loop.mailId){
+                try{const refreshed=await fetchMailDetail(loop.mailId);if(refreshed){/* thread updated in cache for next open */}}catch{}
+              }
+              closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});
+              if(typeof renderMail==='function'){try{await loadMail()}catch{}}
+            }catch(err){
+              act.dataset.sending='0';act.textContent='Send';act.disabled=false;
+              const msg=String(err?.message||err||'');
+              if(/insufficient|403|scope|PERMISSION|accessNotConfigured/i.test(msg))toast('Reconnect Google and allow sending mail',{type:'warn',ms:3200});
+              else toast('Couldn’t send: '+msg,{type:'err',haptic:'error'});
+            }
+          })();
+          return;
+        }
         if(a==='open'&&loop.href){window.open(loop.href,'_blank','noopener');return}
         if(a==='suggest'){
           const sug=loopSuggestion(loop);
+          if(sug.kind==='reply'&&(loop.mailId||loop.type==='reply'||loop.type==='followup')){openCompose(loop,loop.mailId?mailDetailCache[loop.mailId]||null:null,sug.text);return}
           if(sug.kind==='reply'||loop._inbox){
             (async()=>{try{await navigator.clipboard.writeText(sug.text);toast('Draft copied',{type:'ok',haptic:'success'})}catch{toast('Copy the draft from the card',{type:'warn'})}})();
             if(loop.href)window.open(loop.href,'_blank','noopener');
@@ -1458,7 +1595,7 @@
         }
       });
     }
-    tdTab='details';
+    tdTab='details';composeState=null;
     const favBtn=sheet.querySelector('[data-ls-fav]');if(favBtn){const on=isFav(l.id);favBtn.classList.toggle('on',on);favBtn.textContent=on?'★':'☆';favBtn.setAttribute('aria-pressed',on?'true':'false')}
     paintLoopDetail(l,null);
     const wasOpen=sheet.classList.contains('show');
