@@ -167,12 +167,13 @@ body.dark .money-tile .money-tabs button[aria-pressed="true"]{background:var(--a
 .m-loops-card{margin:0;box-shadow:0 6px 20px rgba(40,50,90,.06)}.m-loops-card .loops-hint{display:none}.m-loops-card .loop-grid.as-list{gap:0}
 .m-loops-card .arow-top b{white-space:normal}.m-loops-card .arow-detail{white-space:normal}
 .arow,.loop{cursor:pointer}.arow:focus-visible,.loop:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:12px}
-/* Task Detail (Open loop) */
-.loop-sheet{position:fixed;inset:0;z-index:55;display:flex;align-items:stretch;justify-content:center;padding:0;background:rgba(15,18,28,.28);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .28s ease,visibility .28s ease}
+/* Task Detail (Open loop) — slide-in from right on mobile */
+.loop-sheet{position:fixed;inset:0;z-index:55;display:flex;align-items:stretch;justify-content:center;padding:0;background:rgba(15,18,28,.28);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .22s ease,visibility .22s ease;will-change:opacity}
 .loop-sheet.show{opacity:1;visibility:visible;pointer-events:auto}
-.loop-sheet-card.td-sheet{width:min(440px,100%);height:100%;max-height:100%;display:flex;flex-direction:column;background:#f7f8fb;border:0;border-radius:0;box-shadow:none;overflow:hidden;font-family:var(--font);opacity:0;transform:translateY(18px);transition:transform .34s cubic-bezier(.2,.85,.25,1),opacity .28s ease}
+.loop-sheet.closing{opacity:0;pointer-events:none}
+.loop-sheet-card.td-sheet{width:min(440px,100%);height:100%;max-height:100%;display:flex;flex-direction:column;background:#f7f8fb;border:0;border-radius:0;box-shadow:none;overflow:hidden;font-family:var(--font);opacity:1;transform:translate3d(100%,0,0);transition:transform .32s cubic-bezier(.22,.9,.28,1),opacity .22s ease;will-change:transform,opacity;touch-action:pan-y}
 .loop-sheet.show .loop-sheet-card{opacity:1;transform:none}
-.loop-sheet.closing .loop-sheet-card{opacity:0;transform:translateY(12px);transition-duration:.24s}
+.loop-sheet.closing .loop-sheet-card{opacity:0;transform:translate3d(10%,0,0);transition-duration:.24s,.2s}
 .td-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 12px 8px;background:#f7f8fb}
 .td-nav b{font:650 15px/1 var(--font);color:var(--ink)}
 .td-nav-btn{width:36px;height:36px;border:0;border-radius:12px;background:#eceef3;color:#374151;font:600 22px/1 var(--font);cursor:pointer}
@@ -214,8 +215,8 @@ body.dark .loop-sheet-card.td-sheet,body.dark .td-nav,body.dark .td-foot{backgro
 body.dark .td-card,body.dark .td-sec-btn{background:var(--card);color:var(--ink)}
 body.dark .td-need{background:var(--accent-soft)}
 body.loop-open{overflow:hidden}
-@media(min-width:681px){.loop-sheet{padding:24px;align-items:center}.loop-sheet-card.td-sheet{height:min(860px,92vh);max-height:min(860px,92vh);border-radius:24px;box-shadow:0 28px 80px rgba(20,30,55,.28)}}
-@media(prefers-reduced-motion:reduce){.loop-sheet,.loop-sheet-card{transition:none!important}.loop-sheet-card{transform:none!important}}
+@media(min-width:681px){.loop-sheet{padding:24px;align-items:center}.loop-sheet-card.td-sheet{height:min(860px,92vh);max-height:min(860px,92vh);border-radius:24px;box-shadow:0 28px 80px rgba(20,30,55,.28);transform:translate3d(0,18px,0);opacity:0}.loop-sheet.show .loop-sheet-card{opacity:1;transform:none}.loop-sheet.closing .loop-sheet-card{opacity:0;transform:translate3d(0,10px,0)}}
+@media(prefers-reduced-motion:reduce){.loop-sheet,.loop-sheet-card,.pass-sheet,.m-scan{transition:none!important}.loop-sheet-card,.pass-sheet,.m-scan{transform:none!important}}
 .mapp,.mapp button,.mapp input,.mapp a,.mapp h2,.mapp h3,.shell,.shell button,.shell input,.shell textarea,.shell select{font-family:var(--font)}
 .mapp[data-screen="inbox"] .m-title{font:700 28px/1.15 var(--font);letter-spacing:-.6px}
 .m-inbox-head{display:flex;align-items:center;gap:10px;margin:10px 0 20px}
@@ -515,8 +516,9 @@ body.dark .m-wallet-thumb{background:color-mix(in srgb,#fff 14%,var(--card2))}
 .m-wallet-detail img{width:100%;border-radius:14px;display:block;margin-bottom:12px;max-height:220px;object-fit:cover;background:#111}
 .m-wallet-detail .wd-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 /* Scanner overlay */
-.m-scan{position:fixed;inset:0;z-index:50;background:#1c1c1e;color:#f5f5f7;display:none;flex-direction:column;font-family:var(--font)}
-.m-scan.show{display:flex}
+.m-scan{position:fixed;inset:0;z-index:50;background:#1c1c1e;color:#f5f5f7;display:flex;flex-direction:column;font-family:var(--font);opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(100%,0,0);transition:transform .32s cubic-bezier(.22,.9,.28,1),opacity .22s ease,visibility .22s;will-change:transform,opacity;touch-action:pan-y}
+.m-scan.show{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+.m-scan.closing{opacity:0;pointer-events:none;transform:translate3d(10%,0,0);transition-duration:.24s,.2s,.24s}
 .m-scan-top{display:flex;justify-content:space-between;align-items:center;padding:calc(14px + env(safe-area-inset-top)) 18px 10px}
 .m-scan-round{width:44px;height:44px;border-radius:50%;border:0;background:#fff;color:#111;display:grid;place-items:center;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.2)}
 .m-scan-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 28px;text-align:center;gap:14px}
@@ -545,14 +547,17 @@ body.dark .m-wallet-thumb{background:color-mix(in srgb,#fff 14%,var(--card2))}
 @keyframes scanspin{to{transform:rotate(360deg)}}
 .m-scan-process h2{margin:0;font:700 22px/1.25 var(--font)}
 .m-scan-process p{margin:0;color:rgba(255,255,255,.62);font:500 14.5px/1.45 var(--font);max-width:280px}
-.m-scan[hidden],.m-scan-landing[hidden],.m-scan-camera[hidden],.m-scan-review[hidden],.m-scan-process[hidden]{display:none!important}
+.m-scan[hidden]{display:none!important}
+.m-scan-landing[hidden],.m-scan-camera[hidden],.m-scan-review[hidden],.m-scan-process[hidden]{display:none!important}
 body.m .notif-panel{position:fixed;top:70px;right:12px;left:12px;width:auto;z-index:40}
 body.m .drawer{z-index:45}body.m .drawer-scrim{z-index:44}body.m .wpanel{z-index:46}
 .m-only{display:none}body.m .m-only{display:flex}
-/* Wallet pass detail (Apple Wallet style) */
-.pass-sheet{position:fixed;inset:0;z-index:56;display:none;background:#f4f5f7;font-family:var(--font)}
-.pass-sheet.show{display:block}
+/* Wallet pass detail — slide-in */
+.pass-sheet{position:fixed;inset:0;z-index:56;display:block;background:#f4f5f7;font-family:var(--font);opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(100%,0,0);transition:transform .32s cubic-bezier(.22,.9,.28,1),opacity .22s ease,visibility .22s;will-change:transform,opacity;touch-action:pan-y;overscroll-behavior:contain}
+.pass-sheet.show{opacity:1;visibility:visible;pointer-events:auto;transform:none}
+.pass-sheet.closing{opacity:0;pointer-events:none;transform:translate3d(10%,0,0);transition-duration:.24s,.2s,.24s}
 body.pass-open{overflow:hidden}
+@media(prefers-reduced-motion:reduce){.pass-sheet,.m-scan{transition:none!important;transform:none!important}}
 .pass-sheet-inner{max-width:440px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
 .pass-nav{display:flex;justify-content:space-between;align-items:center;padding:calc(12px + env(safe-area-inset-top)) 16px 8px}
 .pass-done{border:0;background:none;color:var(--accent-text);font:650 16px var(--font);cursor:pointer;padding:6px 0}
@@ -762,7 +767,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="app.js?v=31" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="app.js?v=32" defer></script></body></html>
 
 
 

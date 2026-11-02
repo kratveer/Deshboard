@@ -821,7 +821,7 @@
   const openMenu=o=>{if(!drawer)return;drawer.hidden=!o;scrim.hidden=!o;document.body.classList.toggle('menu-open',o);$('#menu-btn').setAttribute('aria-expanded',String(o));if(o){renderDrawerAccount();drawer.querySelector('.menu-item')?.focus()}};
   $('#menu-btn')?.addEventListener('click',()=>openMenu(drawer.hidden));
   $('#drawer-close')?.addEventListener('click',()=>openMenu(false));scrim?.addEventListener('click',()=>openMenu(false));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#pass-sheet')?.classList.contains('show')){closePassSheet();return}if($('#loop-sheet')?.classList.contains('show')){closeLoopSheet();return}openMenu(false);$('#overlay').classList.remove('show')}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(window.DaylightNav?.anyOpen()){window.DaylightNav.back();return}openMenu(false);$('#overlay').classList.remove('show')}});
   ['#connections','#refresh','#customize'].forEach(s=>$(s)?.addEventListener('click',()=>openMenu(false)));
   function renderDrawerAccount(){const p=readProfile(),el=$('#drawer-account');if(!el)return;
     el.innerHTML=p.name||p.email?`<div class="da-avatar">${p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc((p.name||'?')[0])}</div><div><b>${esc(p.name||'')}</b><span>${esc(p.email||'')}</span></div>`:'<div><b>Not connected</b><span>Open Connections to sign in</span></div>';
@@ -1237,13 +1237,19 @@
     }
   }
   let openLoopId=null,openDetail=null,loopSheetTimer=0;
-  function closeLoopSheet(){
+  function dismissLoopSheet(){
     const sheet=$('#loop-sheet');if(!sheet||(!sheet.classList.contains('show')&&!sheet.classList.contains('closing')))return;
     clearTimeout(loopSheetTimer);openLoopId=null;openDetail=null;sheet.setAttribute('aria-hidden','true');
     sheet.classList.add('closing');sheet.classList.remove('show');
     const finish=()=>{sheet.classList.remove('closing');document.body.classList.remove('loop-open');sheet.removeEventListener('transitionend',onEnd)};
     const onEnd=e=>{if(e.target!==sheet&&!e.target?.classList?.contains('loop-sheet-card'))return;finish()};
-    sheet.addEventListener('transitionend',onEnd);loopSheetTimer=setTimeout(finish,320);
+    if(window.DaylightNav?.reduced()){finish();return}
+    sheet.addEventListener('transitionend',onEnd);loopSheetTimer=setTimeout(finish,280);
+  }
+  function closeLoopSheet(){
+    const N=window.DaylightNav;
+    if(N&&(N.topView()==='loop'||N.stack.some(x=>x.view==='loop'))){N.back();return}
+    dismissLoopSheet();
   }
   function initialsOf(name){return String(name||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase()||'?'}
   function inboxToDetail(item){
@@ -1320,8 +1326,14 @@
       });
     }
     paintLoopDetail(l,null);
+    const wasOpen=sheet.classList.contains('show');
     sheet.classList.remove('closing','show');void sheet.offsetWidth;
     sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('loop-open');
+    const N=window.DaylightNav;
+    if(N){
+      if(wasOpen&&N.topView()==='loop')N.replace('loop',l.id);
+      else if(N.topView()!=='loop')N.push('loop',l.id);
+    }
     if(l.mailId&&token){
       const mail=await fetchMailDetail(l.mailId);
       if(openLoopId===l.id&&mail)paintLoopDetail(openDetail||l,mail);
@@ -1432,11 +1444,129 @@
     writeJSON('daylight-wallet',seed);return seed;
   }
   function saveWallet(list){writeJSON('daylight-wallet',list.slice(0,80))}
-  function setTab(t){mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
-    mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];renderMobile();if(t==='assistant'&&!mChat.length)chatHello()}
-  function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab);else dispatchEvent(new Event('resize'))}
+  /* Native-style navigation: History API + slide transitions + edge swipe */
+  const Nav={
+    stack:[],
+    tabY:Object.create(null),
+    passTimer:0,scanTimer:0,
+    backing:false,
+    reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches},
+    // exposed for sheet helpers declared earlier in this scope
+    _bind(){window.DaylightNav=this;return this},
+    scrollEl(){return document.scrollingElement||document.documentElement},
+    saveTab(){if(!mq.matches)return;this.tabY[mTab]=this.scrollEl().scrollTop||window.scrollY||0},
+    restoreTab(){if(!mq.matches)return;const y=this.tabY[mTab]||0;requestAnimationFrame(()=>{this.scrollEl().scrollTop=y;window.scrollTo(0,y)})},
+    topView(){return this.stack.length?this.stack[this.stack.length-1].view:null},
+    isOpen(view){
+      if(view==='loop')return!!$('#loop-sheet')?.classList.contains('show');
+      if(view==='pass')return!!$('#pass-sheet')?.classList.contains('show');
+      if(view==='scan')return!!(scanUI&&!scanUI.hidden&&scanUI.classList.contains('show'));
+      return false;
+    },
+    anyOpen(){return this.isOpen('scan')||this.isOpen('pass')||this.isOpen('loop')},
+    push(view,id){
+      this.saveTab();
+      this.stack.push({view,id:id||null});
+      try{history.pushState({dl:1,view,id:id||null,n:this.stack.length},'')}catch{}
+    },
+    replace(view,id){
+      if(this.stack.length)this.stack[this.stack.length-1]={view,id:id||null};
+      else this.stack.push({view,id:id||null});
+      try{history.replaceState({dl:1,view,id:id||null,n:this.stack.length},'')}catch{}
+    },
+    /** In-app / gesture / system back — pop history so popstate dismisses */
+    back(){
+      if(this.backing)return true;
+      if(this.stack.length){this.backing=true;history.back();return true}
+      if(this.anyOpen()){this.dismissTop(true);this.restoreTab();return true}
+      return false;
+    },
+    onPop(){
+      this.backing=false;
+      const top=this.stack.pop();
+      if(top)this.dismissView(top.view,true);
+      else if(this.anyOpen())this.dismissTop(true);
+      this.restoreTab();
+    },
+    dismissTop(silent){
+      if(this.isOpen('scan'))this.dismissView('scan',silent);
+      else if(this.isOpen('pass'))this.dismissView('pass',silent);
+      else if(this.isOpen('loop'))this.dismissView('loop',silent);
+    },
+    dismissView(view,silent){
+      if(view==='loop')dismissLoopSheet();
+      else if(view==='pass')dismissPassSheet();
+      else if(view==='scan')dismissScan();
+    },
+    /** Drop matching stack entries without history.back (e.g. scan→pass replace) */
+    drop(view){
+      while(this.stack.length&&this.stack[this.stack.length-1].view===view)this.stack.pop();
+    },
+    sheetEl(view){
+      if(view==='loop')return $('#loop-sheet')?.querySelector('.loop-sheet-card')||$('#loop-sheet');
+      if(view==='pass')return $('#pass-sheet');
+      if(view==='scan')return scanUI;
+      return null;
+    }
+  };
+  Nav._bind();
+  if(history.state?.dl&&history.state.view){try{history.replaceState({dl:0,root:1},'')}catch{}}
+  else if(!history.state?.dl){try{history.replaceState({dl:0,root:1},'')}catch{}}
+  function setTab(t,opts){
+    const soft=opts&&opts.soft;
+    if(!soft&&t!==mTab)Nav.saveTab();
+    mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+    mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];renderMobile();if(t==='assistant'&&!mChat.length)chatHello();
+    if(!soft)Nav.restoreTab();
+  }
+  function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab,{soft:true});else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);
   $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+  window.addEventListener('popstate',()=>Nav.onPop());
+  document.addEventListener('backbutton',e=>{if(Nav.back()){e.preventDefault?.();e.stopPropagation?.()}},true);
+  try{
+    const Cap=window.Capacitor,App=Cap?.Plugins?.App||Cap?.App;
+    App?.addListener?.('backButton',()=>{if(Nav.back())return;App.minimizeApp?.()});
+  }catch{}
+  (function bindEdgeSwipe(){
+    let s=null;
+    const edge=28,thresh=()=>Math.min(108,innerWidth*.26);
+    const clearDrag=el=>{if(!el)return;el.style.transition='';el.style.transform=''};
+    document.addEventListener('touchstart',e=>{
+      if(!Nav.stack.length&&!Nav.anyOpen())return;
+      const t=e.touches[0];if(!t)return;
+      const fromLeft=t.clientX<=edge,fromRight=t.clientX>=innerWidth-edge;
+      if(!fromLeft&&!fromRight)return;
+      const view=Nav.topView()||(Nav.isOpen('scan')?'scan':Nav.isOpen('pass')?'pass':Nav.isOpen('loop')?'loop':null);
+      s={x0:t.clientX,y0:t.clientY,fromLeft,active:false,view,el:Nav.sheetEl(view)};
+    },{passive:true});
+    document.addEventListener('touchmove',e=>{
+      if(!s)return;
+      const t=e.touches[0];if(!t)return;
+      const dx=t.clientX-s.x0,dy=Math.abs(t.clientY-s.y0);
+      if(!s.active){
+        if(dy>14&&dy>Math.abs(dx)){s=null;return}
+        const ok=s.fromLeft?dx>8:dx<-8;if(!ok)return;
+        s.active=true;
+      }
+      if(e.cancelable)e.preventDefault();
+      if(Nav.reduced()||!s.el)return;
+      const p=s.fromLeft?Math.max(0,dx):Math.max(0,-dx);
+      s.el.style.transition='none';
+      s.el.style.transform=`translate3d(${s.fromLeft?p:-p}px,0,0)`;
+    },{passive:false});
+    const end=e=>{
+      if(!s)return;
+      const t=e.changedTouches?.[0];
+      const dx=t?t.clientX-s.x0:0;
+      const dist=s.fromLeft?dx:-dx;
+      const el=s.el,was=s.active;s=null;
+      clearDrag(el);
+      if(was&&dist>thresh())Nav.back();
+    };
+    document.addEventListener('touchend',end,{passive:true});
+    document.addEventListener('touchcancel',end,{passive:true});
+  })();
   // Home — compact Daily Brief + Open Loops cards (reference layout)
   function loopTags(l){const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&l.type!=='overdue')tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);return tags}
   function mobileLoopCard(l){
@@ -1601,13 +1731,23 @@
     if(payload&&!item.barcodeImage)item.barcodeImage=barcodeUrl(String(payload).replace(/^#/,''));
     return item;
   }
-  function closePassSheet(){
-    const sheet=$('#pass-sheet');if(!sheet)return;
-    sheet.classList.remove('show');sheet.setAttribute('aria-hidden','true');document.body.classList.remove('pass-open');mWalletOpen='';
+  function dismissPassSheet(){
+    const sheet=$('#pass-sheet');if(!sheet||(!sheet.classList.contains('show')&&!sheet.classList.contains('closing')))return;
+    clearTimeout(Nav.passTimer);mWalletOpen='';sheet.setAttribute('aria-hidden','true');
+    sheet.classList.add('closing');sheet.classList.remove('show');
+    const finish=()=>{sheet.classList.remove('closing');document.body.classList.remove('pass-open');sheet.removeEventListener('transitionend',onEnd)};
+    const onEnd=e=>{if(e.target!==sheet)return;finish()};
+    if(Nav.reduced()){finish();return}
+    sheet.addEventListener('transitionend',onEnd);Nav.passTimer=setTimeout(finish,280);
   }
-  function openPassSheet(id){
+  function closePassSheet(){
+    if(Nav.topView()==='pass'||Nav.stack.some(x=>x.view==='pass')){Nav.back();return}
+    dismissPassSheet();
+  }
+  function openPassSheet(id,opts){
     const item=ensurePassCodes(readWallet().find(i=>i.id===id));if(!item)return;
     mWalletOpen=id;
+    const hist=opts&&opts.history;
     let sheet=$('#pass-sheet');
     if(!sheet){
       sheet=document.createElement('div');sheet.id='pass-sheet';sheet.className='pass-sheet';sheet.setAttribute('aria-hidden','true');
@@ -1674,7 +1814,14 @@
         <div><span>Expiry</span><b>${esc(expiry||'—')}</b></div>
       </div>
       <div class="pass-actions"><button type="button" class="connect ghost" data-pass-del>Remove</button></div>`;
+    const wasOpen=sheet.classList.contains('show');
+    clearTimeout(Nav.passTimer);sheet.classList.remove('closing');
+    if(!wasOpen){sheet.classList.remove('show');void sheet.offsetWidth}
     sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('pass-open');
+    if(hist==='replace')Nav.replace('pass',id);
+    else if(hist==='none'){/* caller owns history */}
+    else if(wasOpen&&Nav.topView()==='pass')Nav.replace('pass',id);
+    else if(Nav.topView()!=='pass')Nav.push('pass',id);
   }
   function renderWallet(){
     const el=$('#m-wallet');if(!el)return;
@@ -1700,11 +1847,24 @@
     $('#m-scan-review').hidden=step!=='review';
   }
   function openScan(){
-    scanUI.hidden=false;scanUI.classList.add('show');scanUI.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
+    clearTimeout(Nav.scanTimer);scanUI.hidden=false;scanUI.classList.remove('closing');
+    if(!scanUI.classList.contains('show')){void scanUI.offsetWidth}
+    scanUI.classList.add('show');scanUI.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';
     showScanStep('landing');
+    if(Nav.topView()!=='scan')Nav.push('scan');
+  }
+  function dismissScan(){
+    if(scanUI.hidden&&!scanUI.classList.contains('show'))return;
+    clearTimeout(Nav.scanTimer);stopScanCamera();scanDraft=null;scanExtract=null;
+    scanUI.setAttribute('aria-hidden','true');scanUI.classList.add('closing');scanUI.classList.remove('show');
+    const finish=()=>{scanUI.classList.remove('closing');scanUI.hidden=true;document.body.style.overflow='';scanUI.removeEventListener('transitionend',onEnd)};
+    const onEnd=e=>{if(e.target!==scanUI)return;finish()};
+    if(Nav.reduced()){finish();return}
+    scanUI.addEventListener('transitionend',onEnd);Nav.scanTimer=setTimeout(finish,280);
   }
   function closeScan(){
-    stopScanCamera();scanDraft=null;scanExtract=null;scanUI.classList.remove('show');scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');document.body.style.overflow='';
+    if(Nav.topView()==='scan'||Nav.stack.some(x=>x.view==='scan')){Nav.back();return}
+    dismissScan();
   }
   async function startScanCamera(){
     const perm=window.DaylightScan?await window.DaylightScan.ensureCameraPermission():{granted:true};
@@ -1786,7 +1946,9 @@
     });
     const list=readWallet();list.unshift(item);saveWallet(list);
     mWalletFilter='all';mWalletOpen=item.id;setLS('daylight-wallet-filter','all');
-    closeScan();setTab('wallet');openPassSheet(item.id);toast('Saved to Wallet');
+    Nav.drop('scan');dismissScan();setTab('wallet',{soft:true});
+    openPassSheet(item.id,{history:'replace'});
+    toast('Saved to Wallet');
   }
   $('#m-wallet-scan')?.addEventListener('click',openScan);
   scanUI.addEventListener('click',e=>{
@@ -1852,7 +2014,7 @@
   const openCmd=capture=>{document.body.classList.add('cmd-open');if(capture)$('#cmd-capture')?.click();else{$('#cmd-input')?.focus()}};
   $('#m-search').onclick=e=>{e.stopPropagation();openCmd(false)};
   document.addEventListener('click',e=>{if(document.body.classList.contains('cmd-open')&&!e.composedPath().includes($('#cmd')))document.body.classList.remove('cmd-open')});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.body.classList.remove('cmd-open');if(!scanUI.hidden)closeScan()}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('cmd-open')});
   function renderMobile(){if(!mq.matches)return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(mTab==='wallet')renderWallet();else if(mTab==='calendar')renderCalendar2();else if(mTab==='stats')renderStats()}
   { const o=renderLoops;renderLoops=function(){o();renderMobile()} }
   { const o=renderTasks;renderTasks=function(){o();if(mq.matches&&(mTab==='home'||mTab==='inbox')){if(mTab==='home')renderHome();else renderInbox()}} }
