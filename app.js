@@ -3085,12 +3085,146 @@
   $('#m-loop-grid')?.addEventListener('click',onLoopListClick);
   $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
   $('#m-loops-see')?.addEventListener('click',()=>{loopsShowAll=!loopsShowAll;renderHome()});
-  $('#m-brief')?.addEventListener('click',()=>{
-    const money=computeMoney(),loops=(token||microsoftAccount||DEMO)?computeLoops():[];
-    if((money.pending||[]).length){setTab('inbox');return}
-    if(loops[0]){openLoopSheet(loops[0].id);return}
-    setTab('assistant');ask('What needs my attention today?');
-  });
+  function collectDailyBrief(){
+    const loops=(token||microsoftAccount||DEMO)?computeLoops():[];
+    const money=(token||microsoftAccount||DEMO)?computeMoney():{pending:[],bill:[],subscription:[],all:[],counts:{total:0}};
+    const {timed,allDay,connected}=todayEvents();
+    const now=Date.now(),dayEnd=localMidnight.getTime()+2*86400000;
+    const actions=loops.filter(l=>['reply','overdue','deadline','prepare','followup'].includes(l.type))
+      .sort((a,b)=>(b.weight||0)-(a.weight||0)||(a.whenMs||0)-(b.whenMs||0)).slice(0,8)
+      .map(l=>({kind:'action',id:l.id,title:l.title,meta:l.meta||l.detail||l.category||'',type:l.type,href:l.href||''}));
+    const payments=[...(money.pending||[]),...(money.bill||[])]
+      .filter((x,i,a)=>a.findIndex(y=>y.id===x.id||(y.mailId&&y.mailId===x.mailId))===i)
+      .slice(0,8)
+      .map(p=>({kind:'pay',id:p.id||p.mailId,title:p.title||p.subject||'Payment',meta:[p.amount,p.meta||p.tag].filter(Boolean).join(' · '),amount:p.amount||'',href:p.href||'',mailId:p.mailId}));
+    const events=timed.filter(e=>e.start.getTime()<dayEnd).slice(0,8).map(e=>({
+      kind:'cal',id:'ev:'+e.start.getTime()+e.title,title:e.title,
+      meta:`${hm(e.start)} – ${hm(e.end)}`,whenMs:e.start.getTime()
+    }));
+    allDay.slice(0,3).forEach(t=>events.push({kind:'cal',id:'allday:'+t,title:t,meta:'All day'}));
+    if(!events.length&&loopsData?.upcoming){
+      (loopsData.upcoming||[]).slice(0,6).forEach(e=>{
+        const st=new Date(e.start?.dateTime||e.start?.date||NaN);if(isNaN(st))return;
+        events.push({kind:'cal',id:'up:'+e.id,title:e.summary||'(No title)',meta:st.toLocaleString(undefined,{weekday:'short',hour:'2-digit',minute:'2-digit'}),href:e.htmlLink||'',whenMs:st.getTime()});
+      });
+    }
+    const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(String(v))?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+    const reminders=[
+      ...personalTasks.map(t=>({...t,src:'Daylight'})),
+      ...(providerData.google.tasks||[]).map(t=>({...t,src:'Google Tasks'})),
+      ...(providerData.microsoft.tasks||[]).map(t=>({...t,src:'To Do'}))
+    ].filter(t=>{
+      if(!t?.title)return false;
+      if(!t.dueDate)return !!t.suggested;
+      const d=dueDay(t.dueDate).getTime();
+      return d<=dayEnd;
+    }).slice(0,8).map(t=>{
+      const due=t.dueDate?dueDay(t.dueDate):null;
+      const tag=due?(due<localMidnight?'Overdue':due<tomorrow?'Today':'Tomorrow'):(t.project||t.src||'Reminder');
+      return {kind:'task',id:'task:'+(t.id||t.title),title:t.title,meta:[tag,t.amount,t.listName||t.project||t.src].filter(Boolean).join(' · '),href:t.href||'',mailId:t.mailId};
+    });
+    const bits=[];
+    if(actions.length)bits.push(`${actions.length} action${actions.length===1?'':'s'}`);
+    if(payments.length)bits.push(`${payments.length} payment${payments.length===1?'':'s'}`);
+    if(events.length)bits.push(`${events.length} event${events.length===1?'':'s'}`);
+    if(reminders.length)bits.push(`${reminders.length} reminder${reminders.length===1?'':'s'}`);
+    const summary=!token&&!microsoftAccount&&!DEMO
+      ?'Connect Google to brief your day from Calendar, Gmail and Tasks.'
+      :(bits.length?`Here’s what needs attention: ${bits.join(', ')}.`:'You’re clear for now — nothing urgent from mail, calendar or tasks.');
+    return {actions,payments,events,reminders,summary,connected:!!(token||microsoftAccount||DEMO),calConnected:!!connected};
+  }
+  function briefRowHtml(item){
+    const ico=item.kind==='pay'?ICON.wallet:item.kind==='cal'?ICON.calendar:item.kind==='task'?ICON.clock:ICON.spark;
+    const cls=item.kind==='pay'?' is-pay':item.kind==='cal'?' is-cal':item.kind==='task'?' is-task':'';
+    return `<button type="button" class="brief-row${cls}" data-brief-kind="${esc(item.kind)}" data-brief-id="${esc(item.id||'')}" ${item.href?`data-brief-href="${esc(item.href)}"`:''} ${item.mailId?`data-brief-mail="${esc(item.mailId)}"`:''}>
+      <span class="brief-row-ico" aria-hidden="true">${svg(ico,18)}</span>
+      <span class="brief-row-copy"><b>${esc(item.title)}</b><small>${esc(item.meta||'')}</small></span>
+      <span class="brief-row-meta">${esc(item.amount||item.type||'')}</span>
+    </button>`;
+  }
+  function briefSec(title,items,empty){
+    if(!items.length)return `<section class="brief-sec"><div class="brief-sec-h">${esc(title)}</div><div class="brief-empty">${esc(empty)}</div></section>`;
+    return `<section class="brief-sec"><div class="brief-sec-h">${esc(title)} <em>${items.length}</em></div><div class="brief-list">${items.map(briefRowHtml).join('')}</div></section>`;
+  }
+  function ensureBriefPop(){
+    let el=$('#brief-pop');
+    if(el)return el;
+    el=document.createElement('div');
+    el.id='brief-pop';el.className='brief-pop';el.setAttribute('aria-hidden','true');
+    el.innerHTML=`<button type="button" class="brief-pop-scrim" data-brief-close aria-label="Close daily brief"></button>
+      <div class="brief-pop-card" role="dialog" aria-modal="true" aria-labelledby="brief-pop-title">
+        <div class="brief-pop-head">
+          <div><b id="brief-pop-title">Daily Brief</b><small id="brief-pop-sub">From Calendar, Gmail and Tasks</small></div>
+          <button type="button" class="brief-pop-x" data-brief-close aria-label="Close">×</button>
+        </div>
+        <div class="brief-pop-body" id="brief-pop-body"><div class="brief-loading">Gathering your day…</div></div>
+      </div>`;
+    document.body.append(el);
+    el.addEventListener('click',e=>{
+      if(e.target.closest('[data-brief-close]')){closeBriefPop();return}
+      const row=e.target.closest('[data-brief-kind]');if(!row)return;
+      const kind=row.dataset.briefKind,id=row.dataset.briefId,href=row.dataset.briefHref;
+      feel.select();
+      if(kind==='action'&&id){closeBriefPop();openLoopSheet(id);return}
+      if(kind==='pay'){closeBriefPop();setTab('inbox');mInboxFilter='payments';setLS('daylight-inbox-filter','payments');renderInbox({animate:false});return}
+      if(kind==='cal'){closeBriefPop();setTab('assistant');return}
+      if(kind==='task'&&row.dataset.briefMail){closeBriefPop();const loops=computeLoops();const hit=loops.find(l=>l.mailId===row.dataset.briefMail);if(hit)openLoopSheet(hit.id);else setTab('inbox');return}
+      if(href){window.open(href,'_blank','noopener');return}
+    });
+    return el;
+  }
+  function paintBriefPop(data){
+    const body=$('#brief-pop-body'),sub=$('#brief-pop-sub');
+    if(sub)sub.textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
+    if(!body)return;
+    body.innerHTML=`
+      <p class="brief-summary">${esc(data.summary)}</p>
+      ${briefSec('Actions to take',data.actions,'No replies, deadlines or follow-ups need you right now.')}
+      ${briefSec('Payments due',data.payments,'No pending bills or payments in recent mail.')}
+      ${briefSec('Upcoming events',data.events,data.calConnected?'Nothing on the calendar in the next day.':'Connect Calendar to see upcoming events.')}
+      ${briefSec('Task reminders',data.reminders,'No due tasks or reminders for today.')}`;
+  }
+  async function openBriefPop(){
+    feel.select();
+    const el=ensureBriefPop();
+    el.classList.add('show');el.setAttribute('aria-hidden','false');
+    document.body.classList.add('brief-open');
+    if(Nav.topView()!=='brief')Nav.push('brief');
+    const body=$('#brief-pop-body');
+    if(body)body.innerHTML='<div class="brief-loading">Gathering Calendar, Gmail and Tasks…</div>';
+    try{
+      if(token){
+        const jobs=[];
+        if(!loopsData||Date.now()-loopsFetched>60000)jobs.push(loadLoops(true).catch(e=>console.warn('brief loops',e)));
+        if(!providerData.google.events)jobs.push(loadCalendar().catch(e=>console.warn('brief cal',e)));
+        if(!providerData.google.tasks)jobs.push(loadTasks().catch(e=>console.warn('brief tasks',e)));
+        if(jobs.length)await Promise.allSettled(jobs);
+      }
+    }catch(e){console.warn('brief refresh',e)}
+    if(!el.classList.contains('show'))return;
+    paintBriefPop(collectDailyBrief());
+  }
+  function closeBriefPop(instant){
+    const el=$('#brief-pop');if(!el||!el.classList.contains('show')){if(instant)Nav.drop('brief');return}
+    el.classList.remove('show');el.setAttribute('aria-hidden','true');
+    document.body.classList.remove('brief-open');
+    if(instant){Nav.drop('brief');return}
+    if(Nav.topView()==='brief'||Nav.stack.some(x=>x.view==='brief')){Nav.back();return}
+    Nav.drop('brief');
+  }
+  const _navDismiss=Nav.dismissView.bind(Nav);
+  Nav.dismissView=function(view){if(view==='brief'){closeBriefPop(true);return}_navDismiss(view)};
+  const _navInstant=Nav.dismissInstant.bind(Nav);
+  Nav.dismissInstant=function(view){if(view==='brief'){closeBriefPop(true);return}_navInstant(view)};
+  const _navIsOpen=Nav.isOpen.bind(Nav);
+  Nav.isOpen=function(view){return view==='brief'?!!$('#brief-pop')?.classList.contains('show'):_navIsOpen(view)};
+  const _navAny=Nav.anyOpen.bind(Nav);
+  Nav.anyOpen=function(){return Nav.isOpen('brief')||_navAny()};
+  const _navDismissTop=Nav.dismissTop.bind(Nav);
+  Nav.dismissTop=function(){if(Nav.isOpen('brief')){Nav.dismissView('brief');return}_navDismissTop()};
+  const _navSheet=Nav.sheetEl.bind(Nav);
+  Nav.sheetEl=function(view){return view==='brief'?($('#brief-pop')?.querySelector('.brief-pop-card')||$('#brief-pop')):_navSheet(view)};
+  $('#m-brief')?.addEventListener('click',()=>{openBriefPop()});
   $('#m-schedule-cal')?.addEventListener('click',()=>{feel.select();setTab('assistant')});
   // Inbox — subscriptions, bills, payments
   function inboxItems(filter){
