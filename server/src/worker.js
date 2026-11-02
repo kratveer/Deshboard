@@ -12,7 +12,7 @@
 const GOOGLE_SCOPES = [
   'openid', 'email', 'profile',
   'https://www.googleapis.com/auth/calendar.events.readonly',
-  'https://www.googleapis.com/auth/gmail.metadata',
+  'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/tasks.readonly',
   'https://www.googleapis.com/auth/drive.metadata.readonly',
   'https://www.googleapis.com/auth/contacts.readonly',

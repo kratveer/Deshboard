@@ -10,7 +10,7 @@
   const scopes = [
     'openid','email','profile',
     'https://www.googleapis.com/auth/calendar.events.readonly',
-    'https://www.googleapis.com/auth/gmail.metadata',
+    'https://www.googleapis.com/auth/gmail.readonly',
     'https://www.googleapis.com/auth/tasks.readonly',
     'https://www.googleapis.com/auth/drive.metadata.readonly',
     'https://www.googleapis.com/auth/contacts.readonly'
@@ -589,28 +589,32 @@
     if(loopsData){
       loopsData.inbox.forEach(m=>{const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1),age=now-when,labels=m.labelIds||[];
         const primary=labels.includes('CATEGORY_PERSONAL')||!labels.some(l=>/^CATEGORY_(PROMOTIONS|SOCIAL|UPDATES|FORUMS)$/.test(l));
-        if(RENEWAL.test(subject)&&age<30*day){add('renewal',m.threadId,`Review: ${subject}`,`From ${from.name}`,ago(when),gmailLink(m.threadId));return}
-        if(TRAVEL.test(subject)&&age<21*day){add('travel',m.threadId,subject,`From ${from.name} · check dates, tickets and where you’re staying`,ago(when),gmailLink(m.threadId));return}
+        const mailExtra={mailId:m.id,threadId:m.threadId,fromName:from.name,fromEmail:from.email,whenMs:when.getTime(),snippet:m.snippet||'',subject};
+        if(RENEWAL.test(subject)&&age<30*day){add('renewal',m.threadId,`Review: ${subject}`,`From ${from.name}`,ago(when),gmailLink(m.threadId),{...mailExtra,category:'Renewal / Billing'});return}
+        if(TRAVEL.test(subject)&&age<21*day){add('travel',m.threadId,subject,`From ${from.name} · check dates, tickets and where you’re staying`,ago(when),gmailLink(m.threadId),{...mailExtra,category:'Travel'});return}
         if(primary&&!AUTOMATED.test(from.email)&&(labels.includes('UNREAD')||labels.includes('IMPORTANT')||labels.includes('STARRED'))&&age>2*3600000&&age<14*day)
-          add('reply',m.threadId,`Reply to ${from.name}`,subject,`waiting ${ago(when).replace(' ago','')}`,gmailLink(m.threadId),{weight:labels.includes('IMPORTANT')||labels.includes('STARRED')?2:1});
+          add('reply',m.threadId,`Reply to ${from.name}`,subject,`waiting ${ago(when).replace(' ago','')}`,gmailLink(m.threadId),{...mailExtra,weight:labels.includes('IMPORTANT')||labels.includes('STARRED')?2:1,category:'Reply / Email'});
       });
       loopsData.threads.forEach(t=>{const msgs=t.messages||[],last=msgs.at(-1);if(!last||!(last.labelIds||[]).includes('SENT'))return;
         const h=last.payload?.headers||[],when=new Date(header(h,'Date')||last.internalDate*1),age=now-when;if(age<3*day||age>14*day)return;
         const to=parseFrom((header(h,'To')||'').split(',')[0]);if(!to.email||AUTOMATED.test(to.email))return;
-        add('followup',t.id,`Follow up with ${to.name}`,header(h,'Subject')||'(No subject)',`no reply for ${Math.floor(age/day)} days`,gmailLink(t.id))});
+        add('followup',t.id,`Follow up with ${to.name}`,header(h,'Subject')||'(No subject)',`no reply for ${Math.floor(age/day)} days`,gmailLink(t.id),{mailId:last.id,threadId:t.id,fromName:to.name,fromEmail:to.email,whenMs:when.getTime(),snippet:last.snippet||'',subject:header(h,'Subject')||'(No subject)',category:'Follow up / Email'});
+      });
       loopsData.upcoming.forEach(e=>{const st=new Date(e.start?.dateTime||e.start?.date),title=e.summary||'(No title)',days=Math.floor((st-localMidnight)/day);
         const when=days===0?'Today':days===1?'Tomorrow':st.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
         const time=e.start?.dateTime?' · '+hm(st):'';
+        const calExtra={whenMs:st.getTime(),category:'Calendar',dueLabel:when};
         if((e.attendees||[]).length>1&&e.start?.dateTime&&days<=1&&st>now){const f=loopsData.files[e.id];
-          add('prepare',e.id,`Prepare for ${title}`,`${when}${time} · ${(e.attendees||[]).length} people`,'',e.htmlLink,f?{related:f}:{})}
-        if(DEADLINE.test(title)&&days<=3)add('deadline',e.id,title,`${when}${time}`,'',e.htmlLink);
-        if(TRAVEL.test(title+' '+(e.location||''))&&days<=7)add('travel',e.id,title,`${when}${time}${e.location?' · '+e.location:''} · tickets and accommodation sorted?`,'',e.htmlLink);
+          add('prepare',e.id,`Prepare for ${title}`,`${when}${time} · ${(e.attendees||[]).length} people`,'',e.htmlLink,{...calExtra,related:f||undefined})}
+        if(DEADLINE.test(title)&&days<=3)add('deadline',e.id,title,`${when}${time}`,'',e.htmlLink,calExtra);
+        if(TRAVEL.test(title+' '+(e.location||''))&&days<=7)add('travel',e.id,title,`${when}${time}${e.location?' · '+e.location:''} · tickets and accommodation sorted?`,'',e.htmlLink,{...calExtra,category:'Travel'});
       });
     }
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
     [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks.filter(t=>t.dueDate).map(t=>({...t,source:'Daylight'}))].forEach((t,i)=>{if(!t.dueDate)return;const d=dueDay(t.dueDate),href=t.source==='Daylight'?'':t.source==='Microsoft To Do'?'https://to-do.office.com/':'https://tasks.google.com/';
-      if(d<localMidnight)add('overdue',t.title+i,`Reschedule: ${t.title}`,`Was due ${d.toLocaleDateString(undefined,{day:'numeric',month:'short'})}`,'',href);
-      else if(d<new Date(localMidnight.getTime()+2*day))add('deadline',t.title+i,t.title,d<tomorrow?'Due today':'Due tomorrow','',href)});
+      const taskExtra={whenMs:d.getTime(),dueLabel:d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}),category:'Task'};
+      if(d<localMidnight)add('overdue',t.title+i,`Reschedule: ${t.title}`,`Was due ${d.toLocaleDateString(undefined,{day:'numeric',month:'short'})}`,'',href,taskExtra);
+      else if(d<new Date(localMidnight.getTime()+2*day))add('deadline',t.title+i,t.title,d<tomorrow?'Due today':'Due tomorrow','',href,taskExtra)});
     const st=loopState(),order={overdue:0,deadline:1,reply:2,prepare:3,followup:4,renewal:5,travel:6};
     const seen=new Set();
     return out.filter(l=>{if(seen.has(l.id))return false;seen.add(l.id);const s=st[l.id];return !(s&&(s.done||(s.snooze&&s.snooze>now)))})
@@ -633,7 +637,7 @@
       :kind==='bill'?`Bill from ${brand}${amt?' · '+amt:''}`
       :kind==='store'?`Store purchase${amt?' · '+amt:''}`
       :`Online payment${amt?' · '+amt:''}`;
-    return {id:m.threadId||m.id,title:brand,subject,detail:subline,from:brand,meta:renew.label||ago(when),href:gmailLink(m.threadId||m.id),when:renew.sort||when.getTime(),kind,tag:MONEY_LABEL[kind]||'Money',urgent:!!renew.urgent||kind==='pending',amount:amt||'',color:brandColor(brand),received:!!renew.received};
+    return {id:m.threadId||m.id,mailId:m.id,title:brand,subject,detail:subline,from:brand,fromName:from.name,fromEmail:from.email,meta:renew.label||ago(when),href:gmailLink(m.threadId||m.id),when:renew.sort||when.getTime(),whenMs:when.getTime(),kind,tag:MONEY_LABEL[kind]||'Money',urgent:!!renew.urgent||kind==='pending',amount:amt||'',color:brandColor(brand),received:!!renew.received,snippet:m.snippet||''};
   }
   function computeMoney(){
     const groups={subscription:[],bill:[],store:[],online:[],pending:[]},seen=new Set(),now=Date.now(),day=86400000;
@@ -1173,81 +1177,155 @@
   function srcOf(l){const h=l.href||'';return h.includes('mail.google')?'Gmail':h.includes('calendar.google')?'Calendar':h.includes('tasks.google')?'Google Tasks':h.includes('to-do.office')?'To Do':'Daylight'}
   const TAGS={overdue:['Overdue','hot'],deadline:['Due soon','warm'],reply:['Suggested action',''],followup:['Suggested action',''],prepare:['Upcoming',''],renewal:['Review',''],travel:['Reminder','']};
   function findLoop(id){return computeLoops().find(l=>l.id===id)||null}
-  function loopSubject(l){return l.detail||l.title||''}
+  function loopSubject(l){return l.subject||l.detail||l.title||''}
   function loopNote(l){
-    if(l.type==='reply')return 'This message still needs a reply from you.';
-    if(l.type==='followup')return 'You sent this and haven’t heard back — a short nudge may help.';
+    if(l.type==='reply')return 'Read the email and send a clear reply.';
+    if(l.type==='followup')return 'Send a short nudge — you haven’t heard back yet.';
     if(l.type==='prepare')return 'Review attendees, notes and linked files before it starts.';
     if(l.type==='overdue')return 'Past due. Reschedule to a realistic time or mark it done.';
     if(l.type==='deadline')return 'Deadline is close. Finish the work or move the due date.';
     if(l.type==='renewal')return 'Confirm you still need this before it renews.';
     if(l.type==='travel')return 'Confirm tickets, stay, documents and timing.';
-    return '';
+    return 'Review this item and take the next step.';
+  }
+  function loopCategory(l){return l.category||({reply:'Reply / Email',followup:'Follow up / Email',prepare:'Meeting',overdue:'Task',deadline:'Task',renewal:'Renewal / Billing',travel:'Travel'}[l.type]||'Open loop')}
+  function loopDueLabel(l){
+    if(l.dueLabel)return l.dueLabel;
+    if(l.whenMs){const d=new Date(l.whenMs);if(l.type==='prepare'||l.type==='deadline'||l.type==='overdue')return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}
+    return 'Today';
   }
   function loopSuggestion(l){
-    const subject=(l.type==='reply'||l.type==='followup')?(l.detail||l.title):l.title;
-    if(l.type==='reply')return{kind:'reply',label:'Suggested reply',text:`Hi,\n\nThanks for your note about “${subject}”. I’ll follow up with a clear update shortly.\n\nBest regards`,cta:'Use reply'};
-    if(l.type==='followup')return{kind:'reply',label:'Suggested follow-up',text:`Hi,\n\nJust checking in on “${subject}” — any update on your side?\n\nThanks`,cta:'Send follow-up'};
-    if(l.type==='prepare')return{kind:'task',label:'Suggested task',text:`Prepare for: ${l.title.replace(/^Prepare for\s+/i,'')}`,cta:'Add task'};
-    if(l.type==='overdue')return{kind:'task',label:'Suggested task',text:l.title.startsWith('Reschedule')?l.title:`Reschedule: ${l.title}`,cta:'Add task'};
-    if(l.type==='deadline')return{kind:'task',label:'Suggested task',text:`Finish: ${l.title}`,cta:'Add task'};
-    if(l.type==='renewal')return{kind:'task',label:'Suggested action',text:`Review renewal · ${subject.replace(/^Review:\s*/i,'')}`,cta:'Add reminder'};
-    if(l.type==='travel')return{kind:'task',label:'Suggested checklist',text:`Confirm tickets & stay · ${l.title}`,cta:'Add task'};
-    return{kind:'task',label:'Suggested action',text:l.title,cta:'Add task'};
+    const subject=loopSubject(l);
+    if(l._inbox&&l.category==='Subscription')return{kind:'reply',label:'AI Suggestion',text:`Decide whether to keep “${l.title}”${l.amount?' ('+l.amount+')':''} before the next renewal.`,cta:'Draft note',primary:'Open in Gmail'};
+    if(l._inbox&&l.category==='Pending')return{kind:'reply',label:'AI Suggestion',text:`Pay or reschedule “${l.title}”${l.amount?' · '+l.amount:''} and confirm once done.`,cta:'Draft note',primary:'Open in Gmail'};
+    if(l._inbox&&l.category==='Bill')return{kind:'reply',label:'AI Suggestion',text:`Review the bill for “${l.title}”${l.amount?' · '+l.amount:''} and schedule payment if needed.`,cta:'Draft note',primary:'Open in Gmail'};
+    if(l._inbox)return{kind:'reply',label:'AI Suggestion',text:`Review “${subject}” from ${l.fromName||l.title} and take the next money action.`,cta:'Draft note',primary:'Open in Gmail'};
+    if(l.type==='reply')return{kind:'reply',label:'AI Suggestion',text:`Draft a short, polite reply confirming you received “${subject}” and will follow up with details.`,cta:'Draft Reply',primary:'Reply Now'};
+    if(l.type==='followup')return{kind:'reply',label:'AI Suggestion',text:`Send a brief check-in on “${subject}” asking if there’s any update.`,cta:'Draft Reply',primary:'Send follow-up'};
+    if(l.type==='prepare')return{kind:'task',label:'AI Suggestion',text:`Prepare notes and an agenda for “${l.title.replace(/^Prepare for\s+/i,'')}”.`,cta:'Add task',primary:'Open calendar'};
+    if(l.type==='overdue')return{kind:'task',label:'AI Suggestion',text:`Reschedule “${l.title.replace(/^Reschedule:\s*/i,'')}” to a realistic day this week.`,cta:'Add reminder',primary:'Open task'};
+    if(l.type==='deadline')return{kind:'task',label:'AI Suggestion',text:`Block time today to finish “${l.title}”.`,cta:'Add task',primary:'Open task'};
+    if(l.type==='renewal')return{kind:'task',label:'AI Suggestion',text:`Review whether you still need this subscription before it renews.`,cta:'Add reminder',primary:'Open mail'};
+    if(l.type==='travel')return{kind:'task',label:'AI Suggestion',text:`Confirm tickets, accommodation and documents for this trip.`,cta:'Add task',primary:'Open'};
+    return{kind:'task',label:'AI Suggestion',text:l.title,cta:'Add task',primary:'Open'};
   }
-  let openLoopId=null,loopSheetTimer=0;
+  const mailDetailCache={};
+  function decodeMailText(payload){
+    const decode=d=>{try{const bin=atob(String(d).replace(/-/g,'+').replace(/_/g,'/'));try{return decodeURIComponent(escape(bin))}catch{return bin}}catch{return''}};
+    const walk=p=>{
+      if(!p)return'';
+      if(p.mimeType==='text/plain'&&p.body?.data)return decode(p.body.data);
+      if(p.parts){for(const x of p.parts){const t=walk(x);if(t)return t}}
+      if(p.mimeType==='text/html'&&p.body?.data)return decode(p.body.data).replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      return'';
+    };
+    return(walk(payload)||'').trim().slice(0,1400);
+  }
+  async function fetchMailDetail(mailId){
+    if(!mailId||!token)return null;
+    if(mailDetailCache[mailId])return mailDetailCache[mailId];
+    try{
+      const m=await api(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mailId)}?format=full`);
+      const h=m.payload?.headers||[],from=parseFrom(header(h,'From'));
+      const detail={id:m.id,threadId:m.threadId,snippet:m.snippet||'',subject:header(h,'Subject')||'(No subject)',from,date:new Date(header(h,'Date')||m.internalDate*1),body:decodeMailText(m.payload)||m.snippet||''};
+      mailDetailCache[mailId]=detail;return detail;
+    }catch(e){
+      console.warn('mail detail',e);
+      const msg=String(e?.message||e||'');
+      if(/403|insufficient|METADATA_SCOPE/i.test(msg))toast('Reconnect Google to read full email content');
+      return null;
+    }
+  }
+  let openLoopId=null,openDetail=null,loopSheetTimer=0;
   function closeLoopSheet(){
     const sheet=$('#loop-sheet');if(!sheet||(!sheet.classList.contains('show')&&!sheet.classList.contains('closing')))return;
-    clearTimeout(loopSheetTimer);openLoopId=null;sheet.setAttribute('aria-hidden','true');
+    clearTimeout(loopSheetTimer);openLoopId=null;openDetail=null;sheet.setAttribute('aria-hidden','true');
     sheet.classList.add('closing');sheet.classList.remove('show');
     const finish=()=>{sheet.classList.remove('closing');document.body.classList.remove('loop-open');sheet.removeEventListener('transitionend',onEnd)};
     const onEnd=e=>{if(e.target!==sheet&&!e.target?.classList?.contains('loop-sheet-card'))return;finish()};
     sheet.addEventListener('transitionend',onEnd);loopSheetTimer=setTimeout(finish,320);
   }
-  function openLoopSheet(id){
-    const l=findLoop(id);if(!l)return;openLoopId=id;clearTimeout(loopSheetTimer);
+  function initialsOf(name){return String(name||'?').trim().split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase()||'?'}
+  function inboxToDetail(item){
+    const type=item.kind==='subscription'?'renewal':item.kind==='pending'?'overdue':item.kind==='bill'?'deadline':'reply';
+    const need=item.kind==='subscription'?'Review this subscription and cancel or confirm before renewal.':item.kind==='pending'?'Settle this payment or reschedule it.':item.kind==='bill'?'Review the bill and pay if needed.':item.kind==='store'?'Confirm this store purchase and keep the receipt.':'Review this online payment.';
+    return {
+      id:'inbox:'+item.id,type,title:item.title,detail:item.detail||item.subject||'',subject:item.subject||item.title,
+      meta:item.meta,href:item.href,mailId:item.mailId||null,fromName:item.fromName||item.from||item.title,
+      fromEmail:item.fromEmail||'',whenMs:item.whenMs||item.when||0,dueLabel:item.meta||'',category:item.tag||MONEY_LABEL[item.kind]||'Money',
+      amount:item.amount||'',urgent:!!item.urgent,weight:item.urgent?2:1,snippet:item.snippet||'',_inbox:true,_need:need
+    };
+  }
+  function currentDetail(){return openDetail||findLoop(openLoopId)||null}
+  function paintLoopDetail(l,mail){
+    const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,sug=loopSuggestion(l),prio=l.weight>=2||l.type==='overdue'||l.urgent;
+    const whenTxt=l.meta||(l.whenMs?ago(new Date(l.whenMs)):'');
+    const due=loopDueLabel(l),cat=loopCategory(l),need=l._need||loopNote(l);
+    const fromName=mail?.from?.name||l.fromName||srcOf(l);
+    const subject=mail?.subject||loopSubject(l);
+    const body=mail?.body||l.snippet||l.detail||'Open the source to read the full message.';
+    const timeStr=mail?.date?mail.date.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):(l.whenMs?new Date(l.whenMs).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):'');
+    const isMail=!!(l.mailId||l._inbox||l.type==='reply'||l.type==='followup'||l.type==='renewal'||(l.href&&String(l.href).includes('mail.google')));
+    const navTitle=l._inbox?'Inbox Detail':'Task Detail';
+    const nav=$('.td-nav b');if(nav)nav.textContent=navTitle;
+    $('#ls-head').innerHTML=`<span class="td-ico ${t.cls}" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
+      <div class="td-head-copy">${prio?`<span class="td-prio">High Priority</span>`:''}<h2 id="ls-title">${esc(l.title)}</h2><p class="td-sub">${esc([srcOf(l),whenTxt].filter(Boolean).join(' · '))}</p></div>`;
+    $('#ls-body').innerHTML=`
+      <div class="td-card td-attrs">
+        <div class="td-attr"><span class="td-attr-l">${l._inbox?'Date':'Due today'}</span><span class="td-attr-v accent">${esc(due)}</span></div>
+        ${l.amount?`<div class="td-attr"><span class="td-attr-l">Amount</span><span class="td-attr-v accent">${esc(l.amount)}</span></div>`:''}
+        <div class="td-attr"><span class="td-attr-l">Status</span><span class="td-status">${l.urgent||l.type==='overdue'||l.type==='deadline'?'Needs Action':'Review'}</span></div>
+        <div class="td-attr"><span class="td-attr-l">Category</span><span class="td-attr-v accent">${esc(cat)}</span></div>
+      </div>
+      <div class="td-card td-need"><span class="td-need-l">What needs to be done</span><p>${esc(need)}</p></div>
+      ${isMail?`<div class="td-card td-mail" id="ls-mail">
+        <div class="td-mail-h"><span class="td-av">${esc(initialsOf(fromName))}</span><div><b>${esc(fromName)}</b><small>${esc(subject)}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
+        <p class="td-mail-b">${mail?esc(body):(l.mailId?'Loading email from Gmail…':esc(body))}</p>
+      </div>`:`<div class="td-card td-mail"><p class="td-mail-b">${esc(body)}</p>${l.related?`<a class="td-link" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}</div>`}
+      <div class="td-card td-ai"><div class="td-ai-top"><span class="td-ai-ico" aria-hidden="true">✦</span><b>${esc(sug.label)}</b></div><p>${esc(sug.text)}</p><button class="td-draft" type="button" data-ls-act="suggest">${esc(sug.cta)}</button></div>`;
+    $('#ls-foot').innerHTML=`<button class="td-primary" type="button" data-ls-act="${l.href?'open':'suggest'}">${esc(l._inbox?(l.href?'Open in Gmail':sug.primary):sug.primary||'Open')}</button>
+      <div class="td-sec"><button class="td-sec-btn" type="button" data-ls-act="snooze">Snooze</button><button class="td-sec-btn" type="button" data-ls-act="done">Mark as Done</button></div>`;
+  }
+  async function openLoopSheet(idOrObj){
+    const l=typeof idOrObj==='object'&&idOrObj?idOrObj:findLoop(idOrObj);if(!l)return;
+    openDetail=l;openLoopId=l.id;clearTimeout(loopSheetTimer);
     let sheet=$('#loop-sheet');
     if(!sheet){
       sheet=document.createElement('div');sheet.id='loop-sheet';sheet.className='loop-sheet';sheet.setAttribute('aria-hidden','true');
-      sheet.innerHTML=`<div class="loop-sheet-card" role="dialog" aria-modal="true" aria-labelledby="ls-title">
-        <div class="loop-sheet-top"><div class="ls-copy"><div class="ls-source" id="ls-source"></div><h2 id="ls-title"></h2></div><button class="loop-sheet-x" type="button" data-ls-close aria-label="Close">×</button></div>
-        <div class="loop-sheet-body" id="ls-body"></div>
-        <div class="loop-sheet-foot"><div class="ls-left" id="ls-left"></div><div class="ls-right" id="ls-right"></div></div>
+      sheet.innerHTML=`<div class="loop-sheet-card td-sheet" role="dialog" aria-modal="true" aria-labelledby="ls-title">
+        <div class="td-nav"><button class="td-nav-btn" type="button" data-ls-close aria-label="Back">‹</button><b>Task Detail</b><button class="td-nav-btn" type="button" data-ls-more aria-label="More">⋯</button></div>
+        <div class="td-head" id="ls-head"></div>
+        <div class="loop-sheet-body td-body" id="ls-body"></div>
+        <div class="loop-sheet-foot td-foot" id="ls-foot"></div>
       </div>`;
       document.body.append(sheet);
       sheet.addEventListener('click',e=>{
-        if(e.target===sheet||e.target.closest('[data-ls-close]')){closeLoopSheet();return}
+        if(e.target.closest('[data-ls-close]')){closeLoopSheet();return}
+        if(e.target.closest('[data-ls-more]')){const loop=currentDetail();if(loop?.href)window.open(loop.href,'_blank','noopener');return}
         const act=e.target.closest('[data-ls-act]');if(!act||!openLoopId)return;
-        const loop=findLoop(openLoopId);if(!loop)return;
+        const loop=currentDetail();if(!loop)return;
         const a=act.dataset.lsAct;
-        if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();toast('Snoozed until tomorrow');return}
-        if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();toast('Marked as done');return}
+        if(a==='snooze'){const s=loopState();s[loop.id]={snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Snoozed until tomorrow');return}
+        if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Marked as done');return}
         if(a==='open'&&loop.href){window.open(loop.href,'_blank','noopener');return}
         if(a==='suggest'){
           const sug=loopSuggestion(loop);
-          if(sug.kind==='reply'){
-            const copy=async()=>{try{await navigator.clipboard.writeText(sug.text);toast('Suggested reply copied')}catch{toast('Copy the reply from the card')}};
-            copy();if(loop.href)window.open(loop.href,'_blank','noopener');
+          if(sug.kind==='reply'||loop._inbox){
+            (async()=>{try{await navigator.clipboard.writeText(sug.text);toast('Draft copied')}catch{toast('Copy the draft from the card')}})();
+            if(loop.href)window.open(loop.href,'_blank','noopener');
             return;
           }
           capture(sug.text);toast(sug.cta==='Add reminder'?'Reminder added':'Task added');
-          closeLoopSheet();renderLoops();
         }
       });
     }
-    const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply,sug=loopSuggestion(l),subject=loopSubject(l),note=loopNote(l);
-    $('#ls-source').innerHTML=`<span class="dot" aria-hidden="true"></span>${esc(srcOf(l))}${l.meta?` · ${esc(l.meta)}`:''}`;
-    $('#ls-title').textContent=l.title;
-    $('#ls-body').innerHTML=`<span class="ls-type">${esc(t.label)}</span>
-      <p class="ls-subject">${esc(subject)}</p>
-      ${note?`<p class="ls-note">${esc(note)}</p>`:''}
-      ${l.related?`<div class="ls-meta"><a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a></div>`:''}
-      ${l.href?`<div class="ls-meta"><button class="connect ghost" type="button" data-ls-act="open" style="min-height:32px;padding:5px 10px;font-size:12.5px">Open in ${esc(srcOf(l))}</button></div>`:''}
-      <div class="ls-block"><b>${esc(sug.label)}</b><p>${esc(sug.text)}</p></div>`;
-    $('#ls-left').innerHTML=`<button class="connect ghost" type="button" data-ls-act="snooze">Snooze</button><button class="connect ghost" type="button" data-ls-act="done">Done</button>`;
-    $('#ls-right').innerHTML=`<button class="connect primary" type="button" data-ls-act="suggest">${esc(sug.cta)}</button>`;
+    paintLoopDetail(l,null);
     sheet.classList.remove('closing','show');void sheet.offsetWidth;
     sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('loop-open');
+    if(l.mailId&&token){
+      const mail=await fetchMailDetail(l.mailId);
+      if(openLoopId===l.id&&mail)paintLoopDetail(openDetail||l,mail);
+    }
   }
   function loopHTML(l){const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply;const list=(wset('loops').view||'List')==='List';
     if(!list)return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}" role="button" tabindex="0"><div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div><div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}<div class="loop-actions"><button class="connect primary" type="button" data-open-loop="${esc(l.id)}">Expand</button><button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done">Done</button></div></div>`;
@@ -1382,10 +1460,9 @@
   // Inbox — subscriptions, bills, payments
   function inboxItems(filter){
     const money=computeMoney();
-    if(filter==='subscription')return money.subscription;
-    if(filter==='bill')return money.bill;
-    if(filter==='payments')return [...money.pending,...money.store,...money.online];
-    return money.all;
+    let list=filter==='subscription'?money.subscription:filter==='bill'?money.bill:filter==='payments'?[...money.pending,...money.store,...money.online]:money.all;
+    const st=loopState(),now=Date.now();
+    return list.filter(i=>{const s=st['inbox:'+i.id];return !(s&&(s.done||(s.snooze&&s.snooze>now)))});
   }
   function inboxDateLabel(item){
     if(item.meta&&/^(Soon|Today|Tomorrow)$/i.test(item.meta))return item.meta;
@@ -1410,7 +1487,7 @@
     const tag=item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||inboxDaysLabel(item)||'');
     const tagCls=item.kind==='pending'||item.urgent?' is-urgent':'';
     const body=`<span class="m-inbox-logo" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span><span class="m-inbox-copy"><b>${esc(item.title)}</b><small>${esc(inboxDateLabel(item))}</small></span><span class="m-inbox-side">${tag?`<span class="m-pill-tag${tagCls}">${esc(tag)}</span>`:''}<span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span></span>`;
-    return item.href?`<a class="m-inbox-card m-row-card${item.urgent||item.kind==='pending'?' is-urgent':''}" href="${esc(item.href)}" target="_blank" rel="noopener">${body}</a>`:`<div class="m-inbox-card m-row-card${item.urgent||item.kind==='pending'?' is-urgent':''}">${body}</div>`;
+    return `<button type="button" class="m-inbox-card m-row-card${item.urgent||item.kind==='pending'?' is-urgent':''}" data-inbox-open="${esc(item.id)}">${body}</button>`;
   }
   const INBOX_ORDER=['all','subscription','bill','payments'];
   let inboxAnim=null;
@@ -1459,6 +1536,11 @@
     renderInbox({animate:true,dir:next>=prev?1:-1});
   });
   $('#m-inbox-filter')?.addEventListener('click',()=>toast('Sorted by soonest first'));
+  $('#m-inbox')?.addEventListener('click',e=>{
+    const b=e.target.closest('[data-inbox-open]');if(!b)return;
+    const item=computeMoney().all.find(i=>i.id===b.dataset.inboxOpen);if(!item)return;
+    openLoopSheet(inboxToDetail(item));
+  });
   addEventListener('resize',()=>{if(mq.matches&&mTab==='inbox')syncInboxThumb(false);if(mq.matches&&mTab==='wallet')syncWalletThumb(false)});
   // Wallet — Apple-style stacked passes + document scan
   const WALLET_ORDER=['all','tickets','coupons','documents','others'];
