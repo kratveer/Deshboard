@@ -516,35 +516,35 @@ button.m-check:hover{background:color-mix(in srgb,var(--accent) 15%,transparent)
 body.dark{--tl-ask:#30d158;--tl-ask-ink:#062814}
 body.m .tl-top{
   position:sticky;top:0;z-index:12;display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:calc(10px + env(safe-area-inset-top)) 0 12px;margin:0 -2px;
+  padding:calc(10px + env(safe-area-inset-top)) 0 10px;margin:0 -2px;
   background:linear-gradient(180deg,rgba(233,235,240,.96) 55%,rgba(233,235,240,0));
 }
 body.dark.m .tl-top{background:linear-gradient(180deg,rgba(21,23,30,.96) 55%,rgba(21,23,30,0))}
-body.m .tl-date-pill,body.m .tl-ask-btn{
+body.m .tl-title{
+  margin:0;font:750 28px/1.1 var(--font);letter-spacing:-.6px;color:var(--ink);
+}
+body.m .tl-ask-btn{
   display:inline-flex;align-items:center;gap:8px;border:0;cursor:pointer;
   min-height:42px;padding:0 14px;border-radius:999px;font:650 14px/1 var(--font);
-  box-shadow:0 10px 28px rgba(40,50,90,.14),0 2px 6px rgba(40,50,90,.06);
-  transition:transform .16s ease,opacity .16s ease,box-shadow .2s ease;
-}
-body.m .tl-date-pill:active,body.m .tl-ask-btn:active{transform:scale(.97);opacity:.92}
-body.m .tl-date-pill{
-  background:rgba(255,255,255,.92);color:var(--ink);
-  border:1px solid rgba(255,255,255,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-}
-body.dark.m .tl-date-pill{background:rgba(36,40,52,.92);border-color:rgba(255,255,255,.08);color:#eef0f6}
-body.m .tl-date-ico{color:var(--tl-ask);display:grid;place-items:center}
-body.m .tl-date-chev{opacity:.55;display:grid;place-items:center;transition:transform .2s ease}
-body.m .tl-date-pill.on .tl-date-chev,body.m .tl-ask-btn.on svg:last-child{transform:rotate(180deg)}
-body.m .tl-ask-btn{
   background:var(--tl-ask);color:#fff;font-weight:700;
   box-shadow:0 12px 28px rgba(52,199,89,.32),0 2px 6px rgba(40,50,90,.08);
+  transition:transform .16s ease,opacity .16s ease,box-shadow .2s ease,filter .16s ease;
 }
+body.m .tl-ask-btn:active{transform:scale(.97);opacity:.92}
 body.m .tl-ask-btn.on{filter:brightness(.96)}
+body.m .tl-ask-btn.on svg:last-child{transform:rotate(180deg)}
+body.m .tl-ask-btn svg:last-child{transition:transform .2s ease}
 body.m .tl-cal{
   margin:0 0 14px;padding:12px 12px 14px;border-radius:20px;
   background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.7);
   box-shadow:0 12px 32px rgba(40,50,90,.1);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
 }
+body.m .tl-day.has-ev b{position:relative}
+body.m .tl-day.has-ev b::after{
+  content:'';position:absolute;left:50%;bottom:3px;width:5px;height:5px;border-radius:50%;
+  background:var(--primary,#3563EB);transform:translateX(-50%);
+}
+body.m .tl-day.on.has-ev b::after{background:#fff}
 body.dark.m .tl-cal{background:rgba(32,36,48,.88);border-color:rgba(255,255,255,.06)}
 body.m .tl-cal-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 body.m .tl-cal-nav b{font:650 15px/1.2 var(--font);letter-spacing:-.2px}
@@ -1413,7 +1413,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=45" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="app.js?v=46" defer></script></body></html>
 
 
 

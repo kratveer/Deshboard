@@ -1419,8 +1419,46 @@
   const STOP=new Set('find search show me the a an my for about of in on to with where is are was what which email emails mail mails message file files document documents doc docs meeting meetings please any that from'.split(' '));
   const keywordsOf=q=>q.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu,' ').split(/\s+/).filter(w=>w&&!STOP.has(w));
   const has=(s,kws)=>kws.every(k=>String(s||'').toLowerCase().includes(k));
-  async function eventsBetween(from,to,q){if(!token)return null;const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');u.searchParams.set('timeMin',from.toISOString());u.searchParams.set('timeMax',to.toISOString());u.searchParams.set('singleEvents','true');u.searchParams.set('orderBy','startTime');u.searchParams.set('maxResults','25');if(q)u.searchParams.set('q',q);
-    try{return (await api(u)).items||[]}catch{return []}}
+  async function eventsBetween(from,to,q){if(!token)return null;const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');u.searchParams.set('timeMin',from.toISOString());u.searchParams.set('timeMax',to.toISOString());u.searchParams.set('singleEvents','true');u.searchParams.set('orderBy','startTime');u.searchParams.set('maxResults','50');if(q)u.searchParams.set('q',q);
+    try{return (await api(u)).items||[]}catch{return []}
+  }
+  async function msEventsBetween(from,to){
+    if(!microsoftAccount)return [];
+    try{
+      const u=new URL('https://graph.microsoft.com/v1.0/me/calendarView');
+      u.searchParams.set('startDateTime',from.toISOString());u.searchParams.set('endDateTime',to.toISOString());
+      u.searchParams.set('$select','id,subject,start,end,location,isAllDay,webLink,attendees');
+      u.searchParams.set('$orderby','start/dateTime');u.searchParams.set('$top','50');
+      const data=await graph('/me/calendarView'+u.search);
+      return (data.value||[]).map(e=>{
+        const allDay=!!e.isAllDay;
+        const sRaw=(e.start?.dateTime||'').slice(0,10),eRaw=(e.end?.dateTime||'').slice(0,10);
+        return {
+          id:e.id,summary:e.subject,location:e.location?.displayName||'',htmlLink:e.webLink||'',
+          start:allDay?{date:sRaw}:{dateTime:e.start?.dateTime,timeZone:e.start?.timeZone||'UTC'},
+          end:allDay?{date:eRaw||sRaw}:{dateTime:e.end?.dateTime,timeZone:e.end?.timeZone||'UTC'},
+          attendees:e.attendees,isAllDay:allDay,source:'Outlook Calendar'
+        };
+      });
+    }catch{return []}
+  }
+  function parseCalTimes(e){
+    if(e.start?.dateTime){
+      const raw=e.start.dateTime,tz=e.start.timeZone==='UTC'&&!/[zZ]|[+-]\d\d:?\d\d$/.test(raw);
+      const st=new Date(raw+(tz?'Z':''));
+      const rawE=e.end?.dateTime||raw,tzE=e.end?.timeZone==='UTC'&&!/[zZ]|[+-]\d\d:?\d\d$/.test(rawE);
+      const en=new Date(rawE+(tzE?'Z':''));
+      return {start:st,end:en>st?en:new Date(st.getTime()+30*60000),allDay:false};
+    }
+    const dateStr=e.start?.date||(e.isAllDay?(e.start?.dateTime||'').slice(0,10):'');
+    if(!dateStr)return null;
+    const [y,m,d]=dateStr.split('-').map(Number);if(!y||!m||!d)return null;
+    const st=new Date(y,m-1,d);
+    let en;
+    if(e.end?.date){const [ey,em,ed]=e.end.date.split('-').map(Number);en=new Date(ey,em-1,ed)}
+    else en=new Date(st.getTime()+86400000);
+    return {start:st,end:en>st?en:new Date(st.getTime()+86400000),allDay:true};
+  }
   const evItem=e=>{const s=new Date(e.start?.dateTime||e.start?.date);return {title:e.summary||'(No title)',meta:(e.start?.dateTime?s.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})+' · '+hm(s):s.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})+' · all day')+(e.location?' · '+e.location:''),href:e.htmlLink,src:'Calendar'}};
   const loopItem=l=>({title:l.title,meta:[srcOf(l),l.meta||l.detail].filter(Boolean).join(' · '),href:l.href,src:srcOf(l)});
   async function answer(q){
@@ -1986,24 +2024,20 @@
    <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
    <section class="m-screen" data-screen="assistant">
      <div class="tl-top">
-       <button type="button" class="tl-date-pill" id="tl-date-btn" aria-expanded="false" aria-controls="tl-cal">
-         <span class="tl-date-ico" aria-hidden="true">${svg(ICON.calendar,16)}</span>
-         <span id="tl-date-label">Today</span>
-         <span class="tl-date-chev" aria-hidden="true">${svg(ICON.chevDown,14)}</span>
-       </button>
+       <h1 class="tl-title">Timeline</h1>
        <button type="button" class="tl-ask-btn" id="tl-ask-btn" aria-expanded="false" aria-controls="tl-chat-wrap">
          <span aria-hidden="true">${svg(ICON.chat,16)}</span> Ask
          <span aria-hidden="true">${svg(ICON.chevDown,14)}</span>
        </button>
      </div>
-     <div class="tl-cal" id="tl-cal" hidden>
+     <div class="tl-cal" id="tl-cal">
        <div class="tl-cal-nav"><button type="button" data-tl-wk="-1" aria-label="Previous week">‹</button><b id="tl-cal-month"></b><button type="button" data-tl-wk="1" aria-label="Next week">›</button></div>
        <div class="tl-week" id="tl-week" role="tablist" aria-label="Choose day"></div>
      </div>
      <div class="tl-view" id="tl-view">
        <div class="tl-head">
          <h2 id="tl-heading"></h2>
-         <div class="tl-head-meta"><span class="tl-count" id="tl-count" hidden><span aria-hidden="true">${svg(ICON.suitcase,14)}</span><b id="tl-count-n">0</b></span><button type="button" class="tl-ask-mini" id="tl-ask-mini">Ask</button></div>
+         <div class="tl-head-meta"><span class="tl-count" id="tl-count" hidden><span aria-hidden="true">${svg(ICON.calendar,14)}</span><b id="tl-count-n">0</b></span><button type="button" class="tl-ask-mini" id="tl-ask-mini">Ask</button></div>
        </div>
        <div class="tl-list" id="tl-list"></div>
      </div>
@@ -2013,7 +2047,7 @@
      </div>
    </section>
    <section class="m-screen" data-screen="stats"><div id="m-stats"></div></section>
-   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${tabIco(ICON.stats)}<span>Statistics</span></button></nav>
+   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.calendar)}<span>Timeline</span></button><button data-tab="stats" type="button">${tabIco(ICON.stats)}<span>Statistics</span></button></nav>
    <button type="button" class="m-wallet-fab" id="m-wallet-fab" aria-label="Scan document" hidden>${svg(ICON.scan,22)}</button>`;
   document.body.append(mapp);
   const scanUI=document.createElement('div');scanUI.id='m-scan';scanUI.className='m-scan';scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');
@@ -2055,7 +2089,7 @@
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
   let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mAssistDay=new Date(localMidnight),mAssistAsk=false,mWeekCache={},mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
   if(mTab==='calendar')mTab='inbox';
-  const TITLES={home:'Daylight',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'',stats:'Statistics'};
+  const TITLES={home:'Daylight',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Timeline',stats:'Statistics'};
   const WALLET_COLORS={tickets:['#1f6feb','#0b3d91'],coupons:['#d9480f','#a33b0a'],documents:['#2f9e44','#1b6b2e'],others:['#7048e8','#4c2db3']};
   const WALLET_LABEL={tickets:'Ticket',coupons:'Coupon',documents:'Document',others:'Pass'};
   function qrUrl(payload,size){return(window.DaylightScan?.qrImageUrl?.(payload,size))||('https://api.qrserver.com/v1/create-qr-code/?size='+(size||200)+'x'+(size||200)+'&margin=8&data='+encodeURIComponent(payload))}
@@ -3751,13 +3785,32 @@
     mini?.classList.toggle('on',mAssistAsk);
     if(mAssistAsk){if(!mChat.length)chatHello();else renderChat();$('#m-msg-input')?.focus()}
   }
-  function paintAssistCal(){
+  async function paintAssistCal(){
     const ws=assistWeekStart(mAssistDay),days=[...Array(7)].map((_,i)=>new Date(ws.getTime()+i*86400000));
     const monthEl=$('#tl-cal-month');if(monthEl)monthEl.textContent=mAssistDay.toLocaleDateString(undefined,{month:'long',year:'numeric'});
     const week=$('#tl-week');if(!week)return;
+    const busy=new Set();
+    try{
+      const [g,m]=await Promise.all([
+        token?weekEvents(ws):Promise.resolve([]),
+        microsoftAccount?msEventsBetween(ws,new Date(ws.getTime()+7*86400000)):Promise.resolve([])
+      ]);
+      [...(g||[]),...(m||[])].forEach(e=>{
+        const t=parseCalTimes(e);if(!t)return;
+        for(let x=new Date(t.start.getFullYear(),t.start.getMonth(),t.start.getDate());x<t.end&&x<new Date(ws.getTime()+7*86400000);x=new Date(x.getTime()+86400000)){
+          if(x>=ws)busy.add(dayKey(x));
+          if(!t.allDay)break;
+        }
+      });
+    }catch{}
+    personalTasks.forEach(t=>{if(t.dueDate)busy.add(dayKey(new Date(t.dueDate)))});
+    (providerData.google.tasks||[]).forEach(t=>{if(t.dueDate){
+      const d=new Date(t.dueDate);const day=/T00:00:00(\.000)?Z$/.test(String(t.dueDate))?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):d;
+      busy.add(dayKey(day));
+    }});
     week.innerHTML=days.map(d=>{
-      const on=dayKey(d)===dayKey(mAssistDay),today=dayKey(d)===dayKey(localMidnight);
-      return `<button type="button" class="tl-day${on?' on':''}${today?' is-today':''}" data-tl-day="${d.toISOString()}" role="tab" aria-selected="${on?'true':'false'}"><span>${d.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${d.getDate()}</b></button>`;
+      const on=dayKey(d)===dayKey(mAssistDay),today=dayKey(d)===dayKey(localMidnight),has=busy.has(dayKey(d));
+      return `<button type="button" class="tl-day${on?' on':''}${today?' is-today':''}${has?' has-ev':''}" data-tl-day="${d.toISOString()}" role="tab" aria-selected="${on?'true':'false'}"><span>${d.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${d.getDate()}</b></button>`;
     }).join('');
   }
   async function dayTimelineItems(day){
@@ -3765,32 +3818,45 @@
     const end=new Date(start.getTime()+86400000);
     const items=[];
     const seen=new Set();
-    const push=it=>{if(seen.has(it.id))return;seen.add(it.id);items.push(it)};
-    if(token){
-      try{
-        const ev=await eventsBetween(start,end)||[];
-        ev.forEach(e=>{
-          const s=new Date(e.start?.dateTime||e.start?.date+'T09:00:00');
-          const en=new Date(e.end?.dateTime||e.end?.date||s);
-          const allDay=!e.start?.dateTime;
-          const mail=loopsData?.meetingMail?.[e.id];
-          push({
-            id:'ev:'+(e.id||s.getTime()),kind:TRAVEL.test((e.summary||'')+' '+(e.location||''))?'travel':(e.attendees||[]).length>1?'meet':'event',
-            title:e.summary||'(No title)',start:s,end:en,allDay,
-            meta:[e.location||'',mail?`Mail: ${mail.subject}`:''].filter(Boolean).join(' · '),
-            href:e.htmlLink||'',loopId:mail?undefined:undefined,relatedMail:mail||null
-          });
-        });
-      }catch{}
-    }
-    personalTasks.filter(t=>t.dueDate&&dayKey(new Date(t.dueDate))===dayKey(start)).forEach(t=>{
-      const s=new Date(t.dueDate);
-      push({id:'task:'+t.id,kind:t.project==='Payments'?'bill':'task',title:t.title,start:s,end:s,allDay:!t.hasTime,meta:t.project||'Reminder',href:t.href||''});
+    const push=it=>{if(!it||seen.has(it.id))return;seen.add(it.id);items.push(it)};
+    const addEvent=e=>{
+      const t=parseCalTimes(e);if(!t)return;
+      if(!(t.end>start&&t.start<end))return;
+      const title=e.summary||e.subject||'(No title)';
+      const loc=typeof e.location==='string'?e.location:(e.location?.displayName||'');
+      const mail=loopsData?.meetingMail?.[e.id];
+      push({
+        id:'ev:'+(e.id||t.start.getTime()+title),
+        kind:TRAVEL.test(title+' '+loc)?'travel':(e.attendees||[]).length>1?'meet':'event',
+        title,start:t.start,end:t.end,allDay:t.allDay,
+        meta:[loc,e.source||'',mail?`Mail: ${mail.subject}`:''].filter(Boolean).join(' · '),
+        href:e.htmlLink||e.webLink||'',relatedMail:mail||null
+      });
+    };
+    try{
+      const jobs=[];
+      if(token)jobs.push(eventsBetween(start,end));
+      if(microsoftAccount)jobs.push(msEventsBetween(start,end));
+      const parts=jobs.length?await Promise.all(jobs):[];
+      parts.flat().forEach(addEvent);
+      // Fallback: already-synced provider events for today
+      if(!parts.flat().length){
+        [...(providerData.google.events||[]),...(providerData.microsoft.events||[])].forEach(addEvent);
+        (loopsData?.upcoming||[]).forEach(addEvent);
+      }
+    }catch(err){console.warn('timeline cal',err)}
+    const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(String(v))?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+    [
+      ...personalTasks.map(t=>({...t,src:t.project||'Reminder'})),
+      ...(providerData.google.tasks||[]).map(t=>({...t,src:t.listName||'Google Tasks'})),
+      ...(providerData.microsoft.tasks||[]).map(t=>({...t,src:t.listName||'To Do'}))
+    ].filter(t=>t?.title&&t.dueDate&&dayKey(dueDay(t.dueDate))===dayKey(start)).forEach(t=>{
+      const s=dueDay(t.dueDate);
+      push({id:'task:'+(t.id||t.title),kind:/pay|bill|invoice/i.test(t.src||'')||t.project==='Payments'?'bill':'task',title:t.title,start:s,end:s,allDay:!t.hasTime,meta:t.src||'Task',href:t.href||''});
     });
     try{
       readWallet().forEach(w=>{
-        const when=w.travelAt||w.date;if(!when)return;
-        const s=new Date(w.travelAt||w.at);if(isNaN(s)||dayKey(s)!==dayKey(start))return;
+        const s=new Date(w.travelAt||w.at||w.date);if(isNaN(s)||dayKey(s)!==dayKey(start))return;
         push({
           id:'wallet:'+w.id,kind:'travel',title:w.title,start:s,end:s,allDay:!w.flight?.depart,
           meta:[w.typeLabel||WALLET_LABEL[w.kind],w.tripId?'Trip linked':''].filter(Boolean).join(' · '),
@@ -3798,20 +3864,14 @@
         });
       });
     }catch{}
-    if(token||microsoftAccount||DEMO){
-      computeLoops().forEach(l=>{
-        const ms=l.travelWhenMs||l.whenMs;if(!ms||dayKey(new Date(ms))!==dayKey(start))return;
-        const s=new Date(ms);
-        push({id:'loop:'+l.id,kind:l.type==='travel'?'travel':l.type==='renewal'?'bill':'loop',title:l.title,start:s,end:s,allDay:false,meta:l.meta||srcOf(l),href:l.href||'',loopId:l.id});
-      });
-    }
-    return items.sort((a,b)=>(a.allDay-b.allDay)||(a.start-b.start));
+    return items.sort((a,b)=>(!!a.allDay-!!b.allDay)||(a.start-b.start)||String(a.title).localeCompare(String(b.title)));
   }
   function tlIcon(kind){
     if(kind==='travel')return ICON.suitcase;
     if(kind==='meet')return ICON.chat;
     if(kind==='task')return ICON.spark;
     if(kind==='bill')return ICON.wallet;
+    if(kind==='event')return ICON.calendar;
     return ICON.phone;
   }
   function tlCard(item){
@@ -3829,18 +3889,17 @@
     </article>`;
   }
   async function renderAssistant(){
-    const label=$('#tl-date-label'),heading=$('#tl-heading'),list=$('#tl-list'),count=$('#tl-count'),countN=$('#tl-count-n');
+    const heading=$('#tl-heading'),list=$('#tl-list'),count=$('#tl-count'),countN=$('#tl-count-n');
     if(!list)return;
     const same=dayKey(mAssistDay)===dayKey(localMidnight);
-    const dateTxt=mAssistDay.toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
-    if(label)label.textContent=same?'Today':dateTxt;
-    if(heading)heading.textContent=`${dateTxt} · ${mAssistDay.toLocaleDateString(undefined,{weekday:'short'})}`;
+    const dateTxt=mAssistDay.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+    if(heading)heading.textContent=same?`Today · ${dateTxt}`:dateTxt;
     paintAssistCal();
     list.innerHTML=skelRows(4);
     const items=await dayTimelineItems(mAssistDay);
     if(count&&countN){countN.textContent=String(items.length);count.hidden=!items.length}
     if(!items.length){
-      list.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Nothing on this day</b><p>${token?'No calendar events or tasks.':'Connect Google to fill your timeline.'}</p></div>`;
+      list.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Nothing on this day</b><p>${token||microsoftAccount?'No Google Calendar events or tasks for this day.':'Connect Google Calendar to fill your timeline.'}</p></div>`;
       return;
     }
     list.innerHTML=`<div class="tl-rail">${items.map(tlCard).join('')}</div>`;
@@ -3854,18 +3913,11 @@
     mChat.pop();mChat.push({who:'ai',html});renderChat()}
   $('#m-msg')?.addEventListener('submit',e=>{e.preventDefault();const v=$('#m-msg-input').value;$('#m-msg-input').value='';ask(v)});
   $('#m-chat')?.addEventListener('click',e=>{const c=e.target.closest('[data-ask]');if(c)ask(c.dataset.ask);const u=e.target.closest('[data-undo-chat]');if(u){personalTasks=personalTasks.filter(t=>t.id!==u.dataset.undoChat);savePersonal();renderTasks();renderLoops();u.replaceWith(document.createTextNode('(removed)'))}});
-  $('#tl-date-btn')?.addEventListener('click',()=>{
-    const cal=$('#tl-cal'),btn=$('#tl-date-btn');if(!cal||!btn)return;
-    const open=cal.hidden;cal.hidden=!open;btn.setAttribute('aria-expanded',open?'true':'false');btn.classList.toggle('on',open);feel.select();
-    if(open)paintAssistCal();
-  });
   $('#tl-cal')?.addEventListener('click',e=>{
     const wk=e.target.closest('[data-tl-wk]');
-    if(wk){mAssistDay=new Date(mAssistDay.getTime()+(+wk.dataset.tlWk)*7*86400000);paintAssistCal();feel.select();return}
+    if(wk){mAssistDay=new Date(mAssistDay.getTime()+(+wk.dataset.tlWk)*7*86400000);paintAssistCal();feel.select();renderAssistant();return}
     const day=e.target.closest('[data-tl-day]');if(!day)return;
     mAssistDay=new Date(day.dataset.tlDay);feel.select();
-    const cal=$('#tl-cal'),btn=$('#tl-date-btn');
-    if(cal)cal.hidden=true;btn?.setAttribute('aria-expanded','false');btn?.classList.remove('on');
     if(mAssistAsk)setAssistAsk(false);
     renderAssistant();
   });
