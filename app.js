@@ -125,9 +125,50 @@
         ${needsSetup||opts.setup?'':`<label class="client-label" for="client-id-adv">Google Client ID <small>public</small></label><input class="client-input" id="client-id-adv" type="text" autocomplete="off" spellcheck="false" placeholder="….apps.googleusercontent.com" value="${esc(savedId)}">`}
         <label class="client-label" for="ms-client-id">Microsoft application ID <small>public</small></label><input class="client-input" id="ms-client-id" type="text" autocomplete="off" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000" value="${esc(localStorage.getItem('daylight-ms-client-id')||'')}">
         <div class="server-actions"><button class="connect" type="button" id="advanced-save">Save</button><a href="https://github.com/kratveer/Deshboard#google-setup" target="_blank" rel="noopener">Setup guide</a></div>
+      </details>
+      <details class="conn-more" id="sync-diagnostics"><summary>Sync Diagnostics</summary>
+        <div id="sync-diag-body" class="hint" style="margin-top:8px">Loading…</div>
+        <div class="server-actions" style="margin-top:10px">
+          <button class="connect" type="button" id="sync-diag-refresh">Refresh sync</button>
+          <button class="connect ghost" type="button" id="sync-diag-reload">Reload panel</button>
+        </div>
       </details></div>`;
     $('#overlay').classList.add('show');
     const err=m=>{const el=$('#connect-error');if(!el)return;if(!m){el.hidden=true;el.textContent='';return}el.hidden=false;el.textContent=m};
+    const fmtWhen=ms=>!ms?'—':new Date(ms).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    const renderSyncDiag=async()=>{
+      const body=$('#sync-diag-body');if(!body)return;
+      const Store=window.DaylightStore;
+      if(!Store?.getSyncState){body.textContent='Local store unavailable in this browser.';return}
+      try{
+        await Store.open();
+        const acctId=await Store.getActiveAccountId();
+        const acct=await Store.getAccount(acctId);
+        const sync=await Store.getSyncState(acctId);
+        const st=await Store.stats(acctId);
+        const row=(name,p)=>`<div style="margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--card2)">
+          <b>${esc(name)}</b> · ${esc(p.mode||'—')} · ${p.lastError?'<span style="color:#c0392b">error</span>':'ok'}
+          <div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45">
+            last ok ${esc(fmtWhen(p.lastSuccessAt))} · fail ${esc(fmtWhen(p.lastFailureAt))}<br>
+            fetched ${p.fetched||0} · in ${p.inserted||0} · up ${p.updated||0} · del ${p.deleted||0} · retries ${p.retries||0} · ${p.lastDurationMs||0}ms · runs ${p.runs||0}<br>
+            cursor ${esc(p.cursor?String(p.cursor).slice(0,28)+(String(p.cursor).length>28?'…':''):'—')}
+            ${p.lastError?`<br>err ${esc(p.lastError)}`:''}
+          </div></div>`;
+        body.innerHTML=`<div style="font-size:12px;line-height:1.5;margin-bottom:6px">
+          <b>Account</b> ${esc(acct?.displayName||acctId)} · ${esc(acct?.email||acct?.kind||'')}<br>
+          <span style="color:var(--muted)">${esc(acct?.providerAccountKey||'')} · schema v${st.schema}</span><br>
+          store · entities ${st.entities||0} · rel ${st.relationships||0} · facts ${st.facts||0} · actions ${st.actions||0}
+        </div>
+        ${row('Gmail',sync.gmail||{})}${row('Calendar',sync.calendar||{})}${row('Tasks',sync.tasks||{})}${row('Hydrate',sync.hydrate||{})}`;
+      }catch(e){body.textContent='Could not read sync state: '+(e.message||e)}
+    };
+    renderSyncDiag();
+    $('#sync-diag-reload')?.addEventListener('click',()=>renderSyncDiag());
+    $('#sync-diag-refresh')?.addEventListener('click',async()=>{
+      $('#sync-diag-body').textContent='Syncing…';
+      try{if(typeof refreshAll==='function'){refreshAll.force=true;await refreshAll()}else await loadLoops(true)}catch(e){console.warn(e)}
+      await renderSyncDiag();
+    });
     const readClientId=()=>(($('#client-id')||$('#client-id-adv'))?.value||'').trim().replace(/\s+/g,'');
     const saveAdvanced=()=>{const u=$('#server-url').value.trim().replace(/\/+$/,'');if(u&&!/^https:\/\/[^/]+$|^http:\/\/localhost(:\d+)?$/.test(u)){err('Server URL should look like https://daylight-api.your-name.workers.dev');return false}
       setLS('daylight-api',u);serverUrl=u;const c=readClientId();if(c)setLS('daylight-client-id',c);setLS('daylight-ms-client-id',$('#ms-client-id').value.trim());err('');return true};
@@ -151,6 +192,13 @@
   async function disconnectGoogle(){
     if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)}
     token=null;rememberGoogleScopes('');providerData.google={events:null,mails:null,tasks:null};loopsData=null;renderAll();clearProfile();
+    try{
+      const Store=window.DaylightStore;
+      if(Store?.clearAccountData){
+        const acctId=await Store.getActiveAccountId?.();
+        if(acctId)await Store.clearAccountData(acctId);
+      }else await Store?.clearProviderData?.();
+    }catch{}
     $('#sync-status').textContent=microsoftAccount?'Google disconnected · Microsoft still connected':'Not connected';
     $('#connections').classList.toggle('active',Boolean(microsoftAccount));
     if($('#overlay').classList.contains('show'))connectDialog();toast('Google disconnected');
@@ -168,11 +216,28 @@
   function clearProfile(){setLS('daylight-profile','');renderProfile()}
   async function loadProfile(){
     try{
-      if(token){const u=await api('https://www.googleapis.com/oauth2/v3/userinfo');if(u.name||u.picture){setLS('daylight-profile',JSON.stringify({name:u.name||'',picture:u.picture||'',email:u.email||''}));renderProfile();return}}
-      if(microsoftAccount){const me=await graph('/me?$select=displayName,mail,userPrincipalName');let picture='';
+      if(token){const u=await api('https://www.googleapis.com/oauth2/v3/userinfo');if(u.name||u.picture||u.email||u.sub){setLS('daylight-profile',JSON.stringify({name:u.name||'',picture:u.picture||'',email:u.email||'',sub:u.sub||''}));renderProfile();try{await ensureDaylightAccountFromProfile('google',u)}catch(e){console.warn('account upsert',e)}return}}
+      if(microsoftAccount){const me=await graph('/me?$select=displayName,mail,userPrincipalName,id');let picture='';
         try{const t=await microsoftToken();const r=await fetch('https://graph.microsoft.com/v1.0/me/photos/96x96/$value',{headers:{Authorization:'Bearer '+t}});if(r.ok){const b=await r.blob();picture=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(b)})}}catch{}
-        setLS('daylight-profile',JSON.stringify({name:me.displayName||'',picture,email:me.mail||me.userPrincipalName||''}));renderProfile()}
+        const prof={name:me.displayName||'',picture,email:me.mail||me.userPrincipalName||'',sub:me.id||''};
+        setLS('daylight-profile',JSON.stringify(prof));renderProfile();try{await ensureDaylightAccountFromProfile('microsoft',prof)}catch(e){console.warn('account upsert',e)}}
     }catch{/* older sign-ins may lack profile access; keep the letter */}
+  }
+  async function ensureDaylightAccountFromProfile(kind,u){
+    const Store=window.DaylightStore;if(!Store?.upsertAccount)return null;
+    const email=(u.email||'').toLowerCase()||null;
+    const subject=u.sub||u.id||null;
+    const acct=await Store.upsertAccount({
+      kind:kind==='microsoft'?'microsoft':'google',
+      subject,email,
+      displayName:u.name||u.displayName||email||'Account',
+      providerAccountKey:kind==='microsoft'
+        ?(subject?'microsoft:oid:'+subject:(email?'microsoft:email:'+email:'microsoft:unknown'))
+        :(subject?'google:sub:'+subject:(email?'google:email:'+email:'google:unknown')),
+      status:'active'
+    });
+    await Store.setActiveAccount(acct.id);
+    return acct;
   }
   $('#connections').onclick=connectDialog;
   $('#close')?.addEventListener('click',()=>$('#overlay').classList.remove('show'));
@@ -280,8 +345,23 @@
     return providerData.google.mails.length;
   }
   async function loadTasks(){
-    const lists=await api('https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=5');const groups=await Promise.all((lists.items||[]).slice(0,3).map(l=>api(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(l.id)}/tasks?showCompleted=false&showHidden=false&maxResults=20`)));
-    providerData.google.tasks=groups.flatMap((g,i)=>(g.items||[]).filter(t=>t.status!=='completed').map(t=>({title:t.title,due:t.due?new Date(t.due).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'',dueDate:t.due||'',listName:lists.items[i].title,source:'Google Tasks'}))).slice(0,8);renderTasks();
+    const t0=Date.now();let retries=0;
+    let lists;
+    try{
+      const r=await apiRetry('https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=5');lists=r.data;retries+=r.retries;
+    }catch(e){
+      try{const Store=window.DaylightStore;const acct=await Store?.getActiveAccountId?.();if(Store&&acct)await Store.recordSyncFailure('tasks',e,{retries,mode:'full'},acct)}catch{}
+      throw e;
+    }
+    const groups=await Promise.all((lists.items||[]).slice(0,3).map(async l=>{
+      const r=await apiRetry(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(l.id)}/tasks?showCompleted=false&showHidden=false&maxResults=20`);
+      retries+=r.retries;return r.data;
+    }));
+    providerData.google.tasks=groups.flatMap((g,i)=>(g.items||[]).filter(t=>t.status!=='completed').map(t=>({id:t.id,title:t.title,due:t.due?new Date(t.due).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'',dueDate:t.due||'',listName:lists.items[i].title,source:'Google Tasks'}))).slice(0,8);renderTasks();
+    try{
+      const Store=window.DaylightStore;const acct=await Store?.getActiveAccountId?.();
+      if(Store&&acct)await Store.recordSyncSuccess('tasks',{durationMs:Date.now()-t0,retries,fetched:providerData.google.tasks.length,mode:'reconcile'},acct);
+    }catch{}
     return providerData.google.tasks.length;
   }
   async function microsoftToken(){
@@ -545,6 +625,9 @@
   const MONEY=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial|expir|payment|invoice|receipt|bill(ing)?|auto-?renew|charged|statement|paypal|stripe|sepa|order|purchase|faktura|platba|předplatné|vyúčtování|účet|premium|plan)\b/i;
   const MONEY_DOMAIN=/(netflix|spotify|adobe|paypal|stripe|apple\.com|google\.com|amazon|zalando|microsoft|openai|cursor\.|github|notion|figma|dropbox|icloud|youtube|disney|hbo|skyshowtime|vodafone|o2|t-mobile|cez\.|innogy|pre\.cz|upc|vodafone|airbank|revolut|wise|csob|kb\.cz|moneta|fio\.|twilio|vercel|railway|digitalocean|hetzner|namecheap|godaddy|shopify)/i;
   const TRAVEL=/\b(booking|reservation|itinerary|e-?ticket|boarding[\s-]?pass|flights?|train|bahn|rail|eurostar|(?:flight|hotel|airport)\s*check-?in|hotel|airbnb|boarding pass|departure|arrival|gate\s?[A-Z]?\d+|PNR|confirmation code|trip to)\b/i;
+  const HOTEL=/\b(hotel|airbnb|booking\.com|accommodation|hostel|marriott|hilton|ibis|check-?in (?:at|on)|lodging|resort)\b/i;
+  const FLIGHTISH=/\b(flight|boarding|airline|lufthansa|ryanair|easyjet|wizz|emirates|klm|airport|gate\s?[A-Z]?\d+)\b/i;
+  const TRAINISH=/\b(train|bahn|rail|eurostar|coach|wagon|deutsche bahn|\bcd\b)\b/i;
   const DOCUMENT=/\b(document|contract|agreement|signed|signature|attachment|pdf|passport|visa|insurance|policy|tax|steuer|certificate|invoice attached|your copy)\b/i;
   const DEADLINE=/\b(deadline|due|submit|submission)\b/i;
   const DEMO=/\b(?:demo|preview)=1\b/i.test(location.search)||localStorage.getItem('daylight-demo')==='1';
@@ -645,42 +728,153 @@
   const saveLoopState=s=>{const now=Date.now();Object.keys(s).forEach(k=>{if(s[k].t&&now-s[k].t>30*86400000)delete s[k]});writeJSON('daylight-loops',s)};
   const parseFrom=v=>{const m=/^\s*"?([^"<]*)"?\s*<([^>]+)>/.exec(v||'');return m?{name:m[1].trim()||m[2],email:m[2].toLowerCase()}:{name:(v||'').trim(),email:(v||'').trim().toLowerCase()}};
   const gmailLink=id=>`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
+  async function apiRetry(url,opts,maxAttempts=3){
+    let lastErr=null,retries=0;
+    for(let attempt=0;attempt<maxAttempts;attempt++){
+      try{return {data:await api(url,opts),retries}}
+      catch(e){
+        lastErr=e;retries=attempt;
+        const st=e.status||0;
+        const retryable=st===429||st===500||st===502||st===503||st===504||!st;
+        if(!retryable||attempt===maxAttempts-1)break;
+        await new Promise(r=>setTimeout(r,Math.min(4000,350*Math.pow(2,attempt))+Math.random()*120));
+      }
+    }
+    throw lastErr||new Error('Request failed');
+  }
   async function loadLoops(force){
-    if(!token){if(DEMO){loopsData=demoLoopsData();loopsFetched=Date.now();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return computeLoops().length}return 0}
+    if(!token){if(DEMO){loopsData=demoLoopsData();loopsFetched=Date.now();try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)};queueDaylightHydrate();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return computeLoops().length}return 0}
     if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return 0}
+    const Store=window.DaylightStore;
+    const accountId=Store?await Store.getActiveAccountId().catch(()=>null):null;
+    const syncPrev=Store&&accountId?await Store.getSyncState(accountId).catch(()=>null):null;
+    const t0=Date.now();
+    let gmailRetries=0,calRetries=0,gmailMode='full',calMode='full';
     const G='https://gmail.googleapis.com/gmail/v1/users/me';
-    const meta=id=>api(`${G}/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`);
-    const listMeta=async (qs,n=12)=>{try{const r=await api(`${G}/messages?${qs}&maxResults=${n}`);const ids=r.messages||[];if(!ids.length)return[];return (await Promise.all(ids.map(m=>meta(m.id).catch(()=>null)))).filter(Boolean)}catch(e){console.warn('gmail list',qs,e);return[]}};
+    const meta=id=>apiRetry(`${G}/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`).then(r=>r.data);
+    const listMeta=async (qs,n=12,pages=2)=>{
+      try{
+        const out=[];let pageToken='';
+        for(let p=0;p<pages&&out.length<n;p++){
+          const u=`${G}/messages?${qs}&maxResults=${Math.min(50,n-out.length)}${pageToken?'&pageToken='+encodeURIComponent(pageToken):''}`;
+          const {data:r,retries}=await apiRetry(u);gmailRetries+=retries;
+          const ids=r.messages||[];if(!ids.length)break;
+          const batch=await Promise.all(ids.map(m=>meta(m.id).catch(()=>null)));
+          batch.filter(Boolean).forEach(m=>out.push(m));
+          pageToken=r.nextPageToken||'';if(!pageToken)break;
+        }
+        return out;
+      }catch(e){console.warn('gmail list',qs,e);try{if(Store&&accountId)await Store.recordSyncFailure('gmail',e,{retries:gmailRetries,mode:gmailMode},accountId)}catch{}return[]}
+    };
     const moneyQ=[
       'newer_than:120d (subscription OR renew OR renewal OR invoice OR billing OR receipt OR payment OR paid OR charged OR trial OR membership OR premium OR paypal OR stripe OR order OR purchase OR faktura OR platba OR předplatné)',
       'newer_than:120d category:purchases',
       'newer_than:90d category:updates (bill OR invoice OR payment OR receipt OR renew OR subscription OR faktura OR platba)',
       'newer_than:180d (from:paypal.com OR from:stripe.com OR from:apple.com OR from:amazon.com OR from:netflix.com OR from:spotify.com OR from:adobe.com OR from:google.com OR from:microsoft.com OR from:cursor.com OR from:openai.com)'
     ];
+    // Optional Gmail history probe: if historyId valid, still refresh search windows (queries catch old mail); cursor advances for diagnostics/recovery
+    let historyId=syncPrev?.gmail?.cursor||null;
+    try{
+      const {data:prof,retries}=await apiRetry(`${G}/profile`);gmailRetries+=retries;
+      if(prof?.historyId){
+        if(historyId&&historyId!==prof.historyId){
+          try{
+            const {data:hist,retries:hr}=await apiRetry(`${G}/history?startHistoryId=${encodeURIComponent(historyId)}&historyTypes=messageAdded&maxResults=50`);
+            gmailRetries+=hr;gmailMode='incremental+full';
+            // Touch newly added ids so they enter the pool even if outside search windows
+            const added=(hist.history||[]).flatMap(h=>(h.messagesAdded||[]).map(x=>x.message)).filter(m=>m?.id).slice(0,20);
+            if(added.length){
+              const extras=await Promise.all(added.map(m=>meta(m.id).catch(()=>null)));
+              extras.filter(Boolean).forEach(m=>{m._fromHistory=true});
+              listMeta._historyExtras=extras.filter(Boolean);
+            }
+            if(hist.historyId)historyId=hist.historyId;
+          }catch(e){
+            // 404 = cursor expired → full recovery
+            if(e.status===404||e.status===410){historyId=prof.historyId;gmailMode='full-recovery'}
+            else historyId=prof.historyId;
+          }
+        }else historyId=prof.historyId;
+      }
+    }catch{}
     const [inbox,moneyA,moneyB,moneyC,moneyD,travelMail,docsMail,sent]=await Promise.all([
-      listMeta('labelIds=INBOX',50),
-      listMeta('q='+encodeURIComponent(moneyQ[0]),30),
-      listMeta('q='+encodeURIComponent(moneyQ[1]),20),
-      listMeta('q='+encodeURIComponent(moneyQ[2]),20),
-      listMeta('q='+encodeURIComponent(moneyQ[3]),25),
-      listMeta('q='+encodeURIComponent('(flight OR train OR booking OR itinerary OR "boarding pass" OR hotel OR reservation OR e-ticket) newer_than:45d'),15),
-      listMeta('q='+encodeURIComponent('(document OR contract OR agreement OR signed OR insurance OR passport OR visa OR pdf OR tax) newer_than:45d has:attachment'),12),
-      api(`${G}/messages?labelIds=SENT&maxResults=15`).catch(()=>({messages:[]}))
+      listMeta('labelIds=INBOX',50,2),
+      listMeta('q='+encodeURIComponent(moneyQ[0]),30,2),
+      listMeta('q='+encodeURIComponent(moneyQ[1]),20,1),
+      listMeta('q='+encodeURIComponent(moneyQ[2]),20,1),
+      listMeta('q='+encodeURIComponent(moneyQ[3]),25,1),
+      listMeta('q='+encodeURIComponent('(flight OR train OR booking OR itinerary OR "boarding pass" OR hotel OR reservation OR e-ticket) newer_than:45d'),15,1),
+      listMeta('q='+encodeURIComponent('(document OR contract OR agreement OR signed OR insurance OR passport OR visa OR pdf OR tax) newer_than:45d has:attachment'),12,1),
+      apiRetry(`${G}/messages?labelIds=SENT&maxResults=15`).then(r=>r.data).catch(()=>({messages:[]}))
     ]);
     const financeMail=[...moneyA,...moneyB,...moneyC,...moneyD];
-    const byId=new Map();[...inbox,...financeMail,...travelMail,...docsMail].forEach(m=>{if(m?.id)byId.set(m.id,m)});
+    const byId=new Map();[...(listMeta._historyExtras||[]),...inbox,...financeMail,...travelMail,...docsMail].forEach(m=>{if(m?.id)byId.set(m.id,m)});
     const threadIds=[...new Set((sent.messages||[]).map(m=>m.threadId))].slice(0,12);
-    const threads=await Promise.all(threadIds.map(t=>api(`${G}/threads/${encodeURIComponent(t)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`).catch(()=>null)));
-    const calU=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
-    calU.searchParams.set('timeMin',new Date().toISOString());calU.searchParams.set('timeMax',new Date(localMidnight.getTime()+14*86400000).toISOString());calU.searchParams.set('singleEvents','true');calU.searchParams.set('orderBy','startTime');calU.searchParams.set('maxResults','50');
-    const upcoming=await api(calU).then(r=>r.items||[]).catch(()=>[]);
+    const threads=await Promise.all(threadIds.map(t=>apiRetry(`${G}/threads/${encodeURIComponent(t)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`).then(r=>r.data).catch(()=>null)));
+    // Calendar: prefer syncToken when present; recover on 410
+    let upcoming=[],calCursor=syncPrev?.calendar?.cursor||null;
+    try{
+      if(calCursor){
+        calMode='incremental';
+        const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+        u.searchParams.set('syncToken',calCursor);u.searchParams.set('singleEvents','true');u.searchParams.set('maxResults','100');
+        try{
+          let pageToken='',items=[];
+          do{
+            if(pageToken)u.searchParams.set('pageToken',pageToken);else u.searchParams.delete('pageToken');
+            const {data,retries}=await apiRetry(u);calRetries+=retries;
+            items=items.concat(data.items||[]);pageToken=data.nextPageToken||'';
+            if(data.nextSyncToken)calCursor=data.nextSyncToken;
+          }while(pageToken);
+          // Incremental returns changed items only — merge with prior upcoming window
+          const prior=new Map((loopsData?.upcoming||[]).map(e=>[e.id,e]));
+          items.forEach(e=>{if(e.status==='cancelled')prior.delete(e.id);else if(e.id)prior.set(e.id,e)});
+          const horizon=localMidnight.getTime()+14*86400000;
+          upcoming=[...prior.values()].filter(e=>{
+            const st=new Date(e.start?.dateTime||e.start?.date||0).getTime();
+            return st>=Date.now()-86400000&&st<=horizon;
+          }).sort((a,b)=>new Date(a.start?.dateTime||a.start?.date||0)-new Date(b.start?.dateTime||b.start?.date||0));
+        }catch(e){
+          if(e.status===410){calCursor=null;calMode='full-recovery'}
+          else throw e;
+        }
+      }
+      if(!calCursor||calMode==='full-recovery'||!upcoming.length&&calMode!=='incremental'){
+        if(calMode!=='incremental')calMode=calMode==='full-recovery'?calMode:'full';
+        const calU=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
+        calU.searchParams.set('timeMin',new Date().toISOString());
+        calU.searchParams.set('timeMax',new Date(localMidnight.getTime()+14*86400000).toISOString());
+        calU.searchParams.set('singleEvents','true');calU.searchParams.set('orderBy','startTime');calU.searchParams.set('maxResults','50');
+        let pageToken='',items=[];
+        do{
+          if(pageToken)calU.searchParams.set('pageToken',pageToken);else calU.searchParams.delete('pageToken');
+          const {data,retries}=await apiRetry(calU);calRetries+=retries;
+          items=items.concat(data.items||[]);pageToken=data.nextPageToken||'';
+          if(data.nextSyncToken)calCursor=data.nextSyncToken;
+        }while(pageToken&&items.length<100);
+        upcoming=items;
+      }
+    }catch(e){
+      console.warn('calendar sync',e);
+      try{if(Store&&accountId)await Store.recordSyncFailure('calendar',e,{retries:calRetries,mode:calMode},accountId)}catch{}
+      upcoming=[];
+    }
     loopsData={inbox:[...byId.values()],financeMail,travelMail,docsMail,threads:threads.filter(Boolean),upcoming,files:{},scanned:byId.size,financeHits:financeMail.length};
-    // look for a related Drive file for the next few meetings
     const meetings=upcoming.filter(e=>(e.attendees||[]).length>1&&e.start?.dateTime&&new Date(e.start.dateTime)<new Date(localMidnight.getTime()+2*86400000)).slice(0,3);
     await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
       try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${word.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','1');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,webViewLink)');
-        const f=(await api(u)).files?.[0];if(f)loopsData.files[e.id]=f}catch{}}));
-    loopsFetched=Date.now();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return computeLoops().length;
+        const f=(await apiRetry(u).then(r=>r.data)).files?.[0];if(f)loopsData.files[e.id]=f}catch{}}));
+    loopsFetched=Date.now();
+    try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)}
+    if(Store&&accountId){
+      try{
+        await Store.recordSyncSuccess('gmail',{durationMs:Date.now()-t0,retries:gmailRetries,fetched:byId.size,cursor:historyId,mode:gmailMode},accountId);
+        await Store.recordSyncSuccess('calendar',{durationMs:Date.now()-t0,retries:calRetries,fetched:upcoming.length,cursor:calCursor,mode:calMode},accountId);
+      }catch(e){console.warn('sync meta',e)}
+    }
+    queueDaylightHydrate();
+    renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();if(typeof renderWallet==='function'&&mq?.matches&&mTab==='wallet')renderWallet();
+    return computeLoops().length;
   }
   function demoLoopsData(){
     const days=n=>new Date(Date.now()-n*86400000).toISOString();
@@ -719,7 +913,14 @@
         const primary=labels.includes('CATEGORY_PERSONAL')||!labels.some(l=>/^CATEGORY_(PROMOTIONS|SOCIAL|UPDATES|FORUMS)$/.test(l));
         const mailExtra={mailId:m.id,threadId:m.threadId,fromName:from.name,fromEmail:from.email,whenMs:when.getTime(),snippet:m.snippet||'',subject};
         if(RENEWAL.test(subject)&&age<30*day){add('renewal',m.threadId,`Review: ${subject}`,`From ${from.name}`,ago(when),gmailLink(m.threadId),{...mailExtra,category:'Renewal / Billing'});return}
-        if(TRAVEL.test(subject)&&age<21*day){add('travel',m.threadId,subject,`From ${from.name} · check dates, tickets and where you’re staying`,ago(when),gmailLink(m.threadId),{...mailExtra,category:'Travel'});return}
+        if(TRAVEL.test(subject)&&age<21*day){
+          const booking=(loopsData.bookings||[]).find(b=>b.mailId===m.id||b.threadId===m.threadId);
+          const tripBits=booking?[booking.kind==='hotel'?'Hotel':booking.kind==='train'?'Train':'Flight',booking.dest,booking.tripId&&'linked trip'].filter(Boolean).join(' · '):'check dates, tickets and where you’re staying';
+          add('travel',m.threadId,subject,`From ${from.name} · ${tripBits}`,ago(when),gmailLink(m.threadId),{
+            ...mailExtra,category:'Travel',tripId:booking?.tripId||'',travelKind:booking?.kind||'',travelWhenMs:booking?.whenMs||when.getTime(),
+            whenMs:booking?.whenMs||when.getTime()
+          });return
+        }
         if(primary&&!AUTOMATED.test(from.email)&&(labels.includes('UNREAD')||labels.includes('IMPORTANT')||labels.includes('STARRED'))&&age>2*3600000&&age<14*day)
           add('reply',m.threadId,`Reply to ${from.name}`,subject,`waiting ${ago(when).replace(' ago','')}`,gmailLink(m.threadId),{...mailExtra,weight:labels.includes('IMPORTANT')||labels.includes('STARRED')?2:1,category:'Reply / Email'});
       });
@@ -732,10 +933,21 @@
         const when=days===0?'Today':days===1?'Tomorrow':st.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
         const time=e.start?.dateTime?' · '+hm(st):'';
         const calExtra={whenMs:st.getTime(),category:'Calendar',dueLabel:when};
-        if((e.attendees||[]).length>1&&e.start?.dateTime&&days<=1&&st>now){const f=loopsData.files[e.id];
-          add('prepare',e.id,`Prepare for ${title}`,`${when}${time} · ${(e.attendees||[]).length} people`,'',e.htmlLink,{...calExtra,related:f||undefined})}
+        if((e.attendees||[]).length>1&&e.start?.dateTime&&days<=1&&st>now){
+          const f=loopsData.files[e.id];
+          const mail=loopsData.meetingMail?.[e.id];
+          add('prepare',e.id,`Prepare for ${title}`,`${when}${time} · ${(e.attendees||[]).length} people`+(mail?' · related mail':''),'',e.htmlLink,{
+            ...calExtra,related:f||undefined,relatedMail:mail||undefined,
+            mailId:mail?.mailId||undefined,threadId:mail?.threadId||undefined
+          });
+        }
         if(DEADLINE.test(title)&&days<=3)add('deadline',e.id,title,`${when}${time}`,'',e.htmlLink,calExtra);
-        if(TRAVEL.test(title+' '+(e.location||''))&&days<=7)add('travel',e.id,title,`${when}${time}${e.location?' · '+e.location:''} · tickets and accommodation sorted?`,'',e.htmlLink,{...calExtra,category:'Travel'});
+        if(TRAVEL.test(title+' '+(e.location||''))&&days<=7){
+          const booking=(loopsData.bookings||[]).find(b=>Math.abs((b.whenMs||0)-st.getTime())<4*day&&(TRAVEL.test(b.subject||'')||b.dest));
+          add('travel',e.id,title,`${when}${time}${e.location?' · '+e.location:''}${booking?.tripId?' · trip linked':''}`,'',e.htmlLink,{
+            ...calExtra,category:'Travel',tripId:booking?.tripId||'',travelWhenMs:st.getTime()
+          });
+        }
       });
     }
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
@@ -1200,7 +1412,7 @@
     return {title:t,dueDate:w.date?w.date.toISOString():'',hasTime:w.hasTime,project};
   }
   const looksLikeCapture=q=>/^\s*(please\s+)?(remember|remind|add|todo|to-?do|note|keep|save|buy|call|email|text|send|book|pay|check|finish|submit|renew|cancel|pick up|bring)\b/i.test(q);
-  function savePersonal(){try{localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks))}catch{}}
+  function savePersonal(){try{localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks))}catch{};try{queueDaylightHydrate?.()}catch{}}
   function capture(text){const item={id:crypto.randomUUID?.()||String(Date.now()),...parseCapture(text),created:new Date().toISOString()};personalTasks.unshift(item);savePersonal();renderTasks();renderLoops();return item}
 
   // Search across what Daylight can see
@@ -1213,8 +1425,22 @@
   const loopItem=l=>({title:l.title,meta:[srcOf(l),l.meta||l.detail].filter(Boolean).join(' · '),href:l.href,src:srcOf(l)});
   async function answer(q){
     const lq=q.toLowerCase(),w=parseWhen(q),needG=!token&&!microsoftAccount;
-    if(/\b(bills?|renewals?|subscriptions?|payments?|invoices?)\b/.test(lq))return {sections:[{title:'Bills and renewals',items:computeLoops().filter(l=>l.type==='renewal').map(loopItem),empty:needG?'Connect Google to check your inbox.':'Nothing coming up in your recent email.'}]};
-    if(/\b(trips?|travel|flights?|trains?|hotels?|bookings?)\b/.test(lq))return {sections:[{title:'Trips',items:computeLoops().filter(l=>l.type==='travel').map(loopItem),empty:'No trips found in recent email or your calendar.'}]};
+    if(/\b(bills?|renewals?|subscriptions?|payments?|invoices?)\b/.test(lq)){
+      const payTasks=personalTasks.filter(t=>t.project==='Payments'||t.suggested).map(t=>({title:t.title,meta:[t.dueDate?fmtDue(t):'No due date',t.amount||''].filter(Boolean).join(' · '),href:t.href||'',src:'Payments'}));
+      const money=computeMoney();
+      return {sections:[
+        {title:'Payment tasks',items:payTasks,empty:'No payment tasks suggested yet.'},
+        {title:'Bills and renewals',items:[...money.bill,...money.pending,...computeLoops().filter(l=>l.type==='renewal')].slice(0,10).map(i=>i.type?loopItem(i):{title:i.subject||i.title,meta:[i.meta,i.amount].filter(Boolean).join(' · '),href:i.href,src:'Money'}),empty:needG?'Connect Google to check your inbox.':'Nothing coming up in your recent email.'}
+      ]};
+    }
+    if(/\b(trips?|travel|flights?|trains?|hotels?|bookings?|ticket)\b/.test(lq)){
+      const walletTravel=readWallet().filter(w=>w.kind==='tickets'||w.tripId||w.flight).map(w=>({title:w.title,meta:[w.typeLabel||'Wallet',w.date||'',w.tripId?'Linked trip':''].filter(Boolean).join(' · '),href:w.href||'',src:'Wallet'}));
+      const trips=(loopsData?.trips||[]).map(t=>({title:t.dest?`Trip to ${t.dest}`:t.id,meta:`${t.count||0} items · ${(t.kinds||[]).join(', ')}`,href:'',src:'Trip'}));
+      return {sections:[
+        {title:'Wallet tickets',items:walletTravel,empty:'No travel passes in Wallet yet.'},
+        {title:'Trips',items:trips.length?trips:computeLoops().filter(l=>l.type==='travel').map(loopItem),empty:'No trips found in recent email or your calendar.'}
+      ]};
+    }
     if(/\b(repl(y|ies)|waiting|follow[- ]?ups?|owe)\b/.test(lq))return {sections:[{title:'Waiting on you',items:computeLoops().filter(l=>l.type==='reply').map(loopItem),empty:'Nobody is waiting for a reply.'},{title:'Waiting on others',items:computeLoops().filter(l=>l.type==='followup').map(loopItem),empty:'No unanswered emails you sent.'}]};
     if(/\b(tasks?|to-?dos?|unfinished|overdue|reminders?)\b/.test(lq)){
       const all=[...personalTasks.map(t=>({...t,src:'Daylight'})),...(providerData.google.tasks||[]).map(t=>({...t,src:'Google Tasks'})),...(providerData.microsoft.tasks||[]).map(t=>({...t,src:'To Do'}))];
@@ -1557,16 +1783,20 @@
     const subject=mail?.subject||loopSubject(l);
     const body=mail?.body||l.snippet||l.detail||'Open the source to read the full message.';
     const timeStr=mail?.date?mail.date.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):(l.whenMs?new Date(l.whenMs).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):'');
-    const isMail=!!(l.mailId||l._inbox||l.type==='reply'||l.type==='followup'||l.type==='renewal'||(l.href&&String(l.href).includes('mail.google')));
+    const relatedMail=l.relatedMail||null;
+    const isMail=!!(l.mailId||relatedMail||l._inbox||l.type==='reply'||l.type==='followup'||l.type==='renewal'||(l.href&&String(l.href).includes('mail.google')));
     const composing=!!(replyState?.open&&replyState.loopId===l.id);
     const navTitle=composing?'Reply':(l._inbox?'Inbox Detail':'Task Detail');
     const fav=isFav(l.id);
     const tab=composing?'email':(tdTab==='email'&&isMail?'email':tdTab==='notes'?'notes':tdTab==='activity'?'activity':'details');
     const nav=$('.td-nav b');if(nav)nav.textContent=navTitle;
     const star=$('.td-nav [data-ls-fav]');if(star){star.classList.toggle('on',fav);star.setAttribute('aria-pressed',fav?'true':'false')}
+    const tripPass=l.tripId?readWallet().filter(w=>w.tripId===l.tripId):[];
     $('#ls-head').innerHTML=`<span class="td-ico ${t.cls}" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
       <div class="td-head-copy">${prio?`<span class="td-prio">High Priority</span>`:''}<h2 id="ls-title">${esc(composing?'Write a reply':l.title)}</h2>
-      <div class="td-meta-row"><span class="td-chip">${esc(srcOf(l)||'Daylight')}</span><span class="td-chip accent">${esc(due||whenTxt||'—')}</span>${prio?`<span class="td-chip hot">Priority · High</span>`:''}</div></div>`;
+      <div class="td-meta-row"><span class="td-chip">${esc(srcOf(l)||'Daylight')}</span><span class="td-chip accent">${esc(due||whenTxt||'—')}</span>${prio?`<span class="td-chip hot">Priority · High</span>`:''}${l.tripId?`<span class="td-chip">Trip</span>`:''}</div></div>`;
+    const tripCard=tripPass.length?`<div class="td-card td-need"><span class="td-need-l">Linked trip</span>${tripPass.map(w=>`<p style="margin:6px 0 0"><button type="button" class="td-link" data-open-wallet="${esc(w.id)}">${esc(w.title)}</button> <small>${esc(w.typeLabel||WALLET_LABEL[w.kind]||'')}</small></p>`).join('')}</div>`:'';
+    const relatedMailCard=relatedMail?`<div class="td-card td-mail"><div class="td-mail-h"><div><b>Related email</b><small>${esc(relatedMail.subject)}</small></div></div><p class="td-mail-b">From ${esc(relatedMail.from?.name||relatedMail.from?.email||'Gmail')}</p><button type="button" class="td-link" data-ls-act="open-related-mail">Open related mail</button></div>`:'';
     const details=`
       <div class="td-card td-attrs">
         <div class="td-attr"><span class="td-attr-l">${l._inbox?'Date':'Due'}</span><span class="td-attr-v accent">${esc(due)}</span></div>
@@ -1575,6 +1805,7 @@
         <div class="td-attr"><span class="td-attr-l">Category</span><span class="td-attr-v accent">${esc(cat)}</span></div>
       </div>
       <div class="td-card td-need"><span class="td-need-l">What needs to be done</span><p>${esc(need)}</p></div>
+      ${tripCard}${relatedMailCard}
       <div class="td-card td-ai"><div class="td-ai-top"><span class="td-ai-ico" aria-hidden="true">✦</span><b>${esc(sug.label)}</b></div><p>${esc(sug.text)}</p><button class="td-draft" type="button" data-ls-act="${canReplyInApp(l)?'reply':'suggest'}">${esc(canReplyInApp(l)?'Reply in Daylight':sug.cta)}</button></div>`;
     const st=replyState&&replyState.loopId===l.id?replyState:null;
     const statusHtml=st?.status==='sending'?`<div class="td-compose-status is-sending" role="status">Sending…</div>`
@@ -1588,12 +1819,17 @@
         ${statusHtml}
         ${l.href?`<button type="button" class="td-link td-open-original" data-ls-act="open-original">Open original</button>`:''}
       </div>`:'';
+    const mailFrom=mail?.from?.name||relatedMail?.from?.name||fromName;
+    const mailSub=mail?.subject||relatedMail?.subject||subject;
     const email=`      ${isMail?`<div class="td-card td-mail" id="ls-mail">
-        <div class="td-mail-h"><span class="td-av m-brand" style="--a1:${esc(l.color||brandColor(fromName))};--a2:${esc(l.color||brandColor(fromName))}">${brandLogoHTML({fromEmail:l.fromEmail,title:fromName,domain:l.domain,logo:l.logo},initialsOf(fromName))}</span><div><b>${esc(fromName)}</b><small>${esc(subject)}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
-        <p class="td-mail-b">${mail?esc(body):(l.mailId?'Loading email from Gmail…':esc(body))}</p>
-        ${l.href?`<button type="button" class="td-link td-open-original" data-ls-act="open-original">Open original</button>`:''}
-      </div>${compose}`:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>${compose}`}`;
+        <div class="td-mail-h"><span class="td-av m-brand" style="--a1:${esc(l.color||brandColor(mailFrom))};--a2:${esc(l.color||brandColor(mailFrom))}">${brandLogoHTML({fromEmail:l.fromEmail||relatedMail?.from?.email,title:mailFrom,domain:l.domain,logo:l.logo},initialsOf(mailFrom))}</span><div><b>${esc(mailFrom)}</b><small>${esc(mailSub)}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
+        <p class="td-mail-b">${mail?esc(body):(l.mailId||relatedMail?.mailId?'Loading email from Gmail…':esc(body))}</p>
+        ${relatedMailCard}
+        ${tripCard}
+        ${(l.href||relatedMail?.href)?`<button type="button" class="td-link td-open-original" data-ls-act="open-original">Open original</button>`:''}
+      </div>${compose}`:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>${tripCard}${compose}`}`;
     const notes=`<div class="td-card td-need"><span class="td-need-l">Notes</span><p>${esc(l.detail||l.snippet||'No notes yet. Capture a reminder from Assistant.')}</p></div>
+      ${tripCard}
       ${l.related?`<div class="td-card"><a class="td-link" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a></div>`:''}`;
     const activity=`<div class="td-card td-attrs">
         <div class="td-attr"><span class="td-attr-l">Source</span><span class="td-attr-v">${esc(srcOf(l))}</span></div>
@@ -1666,10 +1902,17 @@
         if(a==='remind'){capture('Remind me: '+loop.title+(loop.dueLabel?' by '+loop.dueLabel:''));toast('Reminder added',{type:'ok',haptic:'success'});return}
         if(a==='done'){const s=loopState();s[loop.id]={done:true,t:Date.now()};saveLoopState(s);closeLoopSheet();renderLoops();if(typeof renderInbox==='function')renderInbox({animate:false});toast('Marked as done',{type:'ok',haptic:'success'});return}
         if(a==='open-original'){
-          if(!loop.href){toast('No Gmail link available',{type:'warn'});return}
-          feel.select();window.open(loop.href,'_blank','noopener');return
+          const href=loop.relatedMail?.href||loop.href;
+          if(!href){toast('No Gmail link available',{type:'warn'});return}
+          feel.select();window.open(href,'_blank','noopener');return
+        }
+        if(a==='open-related-mail'){
+          const rm=loop.relatedMail;if(!rm?.href){toast('No related mail found',{type:'warn'});return}
+          feel.select();window.open(rm.href,'_blank','noopener');return
         }
         if(a==='reply'){openReplyComposer(loop);return}
+        const wOpen=e.target.closest('[data-open-wallet]');
+        if(wOpen){feel.select();closeLoopSheet();setTab('wallet');openPassSheet(wOpen.dataset.openWallet);return}
         if(a==='cancel-compose'||a==='close-compose'){
           syncReplyFieldsFromDom();
           if(replyState)replyState.open=false;
@@ -1697,8 +1940,9 @@
       if(wasOpen&&N.topView()==='loop')N.replace('loop',l.id);
       else if(N.topView()!=='loop')N.push('loop',l.id);
     }
-    if(l.mailId&&token){
-      const mail=await fetchMailDetail(l.mailId);
+    const mailId=l.mailId||l.relatedMail?.mailId;
+    if(mailId&&token){
+      const mail=await fetchMailDetail(mailId);
       if(openLoopId===l.id&&mail)paintLoopDetail(openDetail||l,mail);
     }
   }
@@ -1835,7 +2079,607 @@
     seed.forEach(i=>{if(i.qrPayload){i.qrImage=qrUrl(i.qrPayload,220);i.barcodeImage=barcodeUrl(i.barcode||i.qrPayload)}});
     writeJSON('daylight-wallet',seed);return seed;
   }
-  function saveWallet(list){writeJSON('daylight-wallet',list.slice(0,80))}
+  function saveWallet(list){writeJSON('daylight-wallet',list.slice(0,80));try{queueDaylightHydrate?.()}catch{}}
+  /* ---- Cross-app intelligence: travel Wallet, trips, meeting↔mail, payment tasks ---- */
+  function mailSearchText(m){
+    const h=m?.payload?.headers||[];
+    return [header(h,'Subject'),header(h,'From'),header(h,'To'),m?.snippet||''].join(' ');
+  }
+  function parseFlexibleDate(text,fallback){
+    const s=String(text||'');let m;
+    if((m=s.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/))){
+      const a=+m[1],b=+m[2],yr=m[3]?(String(m[3]).length===2?2000+ +m[3]:+m[3]):localMidnight.getFullYear();
+      const dayFirst=a>12||/^\d{1,2}\.\d{1,2}/.test(m[0]);
+      let d=dayFirst?new Date(yr,b-1,a):new Date(yr,a-1,b);
+      if(d<localMidnight&&!m[3])d=new Date(d.getFullYear()+1,d.getMonth(),d.getDate());
+      if(!isNaN(d))return d;
+    }
+    if((m=s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:,?\s*(\d{4}))?\b/i))){
+      const mon=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].slice(0,3).toLowerCase());
+      let d=new Date(m[3]?+m[3]:localMidnight.getFullYear(),mon,+m[2]);
+      if(d<localMidnight&&!m[3])d.setFullYear(d.getFullYear()+1);
+      if(!isNaN(d))return d;
+    }
+    if(/\btomorrow\b/i.test(s))return new Date(localMidnight.getTime()+86400000);
+    if(/\btoday\b/i.test(s))return new Date(localMidnight);
+    return fallback instanceof Date&&!isNaN(fallback)?fallback:new Date();
+  }
+  function classifyTravelKind(text){
+    if(HOTEL.test(text))return 'hotel';
+    if(FLIGHTISH.test(text)||/\b[A-Z]{2}\s?\d{2,4}\b/.test(text))return 'flight';
+    if(TRAINISH.test(text))return 'train';
+    if(TRAVEL.test(text))return 'trip';
+    return '';
+  }
+  function tripIdFor(dest,whenMs){
+    const d=new Date(whenMs||Date.now());
+    const week=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    week.setDate(week.getDate()-((week.getDay()+6)%7));
+    const slug=String(dest||'travel').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,28)||'travel';
+    return `trip:${slug}:${week.toISOString().slice(0,10)}`;
+  }
+  function parseTravelBooking(m){
+    if(!m?.id)return null;
+    const h=m.payload?.headers||[];
+    const subject=header(h,'Subject')||'(No subject)';
+    const text=mailSearchText(m);
+    const kind=classifyTravelKind(text);if(!kind)return null;
+    const from=parseFrom(header(h,'From'));
+    const received=new Date(header(h,'Date')||m.internalDate*1);
+    const flight=window.DaylightScan?.extractFlight?.(text)||null;
+    const dest=(flight?.to||(text.match(/\b(?:to|→|->|–)\s*([A-Za-zÀ-ž][A-Za-zÀ-ž .'-]{2,28})/i)||[])[1]||'').trim();
+    const when=parseFlexibleDate(text,received);
+    const tripId=tripIdFor(dest||flight?.from||from.name||subject.slice(0,16),when.getTime());
+    return {
+      mailId:m.id,threadId:m.threadId||m.id,kind,subject,from,dest,flight,
+      whenMs:when.getTime(),receivedMs:received.getTime(),tripId,href:gmailLink(m.threadId||m.id),
+      title:subject
+    };
+  }
+  function mergeTripIds(bookings){
+    const out=bookings.map(b=>({...b}));
+    for(let i=0;i<out.length;i++){
+      for(let j=i+1;j<out.length;j++){
+        const a=out[i],b=out[j];
+        const sameDest=a.dest&&b.dest&&a.dest.toLowerCase().slice(0,8)===b.dest.toLowerCase().slice(0,8);
+        const close=Math.abs(a.whenMs-b.whenMs)<6*86400000;
+        if((sameDest||(!a.dest&&!b.dest&&close))&&close){
+          const keep=a.whenMs<=b.whenMs?a.tripId:b.tripId;
+          out[i].tripId=keep;out[j].tripId=keep;
+        }
+      }
+    }
+    return out;
+  }
+  function findRelatedMeetingMail(event){
+    if(!loopsData)return null;
+    const title=String(event.summary||'');
+    const words=title.split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=4).map(w=>w.toLowerCase());
+    const att=(event.attendees||[]).map(a=>(a.email||'').toLowerCase()).filter(Boolean);
+    const start=new Date(event.start?.dateTime||event.start?.date||0).getTime();
+    const pool=[...(loopsData.inbox||[]),...(loopsData.threads||[]).flatMap(t=>t.messages||[])];
+    let best=null,score=0;
+    pool.forEach(m=>{
+      if(!m?.id)return;
+      const h=m.payload?.headers||[];
+      const subject=(header(h,'Subject')||'').toLowerCase();
+      const from=parseFrom(header(h,'From'));
+      const to=parseFrom((header(h,'To')||'').split(',')[0]||'');
+      const when=new Date(header(h,'Date')||m.internalDate*1).getTime();
+      let s=0;
+      if(att.includes(from.email)||att.includes(to.email))s+=5;
+      words.forEach(w=>{if(subject.includes(w))s+=2});
+      if(start&&Math.abs(when-start)<5*86400000)s+=2;
+      if(AUTOMATED.test(from.email))s-=3;
+      if(s>score){score=s;best=m}
+    });
+    if(!best||score<4)return null;
+    const h=best.payload?.headers||[];
+    return {
+      mailId:best.id,threadId:best.threadId||best.id,
+      subject:header(h,'Subject')||'(No subject)',
+      from:parseFrom(header(h,'From')),
+      href:gmailLink(best.threadId||best.id),
+      score
+    };
+  }
+  function syncMeetingMailLinks(){
+    if(!loopsData)return;
+    const map={};
+    (loopsData.upcoming||[]).forEach(e=>{
+      if((e.attendees||[]).length<2||!e.start?.dateTime)return;
+      const mail=findRelatedMeetingMail(e);if(mail)map[e.id]=mail;
+    });
+    loopsData.meetingMail=map;
+  }
+  const CANCELLED_TRAVEL=/\b(cancel+ed|cancellation|flight\s+cancel|booking\s+cancel|no longer (valid|available)|was cancelled)\b/i;
+  const SCHEDULE_CHANGE=/\b(reschedul|schedule\s+chang|time\s+chang|new\s+departure|delayed|gate\s+chang|depart(?:ure)?\s+now|updated\s+itinerary|flight\s+update)\b/i;
+  const PRICE_CHANGE=/\b(price\s+increas|new\s+price|updated\s+price|rate\s+chang|now\s+(costs?|only)|was\s+[€$£]|increased\s+to)\b/i;
+  const FOLLOWUP_NEED=/\b(following\s+up|just\s+checking|any\s+update|did\s+you\s+(get|see)|circling\s+back|friendly\s+reminder|waiting\s+on\s+your)\b/i;
+  function bookingFingerprint(b){
+    return [b.whenMs||'',b.flight?.depart||'',b.flight?.arrive||'',b.flight?.flight||'',b.flight?.gate||'',b.cancelled?'1':'0',b.dest||''].join('|');
+  }
+  function upsertWalletFromBooking(booking,list){
+    if(!booking)return {added:false,updated:false,change:null};
+    const existing=list.find(i=>i.mailId===booking.mailId||i.sourceId===booking.mailId||i.id==='mail:'+booking.mailId);
+    const isStay=booking.kind==='hotel';
+    const route=booking.flight?.from&&booking.flight?.to?`${booking.flight.from} → ${booking.flight.to}`:'';
+    const title=booking.cancelled
+      ?('Cancelled · '+(route||booking.subject.replace(/^re:\s*/i,'').slice(0,48)))
+      :(isStay?(booking.subject.replace(/^re:\s*/i,'').slice(0,60)):(route||booking.subject.slice(0,60)));
+    const note=[booking.cancelled?'CANCELLED':'',booking.flight?.flight,booking.flight?.depart?`Dep ${booking.flight.depart}`:'',booking.flight?.seat?`Seat ${booking.flight.seat}`:'',booking.from?.name,booking.dest&&`→ ${booking.dest}`].filter(Boolean).join(' · ');
+    if(existing){
+      const prevFp=existing._bookingFp||'';
+      const nextFp=bookingFingerprint(booking);
+      let change=null;
+      if(booking.cancelled&&existing.status!=='cancelled')change={kind:'cancelled',field:'status',from:existing.status||'active',to:'cancelled'};
+      else if(prevFp&&prevFp!==nextFp){
+        if(String(existing.travelAt||'')!==new Date(booking.whenMs).toISOString())change={kind:'rescheduled',field:'travelAt',from:existing.travelAt,to:new Date(booking.whenMs).toISOString()};
+        else if((existing.flight?.depart||'')!==(booking.flight?.depart||''))change={kind:'schedule_change',field:'depart',from:existing.flight?.depart||'',to:booking.flight?.depart||''};
+        else change={kind:'updated',field:'booking',from:prevFp,to:nextFp};
+      }
+      existing.title=title;existing.note=note;existing.tripId=booking.tripId||existing.tripId;
+      existing.travelAt=new Date(booking.whenMs).toISOString();
+      existing.date=new Date(booking.whenMs).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+      existing.flight=booking.flight||existing.flight||null;
+      existing.href=booking.href||existing.href;
+      existing.status=booking.cancelled?'cancelled':'active';
+      existing._bookingFp=nextFp;
+      if(booking.linkedMailId)existing.linkedMailId=booking.linkedMailId;
+      if(change){existing.lastChange=change;existing.updatedAt=new Date().toISOString()}
+      return {added:false,updated:!!change,change};
+    }
+    const item=ensurePassCodes({
+      id:'mail:'+booking.mailId,
+      mailId:booking.mailId,sourceId:booking.mailId,threadId:booking.threadId,tripId:booking.tripId,
+      title,kind:isStay?'documents':'tickets',note,
+      org:booking.from?.name||(isStay?'Hotel':'Travel'),
+      typeLabel:booking.kind==='hotel'?'Hotel booking':booking.kind==='train'?'Train ticket':'Flight ticket',
+      number:booking.flight?.pnr?('#'+booking.flight.pnr):'',
+      date:new Date(booking.whenMs).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}),
+      travelAt:new Date(booking.whenMs).toISOString(),
+      at:new Date().toISOString(),
+      color:isStay?WALLET_COLORS.documents:WALLET_COLORS.tickets,
+      href:booking.href,flight:booking.flight||null,
+      barcode:booking.flight?.pnr||booking.mailId.slice(0,14),
+      qrPayload:booking.flight?.pnr||booking.mailId,
+      status:booking.cancelled?'cancelled':'active',
+      _bookingFp:bookingFingerprint(booking)
+    });
+    list.unshift(item);return {added:true,updated:false,change:null};
+  }
+  function syncTravelWalletAndTrips(){
+    if(!loopsData)return {added:0,updated:0,trips:[]};
+    const raw=[];
+    const seen=new Set();
+    [...(loopsData.travelMail||[]),...(loopsData.inbox||[])].forEach(m=>{
+      if(!m?.id||seen.has(m.id))return;
+      const b=parseTravelBooking(m);if(!b)return;
+      const text=mailSearchText(m);
+      b.cancelled=CANCELLED_TRAVEL.test(text)||CANCELLED_TRAVEL.test(b.subject||'');
+      b.scheduleChanged=SCHEDULE_CHANGE.test(text)||SCHEDULE_CHANGE.test(b.subject||'');
+      seen.add(m.id);raw.push(b);
+    });
+    const bookings=mergeTripIds(raw);
+    const trips={};
+    bookings.forEach(b=>{
+      if(!trips[b.tripId])trips[b.tripId]={id:b.tripId,dest:b.dest||'',whenMs:b.whenMs,kinds:new Set(),mailIds:[],items:[]};
+      const t=trips[b.tripId];
+      t.kinds.add(b.kind);t.mailIds.push(b.mailId);t.items.push(b);
+      if(b.whenMs<t.whenMs)t.whenMs=b.whenMs;
+      if(!t.dest&&b.dest)t.dest=b.dest;
+    });
+    bookings.filter(b=>b.kind==='hotel').forEach(h=>{
+      const mate=bookings.find(x=>x.kind!=='hotel'&&Math.abs(x.whenMs-h.whenMs)<6*86400000);
+      if(mate){h.tripId=mate.tripId;h.linkedMailId=mate.mailId}
+    });
+    let list=readWallet();
+    let added=0,updated=0;
+    const changes=[];
+    bookings.forEach(b=>{
+      const r=upsertWalletFromBooking(b,list);
+      if(r.added)added++;
+      if(r.updated){updated++;if(r.change)changes.push({mailId:b.mailId,tripId:b.tripId,...r.change})}
+    });
+    list.forEach(i=>{
+      if(!i.tripId)return;
+      const mates=list.filter(x=>x.tripId===i.tripId&&x.id!==i.id);
+      if(mates.length)i.tripMates=mates.map(x=>({id:x.id,title:x.title,kind:x.kind}));
+    });
+    if(added||updated||bookings.length)saveWallet(list);
+    loopsData.bookings=bookings;
+    loopsData.trips=Object.values(trips).map(t=>({id:t.id,dest:t.dest,whenMs:t.whenMs,kinds:[...t.kinds],mailIds:t.mailIds,count:t.items.length}));
+    loopsData.travelChanges=(loopsData.travelChanges||[]).concat(changes).slice(-40);
+    return {added,updated,trips:loopsData.trips,changes};
+  }
+  function syncPaymentTaskSuggestions(){
+    if(!loopsData)return 0;
+    const money=computeMoney();
+    const stamped=readJSON('daylight-pay-suggested',{});
+    const amountMem=readJSON('daylight-pay-amounts',{});
+    let n=0;
+    const moneyChanges=[];
+    [...money.subscription,...money.bill,...money.pending].forEach(item=>{
+      if(!item.mailId)return;
+      if(item.amount){
+        const prev=amountMem[item.mailId];
+        if(prev&&prev!==item.amount){
+          moneyChanges.push({mailId:item.mailId,kind:'amount_change',field:'amount',from:prev,to:item.amount,title:item.title});
+        }
+        amountMem[item.mailId]=item.amount;
+      }
+      if(PRICE_CHANGE.test(item.subject||item.title||'')&&item.amount){
+        moneyChanges.push({mailId:item.mailId,kind:'price_signal',field:'amount',from:null,to:item.amount,title:item.title});
+      }
+    });
+    [...money.bill,...money.pending].forEach(item=>{
+      if(!item.mailId)return;
+      if(!item.amount&&!item.urgent&&item.kind!=='bill')return;
+      if(stamped[item.mailId])return;
+      if(personalTasks.some(t=>t.mailId===item.mailId||(t.project==='Payments'&&t.title.includes(item.title)))){stamped[item.mailId]=Date.now();return}
+      const due=item.when&&!item.received?new Date(item.when).toISOString():'';
+      personalTasks.unshift({
+        id:crypto.randomUUID?.()||('pay-'+Date.now()),
+        title:`Pay ${item.title}${item.amount?' · '+item.amount:''}`,
+        dueDate:due,hasTime:false,project:'Payments',
+        mailId:item.mailId,href:item.href,suggested:true,amount:item.amount||'',
+        created:new Date().toISOString()
+      });
+      stamped[item.mailId]=Date.now();n++;
+    });
+    personalTasks.forEach(t=>{
+      if(!t.mailId||t.project!=='Payments')return;
+      const item=[...money.bill,...money.pending,...money.subscription].find(x=>x.mailId===t.mailId);
+      if(!item)return;
+      if(item.amount&&t.amount&&item.amount!==t.amount){
+        moneyChanges.push({mailId:t.mailId,kind:'task_amount_update',field:'amount',from:t.amount,to:item.amount,title:t.title});
+        t.amount=item.amount;t.title=`Pay ${item.title} · ${item.amount}`;
+      }
+    });
+    if(n||moneyChanges.length)savePersonal();
+    writeJSON('daylight-pay-suggested',stamped);
+    writeJSON('daylight-pay-amounts',amountMem);
+    loopsData.paymentSuggestions=personalTasks.filter(t=>t.suggested&&t.project==='Payments').slice(0,12);
+    loopsData.moneyChanges=(loopsData.moneyChanges||[]).concat(moneyChanges).slice(-40);
+    return n;
+  }
+  function syncFollowUpSuggestions(){
+    if(!loopsData)return 0;
+    const stamped=readJSON('daylight-followup-suggested',{});
+    let n=0;
+    const followups=[];
+    (loopsData.inbox||[]).forEach(m=>{
+      if(!m?.id||stamped[m.id])return;
+      const h=m.payload?.headers||[];
+      const from=parseFrom(header(h,'From'));
+      const subject=header(h,'Subject')||'';
+      const text=mailSearchText(m);
+      if(AUTOMATED.test(from.email))return;
+      if(!(FOLLOWUP_NEED.test(subject)||FOLLOWUP_NEED.test(text)||FOLLOWUP_NEED.test(m.snippet||'')))return;
+      if((m.labelIds||[]).some(l=>/^CATEGORY_(PROMOTIONS|SOCIAL|UPDATES|FORUMS)$/.test(l)))return;
+      followups.push({mailId:m.id,threadId:m.threadId||m.id,subject,from,href:gmailLink(m.threadId||m.id)});
+      if(personalTasks.some(t=>t.mailId===m.id&&t.project==='Follow-up')){stamped[m.id]=Date.now();return}
+      personalTasks.unshift({
+        id:crypto.randomUUID?.()||('fu-'+Date.now()),
+        title:`Follow up: ${subject.slice(0,72)}`,
+        dueDate:'',hasTime:false,project:'Follow-up',
+        mailId:m.id,href:gmailLink(m.threadId||m.id),suggested:true,
+        created:new Date().toISOString()
+      });
+      stamped[m.id]=Date.now();n++;
+    });
+    if(n)savePersonal();
+    writeJSON('daylight-followup-suggested',stamped);
+    loopsData.followups=followups.slice(0,12);
+    return n;
+  }
+  function syncMeetingChanges(){
+    if(!loopsData)return 0;
+    const prev=readJSON('daylight-meeting-times',{});
+    const changes=[];
+    (loopsData.upcoming||[]).forEach(e=>{
+      if(!e?.id)return;
+      const start=e.start?.dateTime||e.start?.date||'';
+      const end=e.end?.dateTime||e.end?.date||'';
+      const key=e.id;
+      const was=prev[key];
+      if(was&&was.start&&was.start!==start){
+        changes.push({eventId:e.id,kind:'rescheduled',field:'start',from:was.start,to:start,title:e.summary||'(No title)'});
+      }
+      if(e.status==='cancelled'&&was&&was.status!=='cancelled'){
+        changes.push({eventId:e.id,kind:'cancelled',field:'status',from:was.status||'confirmed',to:'cancelled',title:e.summary||'(No title)'});
+      }
+      prev[key]={start,end,status:e.status||'confirmed',summary:e.summary||''};
+    });
+    writeJSON('daylight-meeting-times',prev);
+    loopsData.meetingChanges=(loopsData.meetingChanges||[]).concat(changes).slice(-40);
+    return changes.length;
+  }
+  function runCrossAppIntelligence(){
+    if(!loopsData)return;
+    syncTravelWalletAndTrips();
+    syncMeetingMailLinks();
+    syncMeetingChanges();
+    syncPaymentTaskSuggestions();
+    syncFollowUpSuggestions();
+  }
+  /* ---- Phase 0: dual-write into IndexedDB (UI still reads existing paths) ---- */
+  let hydrateQueued=null,hydrateBusy=false,hydrateTimer=0;
+  function queueDaylightHydrate(){
+    clearTimeout(hydrateTimer);
+    hydrateTimer=setTimeout(()=>{
+      if(hydrateQueued)return;
+      hydrateQueued=Promise.resolve().then(async()=>{
+        if(hydrateBusy)return;
+        hydrateBusy=true;
+        try{await hydrateDaylightStore()}catch(e){console.warn('DaylightStore hydrate',e)}
+        finally{hydrateBusy=false;hydrateQueued=null}
+      });
+    },80);
+    return hydrateQueued;
+  }
+  async function hydrateDaylightStore(){
+    const Store=window.DaylightStore;
+    if(!Store?.putEntities)return;
+    const t0=Date.now();
+    await Store.open();
+    let acct=null;
+    try{
+      const prof=readProfile();
+      if(token&&(prof.email||prof.sub))acct=await ensureDaylightAccountFromProfile('google',{...prof,name:prof.name});
+      else if(microsoftAccount&&(prof.email||prof.sub))acct=await ensureDaylightAccountFromProfile('microsoft',{...prof,displayName:prof.name});
+      else acct=await Store.ensureActiveAccount({kind:'local',providerAccountKey:'local:device',displayName:'This device'});
+    }catch{acct=await Store.ensureActiveAccount({kind:'local',providerAccountKey:'local:device',displayName:'This device'})}
+    const accountId=acct.id;
+    const sourceIdentity={
+      provider:acct.kind==='microsoft'?'microsoft':(acct.kind==='google'?'google':'local'),
+      subject:acct.subject||null,
+      email:acct.email||null,
+      providerAccountKey:acct.providerAccountKey
+    };
+    const base={accountId,ownerId:accountId,sourceIdentity};
+    const entities=[],relationships=[],facts=[];
+    const mailPool=new Map();
+    const isFinance=m=>{
+      const h=m.payload?.headers||[];const subject=header(h,'Subject')||'';
+      return MONEY.test(subject)||RENEWAL.test(subject)||(m.labelIds||[]).includes('CATEGORY_PURCHASES');
+    };
+    const isDocs=m=>{
+      const h=m.payload?.headers||[];return /\b(passport|visa|contract|insurance|tax|agreement)\b/i.test(header(h,'Subject')||'');
+    };
+    if(loopsData){
+      [...(loopsData.inbox||[]),...(loopsData.financeMail||[]),...(loopsData.travelMail||[]),...(loopsData.docsMail||[])].forEach(m=>{
+        if(!m?.id||mailPool.has(m.id))return;
+        mailPool.set(m.id,m);
+        const h=m.payload?.headers||[];
+        const from=parseFrom(header(h,'From'));
+        const subject=header(h,'Subject')||'(No subject)';
+        const when=new Date(header(h,'Date')||m.internalDate*1);
+        const tags=(m.labelIds||[]).slice(0,8);
+        if(isFinance(m))tags.push('money');
+        if(isDocs(m))tags.push('documents');
+        entities.push({
+          ...base,type:'mail',source:'gmail',
+          sourceIds:{messageId:m.id,threadId:m.threadId||m.id},
+          title:subject,subtitle:from.name||from.email||'',
+          whenMs:isNaN(when)?null:when.getTime(),
+          href:gmailLink(m.threadId||m.id),
+          tags,
+          privacyClass:isFinance(m)?Store.PRIVACY.FINANCIAL:(isDocs(m)?Store.PRIVACY.IDENTITY:Store.PRIVACY.NORMAL),
+          payload:{fromEmail:from.email,snippet:String(m.snippet||'').slice(0,240)}
+        });
+      });
+      (loopsData.upcoming||[]).forEach(e=>{
+        if(!e?.id)return;
+        const st=new Date(e.start?.dateTime||e.start?.date||NaN);
+        const en=new Date(e.end?.dateTime||e.end?.date||NaN);
+        entities.push({
+          ...base,type:'event',source:'google',
+          sourceIds:{eventId:e.id},
+          title:e.summary||'(No title)',
+          subtitle:e.location||'',
+          whenMs:isNaN(st)?null:st.getTime(),
+          endMs:isNaN(en)?null:en.getTime(),
+          href:e.htmlLink||'',
+          privacyClass:Store.PRIVACY.NORMAL,
+          payload:{attendeeCount:(e.attendees||[]).length,allDay:!!e.start?.date}
+        });
+      });
+      (loopsData.trips||[]).forEach(t=>{
+        if(!t?.id)return;
+        entities.push({
+          ...base,type:'trip',source:'daylight',
+          sourceIds:{tripId:t.id},
+          id:Store.id.trip(accountId,t.id),
+          title:t.dest?`Trip to ${t.dest}`:t.id,
+          subtitle:(t.kinds||[]).join(' · '),
+          whenMs:t.whenMs||null,
+          tripId:t.id,
+          privacyClass:Store.PRIVACY.NORMAL,
+          payload:{mailIds:t.mailIds||[],count:t.count||0,dest:t.dest||''}
+        });
+      });
+      (loopsData.bookings||[]).forEach(b=>{
+        if(!b?.mailId)return;
+        const mailEntityId=Store.id.mail(accountId,b.mailId);
+        const tripEntityId=Store.id.trip(accountId,b.tripId);
+        if(b.tripId){
+          relationships.push({
+            ...base,fromId:mailEntityId,toId:tripEntityId,type:'part_of_trip',
+            confidence:0.85,confirmed:'auto',method:'rule',
+            evidence:[{kind:'booking',dest:b.dest||'',whenMs:b.whenMs}],
+            sourceIds:{messageId:b.mailId,tripId:b.tripId}
+          });
+        }
+        if(b.linkedMailId){
+          relationships.push({
+            ...base,fromId:mailEntityId,toId:Store.id.mail(accountId,b.linkedMailId),type:'hotel_for_trip',
+            confidence:0.7,confirmed:'auto',method:'rule',
+            evidence:[{kind:'window'}],
+            sourceIds:{messageId:b.mailId,linkedMailId:b.linkedMailId}
+          });
+        }
+        if(b.dest){
+          facts.push({
+            ...base,entityId:mailEntityId,field:'destination',value:b.dest,rawValue:b.dest,
+            sourceIds:{messageId:b.mailId},method:'rule',confidence:0.75,verified:'unverified',
+            privacyClass:Store.PRIVACY.NORMAL
+          });
+        }
+        if(b.kind){
+          facts.push({
+            ...base,entityId:mailEntityId,field:'travelKind',value:b.kind,rawValue:b.kind,
+            sourceIds:{messageId:b.mailId},method:'rule',confidence:0.8,verified:'unverified'
+          });
+        }
+        if(b.flight?.pnr){
+          facts.push({
+            ...base,entityId:mailEntityId,field:'pnr',value:b.flight.pnr,rawValue:b.flight.pnr,
+            sourceIds:{messageId:b.mailId},method:'rule',confidence:0.7,verified:'unverified',
+            privacyClass:Store.PRIVACY.IDENTITY
+          });
+        }
+      });
+      Object.entries(loopsData.meetingMail||{}).forEach(([eventId,mail])=>{
+        if(!mail?.mailId)return;
+        relationships.push({
+          ...base,fromId:Store.id.event(accountId,eventId,'google'),toId:Store.id.mail(accountId,mail.mailId),type:'related_mail',
+          confidence:Math.min(1,0.4+((mail.score||0)*0.08)),confirmed:'auto',method:'rule',
+          evidence:[{kind:'meeting_mail',score:mail.score||0,subject:mail.subject||''}],
+          sourceIds:{eventId,messageId:mail.mailId}
+        });
+      });
+      Object.entries(loopsData.files||{}).forEach(([eventId,file])=>{
+        if(!file?.webViewLink)return;
+        facts.push({
+          ...base,entityId:Store.id.event(accountId,eventId,'google'),field:'driveFile',
+          value:{name:file.name||'',href:file.webViewLink},rawValue:file.name||'',
+          sourceIds:{eventId},method:'rule',confidence:0.65,verified:'unverified'
+        });
+      });
+    }
+    readWallet().forEach(w=>{
+      if(!w?.id)return;
+      const tags=w.kind?[w.kind]:[];
+      entities.push({
+        ...base,type:'wallet',source:'local',
+        sourceIds:{walletId:w.id},
+        title:w.title||'Pass',
+        subtitle:w.typeLabel||w.org||w.kind||'',
+        whenMs:w.travelAt?Date.parse(w.travelAt):(w.at?Date.parse(w.at):null),
+        href:w.href||'',
+        tripId:w.tripId||null,
+        tags,
+        privacyClass:w.kind==='documents'?Store.PRIVACY.IDENTITY:Store.PRIVACY.NORMAL,
+        payload:{mailId:w.mailId||'',number:w.number||'',org:w.org||''}
+      });
+      if(w.mailId){
+        relationships.push({
+          ...base,fromId:Store.id.wallet(accountId,w.id),toId:Store.id.mail(accountId,w.mailId),type:'from_mail',
+          confidence:0.95,confirmed:'auto',method:'rule',
+          evidence:[{kind:'wallet_mailId'}],sourceIds:{walletId:w.id,messageId:w.mailId}
+        });
+      }
+      if(w.tripId){
+        relationships.push({
+          ...base,fromId:Store.id.wallet(accountId,w.id),toId:Store.id.trip(accountId,w.tripId),type:'part_of_trip',
+          confidence:0.9,confirmed:'auto',method:'rule',
+          evidence:[{kind:'wallet_tripId'}],sourceIds:{walletId:w.id,tripId:w.tripId}
+        });
+      }
+    });
+    const allTasks=[
+      ...personalTasks.map(t=>({...t,_src:'daylight'})),
+      ...(providerData.google.tasks||[]).map(t=>({...t,_src:'google'})),
+      ...(providerData.microsoft.tasks||[]).map(t=>({...t,_src:'microsoft'}))
+    ];
+    allTasks.forEach(t=>{
+      if(!t?.id&&!t?.title)return;
+      const taskId=t.id||('title:'+String(t.title).slice(0,40));
+      const due=t.dueDate?Date.parse(t.dueDate):null;
+      const pay=t.project==='Payments'||t.suggested||t.amount;
+      entities.push({
+        ...base,type:'task',source:t._src,
+        sourceIds:{taskId},
+        title:t.title||'Task',
+        subtitle:t.project||t.listName||t.source||'',
+        whenMs:due&&!isNaN(due)?due:null,
+        href:t.href||'',
+        amount:t.amount||'',
+        status:t.suggested?'suggested':'active',
+        tags:pay?['money']:[],
+        privacyClass:pay?Store.PRIVACY.FINANCIAL:Store.PRIVACY.NORMAL,
+        payload:{mailId:t.mailId||'',suggested:!!t.suggested}
+      });
+      if(t.mailId){
+        relationships.push({
+          ...base,fromId:Store.id.task(accountId,taskId,t._src),toId:Store.id.mail(accountId,t.mailId),type:'payment_for',
+          confidence:t.suggested?0.7:0.85,confirmed:t.suggested?'suggested':'auto',method:'rule',
+          evidence:[{kind:'task_mailId'}],sourceIds:{taskId,messageId:t.mailId},
+          privacyClass:Store.PRIVACY.FINANCIAL,aiExclude:true
+        });
+        if(t.amount){
+          facts.push({
+            ...base,entityId:Store.id.mail(accountId,t.mailId),field:'amount',value:t.amount,rawValue:String(t.amount),
+            sourceIds:{messageId:t.mailId,taskId},method:'rule',confidence:0.7,verified:'unverified',
+            privacyClass:Store.PRIVACY.FINANCIAL
+          });
+        }
+      }
+    });
+    let inserted=0,updated=0;
+    // Phase 2: persist detected changes as superseding facts (in place, no duplicates)
+    const changeFacts=[];
+    (loopsData?.travelChanges||[]).forEach(c=>{
+      if(!c.mailId)return;
+      changeFacts.push({
+        ...base,entityId:Store.id.mail(accountId,c.mailId),field:c.field||'travelStatus',
+        value:c.to,rawValue:String(c.to??''),
+        evidenceQuote:`${c.kind||'change'}: ${c.from||'—'} → ${c.to||'—'}`,
+        sourceIds:{messageId:c.mailId,tripId:c.tripId||''},method:'rule',confidence:0.85,verified:'unverified',
+        privacyClass:Store.PRIVACY.NORMAL
+      });
+    });
+    (loopsData?.moneyChanges||[]).forEach(c=>{
+      if(!c.mailId)return;
+      changeFacts.push({
+        ...base,entityId:Store.id.mail(accountId,c.mailId),field:c.field||'amount',
+        value:c.to,rawValue:String(c.to??''),
+        evidenceQuote:`${c.kind||'change'}: ${c.from||'—'} → ${c.to||'—'}`,
+        sourceIds:{messageId:c.mailId},method:'rule',confidence:0.8,verified:'unverified',
+        privacyClass:Store.PRIVACY.FINANCIAL
+      });
+    });
+    (loopsData?.meetingChanges||[]).forEach(c=>{
+      if(!c.eventId)return;
+      changeFacts.push({
+        ...base,entityId:Store.id.event(accountId,c.eventId,'google'),field:c.field||'start',
+        value:c.to,rawValue:String(c.to??''),
+        evidenceQuote:`${c.kind||'change'}: ${c.from||'—'} → ${c.to||'—'}`,
+        sourceIds:{eventId:c.eventId},method:'rule',confidence:0.9,verified:'unverified',
+        privacyClass:Store.PRIVACY.NORMAL
+      });
+    });
+    if(entities.length){
+      const res=await Store.putEntities(entities,{accountId});
+      inserted=res.inserted||0;updated=res.updated||0;
+    }
+    if(relationships.length)await Store.putRelationships(relationships,{accountId});
+    let factChanges=0;
+    const allFacts=[...facts,...changeFacts];
+    if(allFacts.length&&Store.upsertFactsDetectChange){
+      const results=await Store.upsertFactsDetectChange(allFacts,{accountId});
+      factChanges=results.filter(r=>r.changed).length;
+    }else if(allFacts.length){
+      await Store.putFacts(allFacts,{accountId});
+    }
+    // Clear consumed change buffers so we don't re-write every hydrate
+    if(loopsData){loopsData.travelChanges=[];loopsData.moneyChanges=[];loopsData.meetingChanges=[]}
+    await Store.recordSyncSuccess('hydrate',{
+      durationMs:Date.now()-t0,fetched:entities.length,inserted,updated,deleted:factChanges,mode:'dual-write+change'
+    },accountId);
+    await Store.setMeta('lastHydrateAt:'+accountId,Date.now());
+  }
   /* Native-style navigation: History API + slide transitions + edge swipe */
   const Nav={
     stack:[],
@@ -2702,6 +3546,8 @@
     const start=new Date(day.getFullYear(),day.getMonth(),day.getDate());
     const end=new Date(start.getTime()+86400000);
     const items=[];
+    const seen=new Set();
+    const push=it=>{if(seen.has(it.id))return;seen.add(it.id);items.push(it)};
     if(token){
       try{
         const ev=await eventsBetween(start,end)||[];
@@ -2709,21 +3555,36 @@
           const s=new Date(e.start?.dateTime||e.start?.date+'T09:00:00');
           const en=new Date(e.end?.dateTime||e.end?.date||s);
           const allDay=!e.start?.dateTime;
-          items.push({
+          const mail=loopsData?.meetingMail?.[e.id];
+          push({
             id:'ev:'+(e.id||s.getTime()),kind:TRAVEL.test((e.summary||'')+' '+(e.location||''))?'travel':(e.attendees||[]).length>1?'meet':'event',
-            title:e.summary||'(No title)',start:s,end:en,allDay,meta:e.location||'',href:e.htmlLink||''
+            title:e.summary||'(No title)',start:s,end:en,allDay,
+            meta:[e.location||'',mail?`Mail: ${mail.subject}`:''].filter(Boolean).join(' · '),
+            href:e.htmlLink||'',loopId:mail?undefined:undefined,relatedMail:mail||null
           });
         });
       }catch{}
     }
     personalTasks.filter(t=>t.dueDate&&dayKey(new Date(t.dueDate))===dayKey(start)).forEach(t=>{
       const s=new Date(t.dueDate);
-      items.push({id:'task:'+t.id,kind:'task',title:t.title,start:s,end:s,allDay:!t.hasTime,meta:t.project||'Reminder',href:''});
+      push({id:'task:'+t.id,kind:t.project==='Payments'?'bill':'task',title:t.title,start:s,end:s,allDay:!t.hasTime,meta:t.project||'Reminder',href:t.href||''});
     });
+    try{
+      readWallet().forEach(w=>{
+        const when=w.travelAt||w.date;if(!when)return;
+        const s=new Date(w.travelAt||w.at);if(isNaN(s)||dayKey(s)!==dayKey(start))return;
+        push({
+          id:'wallet:'+w.id,kind:'travel',title:w.title,start:s,end:s,allDay:!w.flight?.depart,
+          meta:[w.typeLabel||WALLET_LABEL[w.kind],w.tripId?'Trip linked':''].filter(Boolean).join(' · '),
+          href:w.href||'',walletId:w.id
+        });
+      });
+    }catch{}
     if(token||microsoftAccount||DEMO){
-      computeLoops().filter(l=>l.whenMs&&dayKey(new Date(l.whenMs))===dayKey(start)).slice(0,8).forEach(l=>{
-        const s=new Date(l.whenMs);
-        items.push({id:'loop:'+l.id,kind:l.type==='travel'?'travel':l.type==='renewal'?'bill':'loop',title:l.title,start:s,end:s,allDay:false,meta:l.meta||srcOf(l),href:l.href||'',loopId:l.id});
+      computeLoops().forEach(l=>{
+        const ms=l.travelWhenMs||l.whenMs;if(!ms||dayKey(new Date(ms))!==dayKey(start))return;
+        const s=new Date(ms);
+        push({id:'loop:'+l.id,kind:l.type==='travel'?'travel':l.type==='renewal'?'bill':'loop',title:l.title,start:s,end:s,allDay:false,meta:l.meta||srcOf(l),href:l.href||'',loopId:l.id});
       });
     }
     return items.sort((a,b)=>(a.allDay-b.allDay)||(a.start-b.start));
@@ -2736,9 +3597,9 @@
     return ICON.phone;
   }
   function tlCard(item){
-    const time=item.allDay?'All day':`${hm(item.start)}${item.end&&item.end-item.start>60*1000?' – '+hm(item.end):''}`;
+    const time=item.allDay?'All day':`${hm(item.start)}${item.flight?.depart?'' :(item.end&&item.end-item.start>60*1000?' – '+hm(item.end):'')}`;
     const thumb=`<span class="tl-thumb kind-${esc(item.kind)}" aria-hidden="true">${svg(tlIcon(item.kind),18)}</span>`;
-    const open=item.loopId?`data-open-loop="${esc(item.loopId)}"`:(item.href?`data-tl-href="${esc(item.href)}"`:'');
+    const open=item.loopId?`data-open-loop="${esc(item.loopId)}"`:(item.walletId?`data-open-wallet="${esc(item.walletId)}"`:(item.href?`data-tl-href="${esc(item.href)}"`:''));
     return `<article class="tl-card" ${open}>
       <span class="tl-node" aria-hidden="true">${svg(tlIcon(item.kind),16)}</span>
       <div class="tl-card-body">
@@ -2795,6 +3656,7 @@
   $('#tl-ask-mini')?.addEventListener('click',toggleAsk);
   $('#tl-list')?.addEventListener('click',e=>{
     const loop=e.target.closest('[data-open-loop]');if(loop){openLoopSheet(loop.dataset.openLoop);return}
+    const w=e.target.closest('[data-open-wallet]');if(w){feel.select();setTab('wallet');openPassSheet(w.dataset.openWallet);return}
     const a=e.target.closest('[data-tl-href]');if(a)window.open(a.dataset.tlHref,'_blank','noopener');
   });
   // Statistics
