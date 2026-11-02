@@ -821,7 +821,7 @@
   const openMenu=o=>{if(!drawer)return;drawer.hidden=!o;scrim.hidden=!o;document.body.classList.toggle('menu-open',o);$('#menu-btn').setAttribute('aria-expanded',String(o));if(o){renderDrawerAccount();drawer.querySelector('.menu-item')?.focus()}};
   $('#menu-btn')?.addEventListener('click',()=>openMenu(drawer.hidden));
   $('#drawer-close')?.addEventListener('click',()=>openMenu(false));scrim?.addEventListener('click',()=>openMenu(false));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#loop-sheet')?.classList.contains('show')){closeLoopSheet();return}openMenu(false);$('#overlay').classList.remove('show')}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#pass-sheet')?.classList.contains('show')){closePassSheet();return}if($('#loop-sheet')?.classList.contains('show')){closeLoopSheet();return}openMenu(false);$('#overlay').classList.remove('show')}});
   ['#connections','#refresh','#customize'].forEach(s=>$(s)?.addEventListener('click',()=>openMenu(false)));
   function renderDrawerAccount(){const p=readProfile(),el=$('#drawer-account');if(!el)return;
     el.innerHTML=p.name||p.email?`<div class="da-avatar">${p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc((p.name||'?')[0])}</div><div><b>${esc(p.name||'')}</b><span>${esc(p.email||'')}</span></div>`:'<div><b>Not connected</b><span>Open Connections to sign in</span></div>';
@@ -1400,12 +1400,37 @@
   document.body.append(scanUI);
   // move overlays out of the desktop shell so they work on the phone too
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
-  let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mWeekCache={},mChat=[],scanStream=null,scanDraft=null;
+  let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mWeekCache={},mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
   if(mTab==='calendar')mTab='inbox';
   const TITLES={home:'',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
   const WALLET_COLORS={tickets:['#1f6feb','#0b3d91'],coupons:['#d9480f','#a33b0a'],documents:['#2f9e44','#1b6b2e'],others:['#7048e8','#4c2db3']};
   const WALLET_LABEL={tickets:'Ticket',coupons:'Coupon',documents:'Document',others:'Pass'};
-  function readWallet(){const list=readJSON('daylight-wallet',null);if(Array.isArray(list))return list;const seed=[{id:'w1',title:'Prague → Berlin',kind:'tickets',note:'Seat 14A · Coach 3',at:new Date().toISOString(),color:WALLET_COLORS.tickets},{id:'w2',title:'Coffee free refill',kind:'coupons',note:'Valid until month end',at:new Date(Date.now()-86400000).toISOString(),color:WALLET_COLORS.coupons},{id:'w3',title:'Legal forms scan',kind:'documents',note:'III. Legal forms',at:new Date(Date.now()-2*86400000).toISOString(),color:WALLET_COLORS.documents},{id:'w4',title:'Library card',kind:'others',note:'Member since 2024',at:new Date(Date.now()-5*86400000).toISOString(),color:WALLET_COLORS.others}];writeJSON('daylight-wallet',seed);return seed}
+  function qrUrl(payload,size){return(window.DaylightScan?.qrImageUrl?.(payload,size))||('https://api.qrserver.com/v1/create-qr-code/?size='+(size||200)+'x'+(size||200)+'&margin=8&data='+encodeURIComponent(payload))}
+  function barcodeUrl(payload){return(window.DaylightScan?.barcodeImageUrl?.(payload))||('https://bwipjs-api.metafloor.com/?bcid=code128&text='+encodeURIComponent(payload)+'&scale=3&includetext&guardwhitespace')}
+  function readWallet(){
+    const list=readJSON('daylight-wallet',null);
+    if(Array.isArray(list)){
+      let changed=false;
+      list.forEach(i=>{
+        if(!i.qrPayload){i.qrPayload=String(i.barcode||i.number||i.id||'').replace(/^#/,'');changed=true}
+        if(i.qrPayload&&!i.qrImage){i.qrImage=qrUrl(i.qrPayload,220);changed=true}
+        if(i.qrPayload&&!i.barcodeImage){i.barcodeImage=barcodeUrl(i.barcode||i.qrPayload);changed=true}
+        if(i.kind==='tickets'&&!i.flight&&/\b(→|->|seat|flight|gate|coach)\b/i.test(i.note||i.title||'')){
+          i.flight=window.DaylightScan?.extractFlight?.([i.title,i.note,i.ocr].filter(Boolean).join('\n'))||null;if(i.flight)changed=true;
+        }
+      });
+      if(changed)writeJSON('daylight-wallet',list);
+      return list;
+    }
+    const seed=[
+      {id:'w1',title:'Prague → Berlin',kind:'tickets',note:'Seat 14A · Coach 3',org:'Deutsche Bahn',typeLabel:'Train ticket',number:'#DB88421',date:'2 Nov 2024',expiry:'',at:new Date().toISOString(),color:WALLET_COLORS.tickets,barcode:'DB88421PRGBER14A',qrPayload:'DB88421PRGBER14A',flight:{from:'PRG',to:'BER',flight:'RJ 782',seat:'14A',coach:'3',gate:'',pnr:'DB88421',depart:'09:40',arrive:'14:15'}},
+      {id:'w2',title:'Coffee free refill',kind:'coupons',note:'Valid until month end',org:'Local Roasters',typeLabel:'Coupon',number:'#CF440',expiry:'30 Nov 2024',at:new Date(Date.now()-86400000).toISOString(),color:WALLET_COLORS.coupons,barcode:'COFFEE-FREE-440',qrPayload:'COFFEE-FREE-440'},
+      {id:'w3',title:'Legal forms scan',kind:'documents',note:'III. Legal forms',org:'Daylight Docs',typeLabel:'Document',number:'#DOC12',at:new Date(Date.now()-2*86400000).toISOString(),color:WALLET_COLORS.documents,barcode:'DOC-LEGAL-12',qrPayload:'DOC-LEGAL-12'},
+      {id:'w4',title:'Library card',kind:'others',note:'Member since 2024',org:'City Library',typeLabel:'Membership',number:'#2301',memberSince:'13 May 2024',expiry:'20 May 2025',at:new Date(Date.now()-5*86400000).toISOString(),color:WALLET_COLORS.others,barcode:'LIB-2301',qrPayload:'LIB-2301'}
+    ];
+    seed.forEach(i=>{if(i.qrPayload){i.qrImage=qrUrl(i.qrPayload,220);i.barcodeImage=barcodeUrl(i.barcode||i.qrPayload)}});
+    writeJSON('daylight-wallet',seed);return seed;
+  }
   function saveWallet(list){writeJSON('daylight-wallet',list.slice(0,80))}
   function setTab(t){mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
     mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];renderMobile();if(t==='assistant'&&!mChat.length)chatHello()}
@@ -1560,15 +1585,96 @@
   function walletPassHTML(item){
     const color=item.color||WALLET_COLORS[item.kind]||WALLET_COLORS.others;
     const when=item.at?new Date(item.at).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
-    const open=mWalletOpen===item.id?' is-open':'';
-    const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:'';
+    const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:(item.qrImage?`<img class="wp-thumb" src="${esc(item.qrImage)}" alt="">`:'');
     const ico=WALLET_ICO[item.kind]||WALLET_ICO.others;
-    return `<article class="m-wallet-pass${open}" data-wid="${esc(item.id)}" style="background:linear-gradient(135deg,${color[0]},${color[1]})">
+    return `<article class="m-wallet-pass" data-wid="${esc(item.id)}" style="background:linear-gradient(135deg,${color[0]},${color[1]})">
       <div class="wp-top"><span class="wp-kind">${svg(ico,14)} ${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-when">${esc(when)}</span></div>
       <h3 class="wp-title">${esc(item.title)}</h3>
       ${item.note?`<p class="wp-note">${esc(item.note)}</p>`:''}
       ${img}
     </article>`;
+  }
+  function ensurePassCodes(item){
+    if(!item)return item;
+    const payload=item.qrPayload||item.barcode||item.number||item.id;
+    if(payload&&!item.qrImage)item.qrImage=qrUrl(String(payload).replace(/^#/,''),220);
+    if(payload&&!item.barcodeImage)item.barcodeImage=barcodeUrl(String(payload).replace(/^#/,''));
+    return item;
+  }
+  function closePassSheet(){
+    const sheet=$('#pass-sheet');if(!sheet)return;
+    sheet.classList.remove('show');sheet.setAttribute('aria-hidden','true');document.body.classList.remove('pass-open');mWalletOpen='';
+  }
+  function openPassSheet(id){
+    const item=ensurePassCodes(readWallet().find(i=>i.id===id));if(!item)return;
+    mWalletOpen=id;
+    let sheet=$('#pass-sheet');
+    if(!sheet){
+      sheet=document.createElement('div');sheet.id='pass-sheet';sheet.className='pass-sheet';sheet.setAttribute('aria-hidden','true');
+      sheet.innerHTML=`<div class="pass-sheet-inner">
+        <div class="pass-nav"><button type="button" class="pass-done" data-pass-close>Done</button><button type="button" class="pass-more" data-pass-more aria-label="More">⋯</button></div>
+        <div class="pass-scroll" id="pass-scroll"></div>
+      </div>`;
+      document.body.append(sheet);
+      sheet.addEventListener('click',e=>{
+        if(e.target.closest('[data-pass-close]')){closePassSheet();return}
+        if(e.target.closest('[data-pass-more]')){
+          const list=readWallet();const it=list.find(i=>i.id===mWalletOpen);if(!it)return;
+          const order=['tickets','coupons','documents','others'];
+          it.kind=order[(order.indexOf(it.kind)+1)%order.length];it.color=WALLET_COLORS[it.kind];saveWallet(list);
+          openPassSheet(it.id);toast('Moved to '+WALLET_LABEL[it.kind]);return;
+        }
+        if(e.target.closest('[data-pass-del]')){
+          saveWallet(readWallet().filter(i=>i.id!==mWalletOpen));closePassSheet();renderWallet();toast('Removed from Wallet');return;
+        }
+      });
+    }
+    const color=item.color||WALLET_COLORS[item.kind]||WALLET_COLORS.others;
+    const f=item.flight||null;
+    const org=item.org||item.pass?.org||'Daylight Pass';
+    const typeLabel=item.typeLabel||item.pass?.typeLabel||WALLET_LABEL[item.kind]||'Pass';
+    const number=item.number||item.pass?.number||'';
+    const since=item.memberSince||item.pass?.memberSince||'';
+    const expiry=item.expiry||item.pass?.expiry||item.date||'';
+    const code=item.qrPayload||item.barcode||String(number||item.id).replace(/^#/,'');
+    const fields=[];
+    if(f){
+      if(f.from||f.to)fields.push(['From',f.from||'—'],['To',f.to||'—']);
+      if(f.flight)fields.push(['Flight',f.flight]);
+      if(f.seat)fields.push(['Seat',f.seat]);
+      if(f.coach)fields.push(['Coach',f.coach]);
+      if(f.gate)fields.push(['Gate',f.gate]);
+      if(f.depart)fields.push(['Depart',f.depart]);
+      if(f.arrive)fields.push(['Arrive',f.arrive]);
+      if(f.pnr)fields.push(['PNR',f.pnr]);
+    }else{
+      fields.push(['Type',typeLabel]);
+      if(number)fields.push(['Number',number]);
+      if(since)fields.push(['Member since',since]);
+      if(expiry)fields.push(['Expiry',expiry]);
+      if(item.amount)fields.push(['Amount',item.amount]);
+    }
+    const fieldHTML=fields.map(([k,v])=>`<div class="pass-field"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+    $('#pass-scroll').innerHTML=`
+      <article class="pass-card" style="--p1:${esc(color[0])};--p2:${esc(color[1])}">
+        <div class="pass-brand"><span class="pass-logo" aria-hidden="true">${esc((org||'D')[0])}</span><span>${esc(org)}</span></div>
+        <div class="pass-hero">
+          <div><h2>${esc(item.title)}</h2><p>${esc(item.note||typeLabel)}</p></div>
+          ${item.image?`<img class="pass-photo" src="${esc(item.image)}" alt="">`:''}
+        </div>
+        <div class="pass-fields">${fieldHTML}</div>
+        <div class="pass-code">
+          ${item.qrImage||code?`<img class="pass-qr" src="${esc(item.qrImage||qrUrl(code,220))}" alt="QR code">`:''}
+          ${item.barcodeImage||code?`<img class="pass-bar" src="${esc(item.barcodeImage||barcodeUrl(code))}" alt="Barcode">`:''}
+          <span class="pass-code-id">${esc(number||code||'')}</span>
+        </div>
+      </article>
+      <div class="pass-meta-foot">
+        <div><span>Type</span><b>${esc(typeLabel)}</b></div>
+        <div><span>Expiry</span><b>${esc(expiry||'—')}</b></div>
+      </div>
+      <div class="pass-actions"><button type="button" class="connect ghost" data-pass-del>Remove</button></div>`;
+    sheet.classList.add('show');sheet.setAttribute('aria-hidden','false');document.body.classList.add('pass-open');
   }
   function renderWallet(){
     const el=$('#m-wallet');if(!el)return;
@@ -1576,8 +1682,7 @@
     requestAnimationFrame(()=>syncWalletThumb(true));
     const items=walletItems(mWalletFilter);
     if(!items.length){el.innerHTML=`<div class="m-wallet-empty"><b>No passes yet</b><p>Scan a ticket, coupon or document and it will appear here.</p><button class="m-wallet-scan-btn" type="button" id="m-wallet-empty-scan">Scan document</button></div>`;$('#m-wallet-empty-scan')?.addEventListener('click',openScan);return}
-    const open=items.find(i=>i.id===mWalletOpen);
-    el.innerHTML=`<div class="m-wallet-list">${items.map(walletPassHTML).join('')}</div>${open?`<div class="m-wallet-detail">${open.image?`<img src="${esc(open.image)}" alt="">`:''}<b>${esc(open.title)}</b><div class="m-note">${esc([WALLET_LABEL[open.kind],open.note].filter(Boolean).join(' · '))}</div><div class="wd-actions"><button class="connect" type="button" data-wcat="${esc(open.id)}">Move category</button><button class="connect ghost" type="button" data-wdel="${esc(open.id)}">Remove</button></div></div>`:''}`;
+    el.innerHTML=`<div class="m-wallet-list">${items.map(walletPassHTML).join('')}</div>`;
   }
   $('#m-wallet-tabs')?.addEventListener('click',e=>{
     const b=e.target.closest('[data-wallet]');if(!b||b.dataset.wallet===mWalletFilter)return;
@@ -1585,11 +1690,7 @@
   });
   $('#m-wallet')?.addEventListener('click',e=>{
     const pass=e.target.closest('[data-wid]');
-    if(pass){mWalletOpen=mWalletOpen===pass.dataset.wid?'':pass.dataset.wid;renderWallet();return}
-    const del=e.target.closest('[data-wdel]');
-    if(del){saveWallet(readWallet().filter(i=>i.id!==del.dataset.wdel));mWalletOpen='';renderWallet();toast('Removed from Wallet');return}
-    const cat=e.target.closest('[data-wcat]');
-    if(cat){const order=['tickets','coupons','documents','others'];const list=readWallet();const item=list.find(i=>i.id===cat.dataset.wcat);if(!item)return;item.kind=order[(order.indexOf(item.kind)+1)%order.length];item.color=WALLET_COLORS[item.kind];saveWallet(list);renderWallet();toast('Moved to '+WALLET_LABEL[item.kind])}
+    if(pass){openPassSheet(pass.dataset.wid);return}
   });
   function stopScanCamera(){if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}const v=$('#m-scan-video');if(v)v.srcObject=null}
   function showScanStep(step){
@@ -1603,7 +1704,7 @@
     showScanStep('landing');
   }
   function closeScan(){
-    stopScanCamera();scanDraft=null;scanUI.classList.remove('show');scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');document.body.style.overflow='';
+    stopScanCamera();scanDraft=null;scanExtract=null;scanUI.classList.remove('show');scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');document.body.style.overflow='';
   }
   async function startScanCamera(){
     const perm=window.DaylightScan?await window.DaylightScan.ensureCameraPermission():{granted:true};
@@ -1618,7 +1719,7 @@
     }
   }
   function fillScanReview(extracted){
-    scanDraft=extracted.image;
+    scanExtract=extracted;scanDraft=extracted.image;
     $('#m-scan-preview').src=extracted.image;
     $('#m-scan-title').value=extracted.title||'Scanned document';
     $('#m-scan-cat').value=extracted.kind||'documents';
@@ -1627,9 +1728,12 @@
     $('#m-scan-note').value=extracted.note||'';
     $('#m-scan-ocr').value=extracted.ocrText||'';
     const eng=$('#m-scan-engine');
-    if(eng)eng.textContent=extracted.engine==='web-heuristic'
-      ?'Web preview · confirm fields'
-      :`Extracted · ${Math.round((extracted.confidence||0.8)*100)}% confidence`;
+    if(eng){
+      const n=(extracted.barcodes||[]).length;
+      eng.textContent=n?`Found ${n} code${n>1?'s':''} · confirm fields`
+        :extracted.engine==='web-heuristic'?'Web preview · confirm fields'
+        :`Extracted · ${Math.round((extracted.confidence||0.8)*100)}% confidence`;
+    }
     showScanStep('review');
   }
   async function processScanImage(dataUrl,hintText){
@@ -1668,10 +1772,21 @@
     const date=($('#m-scan-date').value||'').trim();
     const note=($('#m-scan-note').value||'').trim()||[date,amount].filter(Boolean).join(' · ')||'Added from scan';
     const ocr=($('#m-scan-ocr').value||'').trim();
-    const item={id:'w'+Date.now(),title,kind,note,amount,date,ocr,at:new Date().toISOString(),image:scanDraft,color:WALLET_COLORS[kind]||WALLET_COLORS.documents};
+    const ex=scanExtract||{};
+    const ocrFlight=window.DaylightScan?.extractFlight?.(ocr)||ex.flight||null;
+    const ocrPass=window.DaylightScan?.extractPassMeta?.(ocr,kind)||ex.pass||{};
+    const code=ex.qrPayload||ex.barcode||(ocrFlight&&ocrFlight.pnr)||'';
+    const item=ensurePassCodes({
+      id:'w'+Date.now(),title,kind,note,amount,date,ocr,at:new Date().toISOString(),image:scanDraft,
+      color:WALLET_COLORS[kind]||WALLET_COLORS.documents,
+      org:ocrPass.org||ex.pass?.org||'',typeLabel:ocrPass.typeLabel||ex.pass?.typeLabel||WALLET_LABEL[kind],
+      number:ocrPass.number||ex.pass?.number||'',memberSince:ocrPass.memberSince||'',expiry:ocrPass.expiry||date||'',
+      barcode:code,qrPayload:code,barcodeFormat:ex.barcodeFormat||'',barcodes:ex.barcodes||[],
+      qrImage:ex.qrImage||'',barcodeImage:ex.barcodeImage||'',flight:ocrFlight
+    });
     const list=readWallet();list.unshift(item);saveWallet(list);
     mWalletFilter='all';mWalletOpen=item.id;setLS('daylight-wallet-filter','all');
-    closeScan();setTab('wallet');toast('Saved to Wallet');
+    closeScan();setTab('wallet');openPassSheet(item.id);toast('Saved to Wallet');
   }
   $('#m-wallet-scan')?.addEventListener('click',openScan);
   scanUI.addEventListener('click',e=>{
@@ -1681,7 +1796,7 @@
   $('#m-scan-start')?.addEventListener('click',startScanCamera);
   $('#m-scan-capture')?.addEventListener('click',captureScanFrame);
   $('#m-scan-save')?.addEventListener('click',saveScanToWallet);
-  $('#m-scan-retake')?.addEventListener('click',()=>{scanDraft=null;startScanCamera()});
+  $('#m-scan-retake')?.addEventListener('click',()=>{scanDraft=null;scanExtract=null;startScanCamera()});
   $('#m-scan-file')?.addEventListener('change',e=>{
     const f=e.target.files?.[0];if(!f)return;
     const reader=new FileReader();
