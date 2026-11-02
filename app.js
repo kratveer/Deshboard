@@ -467,11 +467,12 @@
     travel:{label:'Trip',cls:'t-travel',icon:'<path d="M3 13h18M6 13l2-6h8l2 6M6 17h.01M18 17h.01"/><rect x="3" y="13" width="18" height="5" rx="2"/>'}};
   const AUTOMATED=/(no-?reply|do-?not-?reply|notification|newsletter|mailer|bounce|^updates?@|^news@|^info@|marketing|^hello@|^team@|^support@|^billing@|^receipts?@|^account@|^alerts?@)/i;
   const RENEWAL=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial (ends|ending|expires)|expir(es|ing|ation)|auto-?renew)\b/i;
-  const PENDING_PAY=/\b(payment (due|failed|reminder|declined)|past due|overdue (bill|payment)|action required.*(pay|bill)|unpaid|failed payment)\b/i;
-  const BILL=/\b(invoice|bill(ing)?|statement|utilities?|electric|gas bill|water bill|internet bill|phone bill)\b/i;
-  const STORE_PAY=/\b(order|purchase|bought|shipped|delivered|pickup|in[- ]store|receipt from|your (order|purchase)|zalando|amazon|ikea|lidl|tesco|albert|rossmann|dm drogerie|alza|mediamarkt)\b/i;
-  const ONLINE_PAY=/\b(paypal|stripe|apple pay|google pay|card ending|charged|payment received|payment confirm|sepa|iban|wise|revolut|sumup)\b/i;
-  const MONEY=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial|expir|payment|invoice|receipt|bill(ing)?|auto-?renew|charged|statement|paypal|stripe|sepa|order|purchase)\b/i;
+  const PENDING_PAY=/\b(payment (due|failed|reminder|declined)|past due|overdue (bill|payment)|action required.*(pay|bill)|unpaid|failed payment|pay now|outstanding balance|dlužn|nezaplacen|platba (po|je) splatnosti)\b/i;
+  const BILL=/\b(invoice|bill(ing)?|statement|utilities?|electric|gas bill|water bill|internet bill|phone bill|faktura|vyúčtování|inkaso|složenka|předpis)\b/i;
+  const STORE_PAY=/\b(order|purchase|bought|shipped|delivered|pickup|in[- ]store|receipt from|your (order|purchase)|objednávka|zalando|amazon|ikea|lidl|tesco|albert|rossmann|dm drogerie|alza|mediamarkt|notino|aboutyou)\b/i;
+  const ONLINE_PAY=/\b(paypal|stripe|apple pay|google pay|card ending|charged|payment received|payment confirm|sepa|iban|wise|revolut|sumup|platba (proběhla|přijata)|úhrada)\b/i;
+  const MONEY=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial|expir|payment|invoice|receipt|bill(ing)?|auto-?renew|charged|statement|paypal|stripe|sepa|order|purchase|faktura|platba|předplatné|vyúčtování|účet|premium|plan)\b/i;
+  const MONEY_DOMAIN=/(netflix|spotify|adobe|paypal|stripe|apple\.com|google\.com|amazon|zalando|microsoft|openai|cursor\.|github|notion|figma|dropbox|icloud|youtube|disney|hbo|skyshowtime|vodafone|o2|t-mobile|cez\.|innogy|pre\.cz|upc|vodafone|airbank|revolut|wise|csob|kb\.cz|moneta|fio\.|twilio|vercel|railway|digitalocean|hetzner|namecheap|godaddy|shopify)/i;
   const TRAVEL=/\b(booking|reservation|itinerary|e-?ticket|boarding[\s-]?pass|flights?|train|bahn|rail|eurostar|(?:flight|hotel|airport)\s*check-?in|hotel|airbnb|boarding pass|departure|arrival|gate\s?[A-Z]?\d+|PNR|confirmation code|trip to)\b/i;
   const DOCUMENT=/\b(document|contract|agreement|signed|signature|attachment|pdf|passport|visa|insurance|policy|tax|steuer|certificate|invoice attached|your copy)\b/i;
   const DEADLINE=/\b(deadline|due|submit|submission)\b/i;
@@ -501,11 +502,13 @@
   }
   function moneyKind(subject,from){
     const text=subject+' '+from;
-    if(PENDING_PAY.test(text)||/\bpayment due\b/i.test(text))return 'pending';
-    if(RENEWAL.test(text))return 'subscription';
+    if(PENDING_PAY.test(text)||/\bpayment due\b/i.test(text)||/\b(pay|zapla[tť]).{0,20}(tuition|school|fees?|poplat|školn)/i.test(text))return 'pending';
+    if(RENEWAL.test(text)||/\bpředplatn/i.test(text)||/\b(premium|pro plan|your plan)\b/i.test(text))return 'subscription';
     if(BILL.test(text))return 'bill';
     if(STORE_PAY.test(text))return 'store';
-    if(ONLINE_PAY.test(text)||/\breceipt\b/i.test(text))return 'online';
+    if(ONLINE_PAY.test(text)||/\breceipt\b/i.test(text)||/\bpotvrzení (platby|objednávky)\b/i.test(text))return 'online';
+    if(MONEY_DOMAIN.test(from)&&MONEY.test(text))return RENEWAL.test(text)?'subscription':'online';
+    if(MONEY_DOMAIN.test(from))return 'online';
     if(MONEY.test(text))return 'online';
     return null;
   }
@@ -515,31 +518,41 @@
   const parseFrom=v=>{const m=/^\s*"?([^"<]*)"?\s*<([^>]+)>/.exec(v||'');return m?{name:m[1].trim()||m[2],email:m[2].toLowerCase()}:{name:(v||'').trim(),email:(v||'').trim().toLowerCase()}};
   const gmailLink=id=>`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
   async function loadLoops(force){
-    if(!token){if(DEMO){loopsData=demoLoopsData();loopsFetched=Date.now();renderLoops();renderCategories();return computeLoops().length}return 0}
-    if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();renderCategories();return 0}
+    if(!token){if(DEMO){loopsData=demoLoopsData();loopsFetched=Date.now();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return computeLoops().length}return 0}
+    if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return 0}
     const G='https://gmail.googleapis.com/gmail/v1/users/me';
     const meta=id=>api(`${G}/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`);
-    const listMeta=async (qs,n=12)=>{try{const r=await api(`${G}/messages?${qs}&maxResults=${n}`);return Promise.all((r.messages||[]).map(m=>meta(m.id)))}catch{return[]}};
-    const [inbox,financeMail,travelMail,docsMail,sent]=await Promise.all([
-      listMeta('labelIds=INBOX',40),
-      listMeta('q='+encodeURIComponent('(subscription OR invoice OR payment OR billing OR receipt OR renew OR trial OR charged OR "payment due" OR order OR purchase OR paypal OR stripe) newer_than:60d'),25),
+    const listMeta=async (qs,n=12)=>{try{const r=await api(`${G}/messages?${qs}&maxResults=${n}`);const ids=r.messages||[];if(!ids.length)return[];return (await Promise.all(ids.map(m=>meta(m.id).catch(()=>null)))).filter(Boolean)}catch(e){console.warn('gmail list',qs,e);return[]}};
+    const moneyQ=[
+      'newer_than:120d (subscription OR renew OR renewal OR invoice OR billing OR receipt OR payment OR paid OR charged OR trial OR membership OR premium OR paypal OR stripe OR order OR purchase OR faktura OR platba OR předplatné)',
+      'newer_than:120d category:purchases',
+      'newer_than:90d category:updates (bill OR invoice OR payment OR receipt OR renew OR subscription OR faktura OR platba)',
+      'newer_than:180d (from:paypal.com OR from:stripe.com OR from:apple.com OR from:amazon.com OR from:netflix.com OR from:spotify.com OR from:adobe.com OR from:google.com OR from:microsoft.com OR from:cursor.com OR from:openai.com)'
+    ];
+    const [inbox,moneyA,moneyB,moneyC,moneyD,travelMail,docsMail,sent]=await Promise.all([
+      listMeta('labelIds=INBOX',50),
+      listMeta('q='+encodeURIComponent(moneyQ[0]),30),
+      listMeta('q='+encodeURIComponent(moneyQ[1]),20),
+      listMeta('q='+encodeURIComponent(moneyQ[2]),20),
+      listMeta('q='+encodeURIComponent(moneyQ[3]),25),
       listMeta('q='+encodeURIComponent('(flight OR train OR booking OR itinerary OR "boarding pass" OR hotel OR reservation OR e-ticket) newer_than:45d'),15),
       listMeta('q='+encodeURIComponent('(document OR contract OR agreement OR signed OR insurance OR passport OR visa OR pdf OR tax) newer_than:45d has:attachment'),12),
       api(`${G}/messages?labelIds=SENT&maxResults=15`).catch(()=>({messages:[]}))
     ]);
+    const financeMail=[...moneyA,...moneyB,...moneyC,...moneyD];
     const byId=new Map();[...inbox,...financeMail,...travelMail,...docsMail].forEach(m=>{if(m?.id)byId.set(m.id,m)});
     const threadIds=[...new Set((sent.messages||[]).map(m=>m.threadId))].slice(0,12);
     const threads=await Promise.all(threadIds.map(t=>api(`${G}/threads/${encodeURIComponent(t)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`).catch(()=>null)));
     const calU=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
     calU.searchParams.set('timeMin',new Date().toISOString());calU.searchParams.set('timeMax',new Date(localMidnight.getTime()+14*86400000).toISOString());calU.searchParams.set('singleEvents','true');calU.searchParams.set('orderBy','startTime');calU.searchParams.set('maxResults','50');
     const upcoming=await api(calU).then(r=>r.items||[]).catch(()=>[]);
-    loopsData={inbox:[...byId.values()],financeMail,travelMail,docsMail,threads:threads.filter(Boolean),upcoming,files:{}};
+    loopsData={inbox:[...byId.values()],financeMail,travelMail,docsMail,threads:threads.filter(Boolean),upcoming,files:{},scanned:byId.size,financeHits:financeMail.length};
     // look for a related Drive file for the next few meetings
     const meetings=upcoming.filter(e=>(e.attendees||[]).length>1&&e.start?.dateTime&&new Date(e.start.dateTime)<new Date(localMidnight.getTime()+2*86400000)).slice(0,3);
     await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
       try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${word.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','1');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,webViewLink)');
         const f=(await api(u)).files?.[0];if(f)loopsData.files[e.id]=f}catch{}}));
-    loopsFetched=Date.now();renderLoops();renderCategories();return computeLoops().length;
+    loopsFetched=Date.now();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return computeLoops().length;
   }
   function demoLoopsData(){
     const days=n=>new Date(Date.now()-n*86400000).toISOString();
@@ -628,14 +641,23 @@
     const uniq=new Map();mails.forEach(m=>{if(m?.id)uniq.set(m.id,m)});
     uniq.forEach(m=>{
       const age=now-new Date((m.payload?.headers&&header(m.payload.headers,'Date'))||m.internalDate*1);
-      if(age>90*day)return;
+      if(age>180*day)return;
       const item=moneyFromMail(m);if(!item||seen.has(item.id))return;seen.add(item.id);
       (groups[item.kind]||groups.online).push(item);
+    });
+    // Payment-like tasks (tuition, bills) also belong in Inbox
+    const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+    [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks].forEach((t,i)=>{
+      const title=t.title||'';if(!MONEY.test(title)&&!PENDING_PAY.test(title)&&!/\b(fee|tuition|rent|školn|nájem|poplat)/i.test(title))return;
+      const id='task-money:'+(t.id||title)+i;if(seen.has(id))return;seen.add(id);
+      const d=t.dueDate?dueDay(t.dueDate):null,urgent=!d||d<=new Date(localMidnight.getTime()+7*day);
+      const item={id,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',meta:d?d.toLocaleDateString(undefined,{day:'numeric',month:'short'}):(t.due||'Open'),href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':'',when:d?d.getTime():now,kind:'pending',tag:'Pending',urgent,amount:'',color:brandColor(title),received:false};
+      groups.pending.push(item);
     });
     const byUrg=(a,b)=>(b.urgent-a.urgent)||(a.when||0)-(b.when||0)||a.title.localeCompare(b.title);
     Object.keys(groups).forEach(k=>groups[k].sort(byUrg));
     const all=[...groups.pending,...groups.subscription,...groups.bill,...groups.store,...groups.online];
-    return {...groups,all,counts:{subscription:groups.subscription.length,bill:groups.bill.length,store:groups.store.length,online:groups.online.length,pending:groups.pending.length,total:all.length}};
+    return {...groups,all,counts:{subscription:groups.subscription.length,bill:groups.bill.length,store:groups.store.length,online:groups.online.length,pending:groups.pending.length,total:all.length},scanned:loopsData?.scanned||uniq.size};
   }
   function computeCategories(){
     const money=computeMoney(),finance=money.all.map(i=>({...i,title:i.subject||i.title,detail:i.from,meta:i.meta,kind:'finance'})),travel=[],pending=[],documents=[],now=Date.now(),day=86400000;
@@ -1159,7 +1181,7 @@
      <div class="m-home-block" id="m-loops-block"><h3 class="m-sub">Open loops</h3><div class="m-list" id="m-list"></div></div>
      <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
    <section class="m-screen" data-screen="inbox">
-     <div class="m-inbox-head"><div class="m-inbox-tabs" role="tablist" id="m-inbox-tabs"><button type="button" data-inbox="all" class="on">All</button><button type="button" data-inbox="subscription">Subs</button><button type="button" data-inbox="bill">Bills</button><button type="button" data-inbox="payments">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,18)}</button></div>
+     <div class="m-inbox-head"><div class="m-inbox-tabs" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true"></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subs</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,18)}</button></div>
      <div id="m-inbox"></div>
    </section>
    <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
@@ -1244,9 +1266,17 @@
     const body=`<span class="m-inbox-logo" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span><span class="m-inbox-copy"><b>${esc(item.title)}</b><small>${esc(inboxDateLabel(item))}</small></span><span class="m-inbox-side"><span class="amt">${esc(amt)}</span><span class="meta">${esc(inboxDaysLabel(item))}</span></span>`;
     return item.href?`<a class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}" href="${esc(item.href)}" target="_blank" rel="noopener">${body}</a>`:`<div class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}">${body}</div>`;
   }
-  function renderInbox(){
-    const el=$('#m-inbox');if(!el)return;
-    $$('#m-inbox-tabs [data-inbox]').forEach(b=>b.classList.toggle('on',b.dataset.inbox===mInboxFilter));
+  const INBOX_ORDER=['all','subscription','bill','payments'];
+  let inboxAnim=null;
+  function syncInboxThumb(animate=true){
+    const tabs=$('#m-inbox-tabs'),thumb=$('#m-inbox-thumb'),on=tabs?.querySelector('[data-inbox].on');
+    if(!tabs||!thumb||!on)return;
+    if(!animate){thumb.style.transition='none'}
+    thumb.style.width=on.offsetWidth+'px';
+    thumb.style.transform=`translateX(${on.offsetLeft}px)`;
+    if(!animate){void thumb.offsetWidth;thumb.style.transition=''}
+  }
+  function paintInbox(el){
     if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div>';return}
     if(!loopsData&&token){el.innerHTML='<div class="m-empty">Sorting money mail…</div>';return}
     const items=inboxItems(mInboxFilter);
@@ -1258,8 +1288,32 @@
     const block=(title,list)=>list.length?`<div class="m-inbox-sec"><h3 class="m-inbox-sec-h">${title}</h3><div class="m-inbox-list">${list.map(inboxCard).join('')}</div></div>`:'';
     el.innerHTML=block('Coming up',coming)+block('Due soon',due)+block(mInboxFilter==='payments'?'Recent payments':'Recent',recent);
   }
-  $('#m-inbox-tabs')?.addEventListener('click',e=>{const b=e.target.closest('[data-inbox]');if(!b)return;mInboxFilter=b.dataset.inbox;setLS('daylight-inbox-filter',mInboxFilter);renderInbox()});
+  function renderInbox(opts={}){
+    const el=$('#m-inbox');if(!el)return;
+    const animate=opts.animate!==false,dir=opts.dir||0;
+    $$('#m-inbox-tabs [data-inbox]').forEach(b=>{const on=b.dataset.inbox===mInboxFilter;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false')});
+    requestAnimationFrame(()=>syncInboxThumb(animate&&!opts.instantThumb));
+    if(!animate||!dir){el.className='';paintInbox(el);return}
+    if(inboxAnim){clearTimeout(inboxAnim);inboxAnim=null}
+    const leave=dir>0?'is-leave-left':'is-leave-right',enter=dir>0?'is-enter-left':'is-enter-right';
+    el.classList.remove('is-leave','is-leave-left','is-leave-right','is-enter','is-enter-left','is-enter-right');
+    el.classList.add('is-leave',leave);
+    inboxAnim=setTimeout(()=>{
+      paintInbox(el);
+      el.classList.remove('is-leave',leave);
+      el.classList.add('is-enter',enter);
+      void el.offsetWidth;
+      requestAnimationFrame(()=>{el.classList.remove('is-enter',enter);inboxAnim=null});
+    },160);
+  }
+  $('#m-inbox-tabs')?.addEventListener('click',e=>{
+    const b=e.target.closest('[data-inbox]');if(!b||b.dataset.inbox===mInboxFilter)return;
+    const prev=INBOX_ORDER.indexOf(mInboxFilter),next=INBOX_ORDER.indexOf(b.dataset.inbox);
+    mInboxFilter=b.dataset.inbox;setLS('daylight-inbox-filter',mInboxFilter);
+    renderInbox({animate:true,dir:next>=prev?1:-1});
+  });
   $('#m-inbox-filter')?.addEventListener('click',()=>toast('Sorted by soonest first'));
+  addEventListener('resize',()=>{if(mq.matches&&mTab==='inbox')syncInboxThumb(false)});
   // Calendar
   const weekStart=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
   async function weekEvents(ws){const k=ws.toISOString();if(mWeekCache[k])return mWeekCache[k];if(!token)return [];const ev=await eventsBetween(ws,new Date(ws.getTime()+7*86400000))||[];mWeekCache[k]=ev;setTimeout(()=>delete mWeekCache[k],5*60000);return ev}
