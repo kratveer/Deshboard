@@ -29,6 +29,10 @@ Daylight looks for things you started but haven't finished and shows them as act
 
 Each card has **Open** (straight to Gmail, Calendar or Tasks), **Snooze** (one day) and **Done**; these choices are saved in this browser. The bell next to your photo lists meetings starting within 30 minutes and new open loops.
 
+## On your phone
+
+Below 680px wide Daylight becomes an app with a tab bar: **Home** (today's events, tasks and reminders with a progress ring and All / Personal / Work filters), **Calendar** (week strip and day view), **+** (quick capture), **Assistant** (ask or capture in a chat) and **Statistics** (last 7 days). Tap your photo for the menu, including **All widgets** for the full dashboard.
+
 ## Ask and capture (command bar)
 
 The bar at the bottom of the page (Ctrl+K or / to focus) answers questions and saves things in one step:

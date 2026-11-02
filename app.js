@@ -150,7 +150,7 @@
   }
   const personalTaskForm=$('#personal-task-form');
   if(personalTaskForm) personalTaskForm.addEventListener('submit',e=>{e.preventDefault();const input=$('#personal-task-input'),title=input.value.trim();if(!title)return;personalTasks.unshift({id:crypto.randomUUID?.()||String(Date.now()),title});localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks));input.value='';renderTasks();toast('Task added on this device');});
-  $('.task-list').addEventListener('click',e=>{const button=e.target.closest('[data-local-task]');if(!button)return;personalTasks=personalTasks.filter(t=>t.id!==button.dataset.localTask);localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks));renderTasks();toast('Personal task completed');});
+  $('.task-list').addEventListener('click',e=>{const button=e.target.closest('[data-local-task]');if(!button)return;logDone(personalTasks.find(t=>t.id===button.dataset.localTask));personalTasks=personalTasks.filter(t=>t.id!==button.dataset.localTask);localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks));renderTasks();toast('Personal task completed');});
   async function loadCalendar(){
     const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');u.searchParams.set('timeMin',iso(localMidnight));u.searchParams.set('timeMax',iso(tomorrow));u.searchParams.set('singleEvents','true');u.searchParams.set('orderBy','startTime');u.searchParams.set('maxResults','12');
     const data=await api(u);providerData.google.events=(data.items||[]).map(e=>({...e,source:'Google Calendar'}));renderCalendar();
@@ -274,8 +274,8 @@
   }
   const focusBtn=$('#focus-start');
   if(focusBtn)focusBtn.onclick=()=>{
-    let n=(+focusBtn.dataset.minutes||25)*60;focusBtn.dataset.running='1';focusBtn.disabled=true;toast(`Focus session started · ${n/60} minutes`);
-    const timer=setInterval(()=>{n--;focusBtn.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);focusBtn.dataset.running='';toast('Focus session complete. Nice work.');renderInsights()}},1000);
+    let n=(+focusBtn.dataset.minutes||25)*60;const total=n/60;focusBtn.dataset.running='1';focusBtn.disabled=true;toast(`Focus session started · ${n/60} minutes`);
+    const timer=setInterval(()=>{n--;focusBtn.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);logFocus(total);focusBtn.dataset.running='';toast('Focus session complete. Nice work.');renderInsights()}},1000);
   };
   renderInsights();
   setInterval(renderInsights,60000);
@@ -850,5 +850,120 @@
       <div class="arow-main"><div class="arow-top"><b>${esc(l.title)}</b><span class="arow-src">${esc([srcOf(l),l.meta].filter(Boolean).join(' · '))}</span></div>
       <div class="arow-detail">${esc(l.detail)}${l.related?` · <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a>`:''}</div>
       <div class="arow-foot"><span class="arow-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${x}</span>`).join('')}</span><span class="arow-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></span></div></div></div>`}
+  // ======== Mobile app (≤680px): Home · Calendar · + · Assistant · Statistics ========
+  function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
+  function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
+  const mq=matchMedia('(max-width:680px)');
+  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>'};
+  const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const mapp=document.createElement('div');mapp.id='mapp';mapp.className='mapp';
+  mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,20)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,20)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
+   <section class="m-screen" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
+     <div class="m-seg" role="tablist" id="m-seg"><button type="button" data-f="all" class="on">All tasks</button><button type="button" data-f="personal">Personal</button><button type="button" data-f="work">Work</button></div>
+     <h3 class="m-count" id="m-count"></h3><div class="m-stat" id="m-stat"></div><div class="m-list" id="m-list"></div><div class="m-more" id="m-more"></div></section>
+   <section class="m-screen" data-screen="calendar"><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
+   <section class="m-screen" data-screen="assistant"><div class="m-chat" id="m-chat"></div><form class="m-msg" id="m-msg"><input id="m-msg-input" placeholder="Message…" autocomplete="off" aria-label="Message Daylight"><button type="submit" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m21 3-9.5 18-2-7.5L2 11.5Z"/><path d="m9.5 13.5 5-5"/></svg></button></form></section>
+   <section class="m-screen" data-screen="stats"><div id="m-stats"></div></section>
+   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${svg(ICON.home)}<span>Home</span></button><button data-tab="calendar" type="button">${svg(ICON.calendar)}<span>Calendar</span></button><button class="m-fab" id="m-fab" type="button" aria-label="Quick capture"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button data-tab="assistant" type="button">${svg(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${svg(ICON.stats)}<span>Statistics</span></button></nav>`;
+  document.body.append(mapp);
+  // move overlays out of the desktop shell so they work on the phone too
+  ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
+  let mTab=getLS('daylight-mtab')||'home',mFilter='all',mSel=new Date(localMidnight),mWeekCache={},mChat=[];
+  const TITLES={home:'',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
+  function setTab(t){mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+    mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];renderMobile();if(t==='assistant'&&!mChat.length)chatHello()}
+  function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab);else dispatchEvent(new Event('resize'))}
+  mq.addEventListener?.('change',applyMode);
+  $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+  // Home
+  function todayItems(){
+    const now=new Date(),items=[],evs=[...(providerData.google.events||[]),...(providerData.microsoft.events||[])];
+    evs.forEach(e=>{if(!e.start?.dateTime)return;const utc=e.start.timeZone==='UTC'&&!/[zZ]|[+-]\d\d:?\d\d$/.test(e.start.dateTime);const s=new Date(e.start.dateTime+(utc?'Z':'')),en=new Date((e.end?.dateTime||e.start.dateTime)+(utc?'Z':''));if(en<=localMidnight||s>=tomorrow)return;
+      items.push({kind:'event',title:e.summary||e.subject||'(No title)',sort:s,time:`${hm(s)}–${hm(en)}`,state:en<=now?'done':s<=now?'now':'todo',work:(e.attendees||[]).length>1,href:e.htmlLink||e.webLink})});
+    const day=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+    [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].forEach(t=>{if(!t.dueDate||day(t.dueDate)>=tomorrow)return;const late=day(t.dueDate)<localMidnight;items.push({kind:'task',title:t.title,sort:new Date(localMidnight.getTime()+23*3600000),time:late?'Overdue · was due '+day(t.dueDate).toLocaleDateString(undefined,{day:'numeric',month:'short'}):'Due today',state:late?'late':'todo',work:true,href:t.source==='Microsoft To Do'?'https://to-do.office.com/':'https://tasks.google.com/'})});
+    personalTasks.forEach(t=>{if(!t.dueDate)return;const d=new Date(t.dueDate);if(day(t.dueDate)>=tomorrow)return;const late=day(t.dueDate)<localMidnight;
+      items.push({kind:'personal',id:t.id,title:t.title,sort:t.hasTime?d:new Date(localMidnight.getTime()+22*3600000),time:(late?'Overdue · ':'')+(t.hasTime&&!late?hm(d):late?fmtDue(t):'Today')+(t.project?' · '+t.project:''),state:late?'late':(t.hasTime&&d<=now?'now':'todo'),work:!!t.project&&/work|lab|office|client|research|thesis|project/i.test(t.project)})});
+    readJSON('daylight-done-log',[]).filter(d=>new Date(d.at)>=localMidnight).forEach(d=>items.push({kind:'personal',title:d.title,sort:new Date(d.at),time:'Done '+hm(new Date(d.at))+(d.project?' · '+d.project:''),state:'done',work:/work|lab|office|client|research|thesis|project/i.test(d.project||'')}));
+    return items.sort((a,b)=>a.sort-b.sort);
+  }
+  function donut(done,now,left){const tot=Math.max(1,done+now+left),C=2*Math.PI*26,seg=(v,off,col)=>v?`<circle r="26" cx="32" cy="32" fill="none" stroke="${col}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${Math.max(0,C*v/tot-4)} ${C}" stroke-dashoffset="${-C*off/tot}"/>`:'';
+    return `<svg viewBox="0 0 64 64" width="72" height="72" class="m-donut"><circle r="26" cx="32" cy="32" fill="none" stroke="var(--m-ring)" stroke-width="8"/><g transform="rotate(-90 32 32)">${seg(done,0,'var(--m-green)')}${seg(now,done,'var(--accent)')}</g></svg>`}
+  function renderHome(){
+    const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Morning':h<18?'Afternoon':'Evening';
+    $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});$('#m-hello').innerHTML=`${part}${first?', '+esc(first):''} <span aria-hidden="true">👋</span>`;
+    let items=todayItems();if(mFilter!=='all')items=items.filter(i=>mFilter==='work'?i.work:!i.work);
+    const done=items.filter(i=>i.state==='done').length,now=items.filter(i=>i.state==='now').length,left=items.length-done-now;
+    $('#m-count').textContent=`${items.length} ${items.length===1?'thing':'things'} for today`;
+    $('#m-stat').innerHTML=`${donut(done,now,left)}<div class="m-legend"><div><i style="background:var(--m-green)"></i><b>${done} done</b><span>completed</span></div><div><i style="background:var(--accent)"></i><b>${now} now</b><span>in progress</span></div><div><i style="background:var(--m-ring)"></i><b>${left} left</b><span>to do</span></div></div>`;
+    $('#m-list').innerHTML=items.length?items.map(i=>`<${i.href?`a href="${esc(i.href)}" target="_blank" rel="noopener"`:'div'} class="m-item s-${i.state}"><span class="m-bar"></span><span class="m-item-main"><b>${esc(i.title)}</b><small>${esc(i.time)}</small></span>${i.kind==='personal'&&i.state!=='done'?`<button class="m-check" type="button" data-done="${esc(i.id)}" aria-label="Mark ${esc(i.title)} done"></button>`:`<span class="m-check${i.state==='done'?' on':''}" aria-hidden="true"></span>`}</${i.href?'a':'div'}>`).join('')
+      :`<div class="m-empty">${token||microsoftAccount?'Nothing scheduled for today. Tap + to add something.':'Connect Google from the menu (tap your photo) to see your day here. Tap + to add a reminder.'}</div>`;
+    const loops=(token||microsoftAccount)?computeLoops().filter(l=>!['overdue','deadline'].includes(l.type)).slice(0,3):[];
+    $('#m-more').innerHTML=loops.length?`<h3 class="m-sub">Needs attention</h3>${loops.map(l=>`<${l.href?`a href="${esc(l.href)}" target="_blank" rel="noopener"`:'div'} class="m-item s-attn ${LOOP_TYPES[l.type].cls}"><span class="m-bar"></span><span class="m-item-main"><b>${esc(l.title)}</b><small>${esc([srcOf(l),l.detail].filter(Boolean).join(' · '))}</small></span></${l.href?'a':'div'}>`).join('')}`:'';
+  }
+  $('#m-seg').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;mFilter=b.dataset.f;$$('#m-seg button').forEach(x=>x.classList.toggle('on',x===b));renderHome()};
+  $('#m-list').addEventListener('click',e=>{const b=e.target.closest('[data-done]');if(!b)return;e.preventDefault();const t=personalTasks.find(x=>x.id===b.dataset.done);logDone(t);personalTasks=personalTasks.filter(x=>x.id!==b.dataset.done);savePersonal();renderTasks();renderLoops();toast('Done · nice work')});
+  // Calendar
+  const weekStart=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
+  async function weekEvents(ws){const k=ws.toISOString();if(mWeekCache[k])return mWeekCache[k];if(!token)return [];const ev=await eventsBetween(ws,new Date(ws.getTime()+7*86400000))||[];mWeekCache[k]=ev;setTimeout(()=>delete mWeekCache[k],5*60000);return ev}
+  async function renderCalendar2(){
+    const ws=weekStart(mSel),days=[...Array(7)].map((_,i)=>new Date(ws.getTime()+i*86400000));
+    $('#m-month').textContent=mSel.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+    const ev=await weekEvents(ws),dayKey=d=>d.toDateString(),busy=new Set();
+    ev.forEach(e=>busy.add(dayKey(new Date(e.start?.dateTime||e.start?.date+'T12:00'))));personalTasks.forEach(t=>t.dueDate&&busy.add(dayKey(new Date(t.dueDate))));
+    $('#m-week').innerHTML=days.map(d=>`<button type="button" class="m-wd${dayKey(d)===dayKey(mSel)?' on':''}${d<localMidnight?' past':''}" data-day="${d.toISOString()}"><span>${d.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${d.getDate()}${busy.has(dayKey(d))?'<i></i>':''}</b></button>`).join('');
+    const sel=ev.filter(e=>dayKey(new Date(e.start?.dateTime||e.start?.date+'T12:00'))===dayKey(mSel)).map(e=>{const s=new Date(e.start?.dateTime||e.start?.date+'T00:00'),en=new Date(e.end?.dateTime||s);return {title:e.summary||'(No title)',s,en,allDay:!e.start?.dateTime,href:e.htmlLink}})
+      .concat(personalTasks.filter(t=>t.dueDate&&dayKey(new Date(t.dueDate))===dayKey(mSel)).map(t=>({title:t.title,s:new Date(t.dueDate),en:new Date(t.dueDate),allDay:!t.hasTime,reminder:true}))).sort((a,b)=>(a.allDay-b.allDay)||(a.s-b.s));
+    const now=new Date(),isToday=dayKey(mSel)===dayKey(now);let nowShown=false;
+    const row=x=>{let line='';if(isToday&&!nowShown&&!x.allDay&&x.s>now){nowShown=true;line=`<div class="m-now"><span>${hm(now)}</span><i></i></div>`}
+      return line+`<div class="m-slot"><span class="m-hour">${x.allDay?(x.reminder?'Today':'All day'):hm(x.s).replace(':00','')}</span><${x.href?`a href="${esc(x.href)}" target="_blank" rel="noopener"`:'div'} class="m-ev${x.en<now&&!x.allDay?' past':''}${x.reminder?' rem':''}"><b>${esc(x.title)}</b><small>${x.allDay?(x.reminder?'Reminder':'All day'):x.reminder?'Reminder · '+hm(x.s):hm(x.s)+'–'+hm(x.en)}</small><span class="m-check${x.en<now&&!x.allDay?' on':''}"></span></${x.href?'a':'div'}></div>`};
+    $('#m-day').innerHTML=!token&&!sel.length?'<div class="m-empty">Connect Google to see your calendar here.</div>':sel.length?sel.map(row).join('')+(isToday&&!nowShown?`<div class="m-now"><span>${hm(now)}</span><i></i></div>`:''):'<div class="m-empty">Nothing planned. A free day.</div>';
+  }
+  $('#m-week').onclick=e=>{const b=e.target.closest('[data-day]');if(b){mSel=new Date(b.dataset.day);renderCalendar2()}};
+  $$('.m-cal-head [data-wk]').forEach(b=>b.onclick=()=>{mSel=new Date(mSel.getTime()+(+b.dataset.wk)*7*86400000);renderCalendar2()});
+  // Assistant (same engine as the command bar)
+  function chatHello(){const p=readProfile();mChat=[{who:'ai',html:`Hi${p.name?' '+esc(p.name.split(' ')[0]):''}! Ask me about your day, or tell me something to remember.`,chips:['What do I have tomorrow?','Who is waiting for a reply?','Remember to call the lab on Friday at 10']}];renderChat()}
+  function renderChat(){const el=$('#m-chat');el.innerHTML=`<div class="m-stamp">Today, ${hm(new Date())}</div>`+mChat.map(m=>m.who==='me'?`<div class="m-b me">${esc(m.text)}</div>`:m.who==='wait'?`<div class="m-wait"><i></i><i></i><i></i> Analyzing…</div>`:`<div class="m-b ai">${m.html}${m.chips?`<div class="m-chips">${m.chips.map(c=>`<button type="button" data-ask="${esc(c)}">${esc(c)}</button>`).join('')}</div>`:''}</div>`).join('');el.scrollTop=el.scrollHeight;scrollTo({top:document.body.scrollHeight,behavior:'smooth'})}
+  async function ask(q){q=q.trim();if(!q)return;mChat.push({who:'me',text:q},{who:'wait'});renderChat();let html;
+    try{if(looksLikeCapture(q)){const it=capture(q);html=`Saved <b>${esc(it.title)}</b>${it.dueDate?' for '+esc(fmtDue(it)):''}${it.project?' in '+esc(it.project):''}. <button type="button" class="m-link" data-undo-chat="${esc(it.id)}">Undo</button>`}
+      else{const r=await answer(q);html=(r.sections||[]).map(s=>`${s.title?`<div class="m-ah">${esc(s.title)}</div>`:''}${s.items.length?`<ul>${s.items.slice(0,6).map(i=>`<li>${i.href?`<a href="${esc(i.href)}" target="_blank" rel="noopener">${esc(i.title)}</a>`:esc(i.title)}<small>${esc(i.meta||'')}</small></li>`).join('')}</ul>`:`<p>${esc(s.empty||'Nothing found.')}</p>`}${s.more?`<a class="m-link" href="${esc(s.more.href)}" target="_blank" rel="noopener">${esc(s.more.label)} ↗</a>`:''}`).join('')+(r.note?`<p>${esc(r.note)}</p>`:'')}}
+    catch(e){html='Sorry, something went wrong: '+esc(e.message)}
+    mChat.pop();mChat.push({who:'ai',html});renderChat()}
+  $('#m-msg').addEventListener('submit',e=>{e.preventDefault();const v=$('#m-msg-input').value;$('#m-msg-input').value='';ask(v)});
+  $('#m-chat').addEventListener('click',e=>{const c=e.target.closest('[data-ask]');if(c)ask(c.dataset.ask);const u=e.target.closest('[data-undo-chat]');if(u){personalTasks=personalTasks.filter(t=>t.id!==u.dataset.undoChat);savePersonal();renderTasks();renderLoops();u.replaceWith(document.createTextNode('(removed)'))}});
+  // Statistics
+  async function renderStats(){
+    const el=$('#m-stats'),now=new Date(),ws=new Date(localMidnight.getTime()-6*86400000);
+    const doneLog=readJSON('daylight-done-log',[]).filter(d=>new Date(d.at)>=ws),focus=readJSON('daylight-focus-log',[]).filter(d=>new Date(d.at)>=ws);
+    const perDay=[...Array(7)].map((_,i)=>{const d=new Date(ws.getTime()+i*86400000),e=new Date(d.getTime()+86400000);return {d,n:doneLog.filter(x=>{const t=new Date(x.at);return t>=d&&t<e}).length}});
+    const maxN=Math.max(1,...perDay.map(x=>x.n)),fmin=focus.reduce((a,b)=>a+(+b.min||0),0);
+    let meet=null;if(token){const ev=await eventsBetween(ws,now)||[];const m=ev.filter(e=>e.start?.dateTime&&(e.attendees||[]).length>1);meet={n:m.length,h:m.reduce((a,e)=>a+(new Date(e.end?.dateTime||e.start.dateTime)-new Date(e.start.dateTime))/3600000,0)}}
+    const loops=(token||microsoftAccount)?computeLoops():[],by=t=>loops.filter(l=>l.type===t).length;
+    el.innerHTML=`<div class="m-dt">Last 7 days</div>
+      <div class="m-kpis"><div class="m-kpi"><b>${doneLog.length}</b><span>tasks completed</span></div><div class="m-kpi"><b>${fmin>=60?Math.floor(fmin/60)+'h '+(fmin%60)+'m':fmin+'m'}</b><span>focus time</span></div><div class="m-kpi"><b>${meet?meet.n:'—'}</b><span>meetings</span></div><div class="m-kpi"><b>${meet?meet.h.toFixed(1)+'h':'—'}</b><span>in meetings</span></div></div>
+      <div class="m-card"><div class="m-card-h">Completed per day</div><div class="m-bars">${perDay.map(x=>`<div class="m-barcol"><i style="height:${Math.round(x.n/maxN*100)}%"></i><span>${x.d.toLocaleDateString(undefined,{weekday:'narrow'})}</span></div>`).join('')}</div><div class="m-note">Counts tasks you tick off in Daylight, from today on.</div></div>
+      <div class="m-card"><div class="m-card-h">Open loops right now</div>${[['reply','Waiting for your reply'],['followup','Waiting on others'],['overdue','Overdue'],['deadline','Due soon'],['prepare','Meetings to prepare'],['renewal','Renewals'],['travel','Trips']].map(([t,l])=>`<div class="m-row"><span>${l}</span><b>${by(t)}</b></div>`).join('')}</div>`;
+  }
+  // Header buttons, FAB, search
+  function renderMTop(){const p=readProfile(),av=$('#m-avatar');av.innerHTML=p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc(((p.name||'K')[0]).toUpperCase());
+    const n=$('#bell-badge');$('#mapp .m-dot').hidden=!n||n.hidden}
+  $('#m-avatar').onclick=()=>$('#menu-btn').click();
+  $('#m-bell').onclick=e=>{e.stopPropagation();$('#bell').click()};
+  const openCmd=capture=>{document.body.classList.add('cmd-open');if(capture)$('#cmd-capture').click();else{$('#cmd-input').focus()}};
+  $('#m-fab').onclick=e=>{e.stopPropagation();openCmd(true)};$('#m-search').onclick=e=>{e.stopPropagation();openCmd(false)};
+  document.addEventListener('click',e=>{if(document.body.classList.contains('cmd-open')&&!e.composedPath().includes($('#cmd')))document.body.classList.remove('cmd-open')});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('cmd-open')});
+  function renderMobile(){if(!mq.matches)return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='calendar')renderCalendar2();else if(mTab==='stats')renderStats()}
+  { const o=renderLoops;renderLoops=function(){o();renderMobile()} }
+  { const o=renderTasks;renderTasks=function(){o();if(mq.matches&&mTab==='home')renderHome()} }
+  // notification panel and a 'Widgets' view on the phone
+  const notif=$('#notif-panel'),notifHome=notif?.parentElement;
+  const placeNotif=()=>{if(!notif)return;if(mq.matches)document.body.append(notif);else notifHome?.append(notif)};
+  mq.addEventListener?.('change',placeNotif);placeNotif();
+  { const b=document.createElement('button');b.className='menu-item m-only';b.type='button';b.id='m-widgets';b.innerHTML='<span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg></span>All widgets';
+    $('.menu-list')?.prepend(b);b.onclick=()=>{document.body.classList.add('m-widgets');$$('.m-tabs [data-tab]').forEach(x=>x.classList.remove('on'));$('#menu-btn').click();scrollTo(0,0);setTimeout(()=>dispatchEvent(new Event('resize')),60)};
+    $$('.m-tabs [data-tab]').forEach(x=>x.addEventListener('click',()=>document.body.classList.remove('m-widgets'))) }
+  setInterval(renderMobile,60000);
+  applyMode();
 })();
 
