@@ -21,47 +21,77 @@
   const localMidnight = new Date(date.getFullYear(),date.getMonth(),date.getDate());
   const tomorrow = new Date(date.getFullYear(),date.getMonth(),date.getDate()+1);
   const iso = d => d.toISOString();
-  $('#sync-status').textContent='Not connected · connect Google to load your personal data';
+  $('#sync-status').innerHTML='Not connected · <button type="button" class="js-open-connect" style="all:unset;cursor:pointer;color:var(--accent-text);font-weight:700;text-decoration:underline">connect Google</button>';
   $('#task-count').textContent='—';
   $('#done-count').textContent='—';
-  $('#events').innerHTML='<div class="empty">Connect Google Calendar to see today’s events.</div>';
-  $('.task-list').innerHTML='<div class="empty">Connect Google Tasks to see your tasks.</div>';
-  $('.mail-list').innerHTML='<div class="empty">Connect Gmail to see recent inbox messages.</div>';
+  const connectHint=(msg)=>`<div class="empty">${msg}<div class="cta-connect"><button type="button" class="connect primary js-open-connect">Connect Google</button></div></div>`;
+  $('#events').innerHTML=connectHint('Connect Google Calendar to see today’s events.');
+  $('.task-list').innerHTML=connectHint('Connect Google Tasks to see your tasks.');
+  $('.mail-list').innerHTML=connectHint('Connect Gmail to see recent inbox messages.');
   $('#headline-note').innerHTML='Connect your apps to see your day';
   $('#connections').setAttribute('aria-label','Connect your apps');
+  document.addEventListener('click',e=>{if(e.target.closest('.js-open-connect')){e.preventDefault();connectDialog({setup:true,focusId:true})}});
   const weatherCard=document.createElement('article');
   weatherCard.className='card weather'; weatherCard.dataset.widget='weather';
   weatherCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">☀</span>Local weather</div><button class="connect" id="weather-connect">Use my location</button></div><div id="weather-content" class="empty">Share your location to see today’s weather.</div>';
   $('#layout').append(weatherCard);
 
-  function connectDialog() {
+  function connectDialog(opts={}) {
     const g=Boolean(token), ms=Boolean(microsoftAccount), staying=Boolean(serverSession), prof=readProfile();
+    const savedId=localStorage.getItem('daylight-client-id')||'';
     const msReady=Boolean(localStorage.getItem('daylight-ms-client-id'));
+    const needsSetup=!g&&!serverUrl&&!savedId;
+    const origin=location.origin;
     const row=(id,icon,iconCls,name,sub,connected,btn)=>`<div class="conn-row${connected?' is-on':''}"><div class="provider-icon ${iconCls}">${icon}</div><div class="provider-copy"><b>${name}</b><span>${sub}</span></div>${btn}</div>`;
+    const setupPanel=`<div class="google-setup" id="google-setup">
+        <h4>Connect Gmail in 2 steps</h4>
+        <ol class="steps">
+          <li>In <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud → Credentials</a>, create an OAuth client of type <b>Web application</b>.</li>
+          <li>Under <b>Authorized JavaScript origins</b>, add exactly this site, then paste the Client ID below.</li>
+        </ol>
+        <div class="origin-row"><code id="site-origin" title="${esc(origin)}">${esc(origin)}</code><button type="button" class="connect ghost" id="copy-origin">Copy</button></div>
+        <label class="client-label" for="client-id">Google Client ID <small>public · not a secret</small></label>
+        <input class="client-input" id="client-id" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="123….apps.googleusercontent.com" value="${esc(savedId)}">
+        <p class="hint">Daylight never asks for your Google password or Client <b>Secret</b>. Secrets stay only on your optional Daylight server.</p>
+        <button class="connect primary" id="google-connect" type="button">Connect with Google</button>
+      </div>`;
     $('#overlay').innerHTML=`<div class="modal connections-modal" role="dialog" aria-label="Connections"><div class="modal-top"><h3>Connections</h3><button class="modal-x" id="close-modal" aria-label="Close">×</button></div>
-      ${row('google','G','google-icon','Google',g?`<span class="dot"></span>${staying?'Connected · stays signed in':'Connected for about an hour'}${prof.email?' · '+esc(prof.email):''}`:'Calendar · Gmail · Tasks · Drive · Contacts',g,g?'<button class="connect ghost" id="google-disconnect" type="button">Disconnect</button>':'<button class="connect primary" id="google-connect" type="button">Connect</button>')}
+      ${row('google','G','google-icon','Google',g?`<span class="dot"></span>${staying?'Connected · stays signed in':'Connected for about an hour'}${prof.email?' · '+esc(prof.email):''}`:'Calendar · Gmail · Tasks · Drive · Contacts',g,g?'<button class="connect ghost" id="google-disconnect" type="button">Disconnect</button>':(needsSetup?'':'<button class="connect primary" id="google-connect" type="button">Connect</button>'))}
+      ${needsSetup||opts.setup?setupPanel:(!g?`<div class="google-setup" id="google-setup" hidden>
+        <label class="client-label" for="client-id">Google Client ID <small>public · not a secret</small></label>
+        <input class="client-input" id="client-id" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="123….apps.googleusercontent.com" value="${esc(savedId)}">
+      </div>`:`<input id="client-id" type="hidden" value="${esc(savedId)}">`)}
       ${row('microsoft','M','ms-icon','Microsoft 365',ms?'<span class="dot"></span>Connected':'Outlook · Calendar · To Do',ms,ms?'<button class="connect ghost" id="microsoft-disconnect" type="button">Disconnect</button>':`<button class="connect ${msReady?'primary':''}" id="microsoft-connect" type="button">${msReady?'Connect':'Set up'}</button>`)}
-      <div id="connect-error" class="error" role="alert"></div>
-      <details class="conn-more"><summary>What Daylight can see</summary><ul class="conn-list"><li>Today’s calendar events</li><li>Sender and subject of recent emails, never the message text</li><li>Open tasks, recently opened Drive file names, and contact birthdays</li><li>Everything is read only. Data goes straight from Google or Microsoft to this page.</li></ul><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></details>
-      <details class="conn-more" id="conn-advanced"><summary>Advanced setup</summary>
-        <label class="client-label" for="server-url">Daylight server <small>keeps you signed in</small></label><input class="client-input" id="server-url" type="url" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
-        <label class="client-label" for="client-id">Google OAuth client ID <small>used when no server is set</small></label><input class="client-input" id="client-id" type="text" placeholder="1234567890-abc.apps.googleusercontent.com" value="${esc(localStorage.getItem('daylight-client-id')||'')}">
-        <label class="client-label" for="ms-client-id">Microsoft application ID</label><input class="client-input" id="ms-client-id" type="text" placeholder="00000000-0000-0000-0000-000000000000" value="${esc(localStorage.getItem('daylight-ms-client-id')||'')}">
-        <div class="server-actions"><button class="connect" type="button" id="advanced-save">Save</button><a href="https://github.com/kratveer/Deshboard#readme" target="_blank" rel="noopener">Setup guide</a></div>
+      <div id="connect-error" class="error" role="alert" hidden></div>
+      <details class="conn-more"><summary>What Daylight can see</summary><ul class="conn-list"><li>Today’s calendar events</li><li>Sender and subject of recent emails, never the message text</li><li>Open tasks, recently opened Drive file names, and contact birthdays</li><li>Everything is read only. Tokens stay in this browser’s memory; nothing is uploaded to Daylight.</li></ul><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></details>
+      <details class="conn-more" id="conn-advanced"><summary>Optional: stay signed in / Microsoft</summary>
+        <p class="hint" style="margin:8px 0 0">Only if you deployed the Daylight server. Never paste a Google <b>Client Secret</b> here — that belongs in Cloudflare secrets only.</p>
+        <label class="client-label" for="server-url">Daylight server URL</label><input class="client-input" id="server-url" type="url" autocomplete="off" spellcheck="false" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
+        ${needsSetup||opts.setup?'':`<label class="client-label" for="client-id-adv">Google Client ID <small>public</small></label><input class="client-input" id="client-id-adv" type="text" autocomplete="off" spellcheck="false" placeholder="….apps.googleusercontent.com" value="${esc(savedId)}">`}
+        <label class="client-label" for="ms-client-id">Microsoft application ID <small>public</small></label><input class="client-input" id="ms-client-id" type="text" autocomplete="off" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000" value="${esc(localStorage.getItem('daylight-ms-client-id')||'')}">
+        <div class="server-actions"><button class="connect" type="button" id="advanced-save">Save</button><a href="https://github.com/kratveer/Deshboard#google-setup" target="_blank" rel="noopener">Setup guide</a></div>
       </details></div>`;
     $('#overlay').classList.add('show');
-    const err=m=>{$('#connect-error').textContent=m};
-    const saveAdvanced=()=>{const u=$('#server-url').value.trim().replace(/\/+$/,'');if(u&&!/^https:\/\/[^/]+$|^http:\/\/localhost(:\d+)?$/.test(u)){err('The server address should look like https://daylight-api.your-name.workers.dev');return false}
-      setLS('daylight-api',u);serverUrl=u;const c=$('#client-id').value.trim();setLS('daylight-client-id',c);setLS('daylight-ms-client-id',$('#ms-client-id').value.trim());err('');return true};
+    const err=m=>{const el=$('#connect-error');if(!el)return;if(!m){el.hidden=true;el.textContent='';return}el.hidden=false;el.textContent=m};
+    const readClientId=()=>(($('#client-id')||$('#client-id-adv'))?.value||'').trim().replace(/\s+/g,'');
+    const saveAdvanced=()=>{const u=$('#server-url').value.trim().replace(/\/+$/,'');if(u&&!/^https:\/\/[^/]+$|^http:\/\/localhost(:\d+)?$/.test(u)){err('Server URL should look like https://daylight-api.your-name.workers.dev');return false}
+      setLS('daylight-api',u);serverUrl=u;const c=readClientId();if(c)setLS('daylight-client-id',c);setLS('daylight-ms-client-id',$('#ms-client-id').value.trim());err('');return true};
     $('#close-modal').onclick=()=>$('#overlay').classList.remove('show');
+    $('#copy-origin')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(origin);toast('Origin copied');}catch{toast('Copy this: '+origin)}});
     $('#advanced-save').onclick=()=>{if(saveAdvanced()){toast('Settings saved on this device');connectDialog()}};
-    if($('#google-connect'))$('#google-connect').onclick=()=>{if(!saveAdvanced())return;
+    const startGoogle=()=>{if(!saveAdvanced())return;
+      localStorage.removeItem('daylight-demo');
       if(serverUrl){location.href=serverUrl+'/auth/google/start?return='+encodeURIComponent(location.origin+location.pathname);return}
-      if(!$('#client-id').value.trim()){$('#conn-advanced').open=true;err('Add your Daylight server or a Google client ID under Advanced setup.');return}
-      authorize()};
+      const id=readClientId();
+      if(!id){err('Paste your Google Client ID first (ends with .apps.googleusercontent.com).');($('#client-id')||$('#client-id-adv'))?.focus();return}
+      if(!id.endsWith('.apps.googleusercontent.com')){err('That doesn’t look like a Client ID. It should end with .apps.googleusercontent.com');return}
+      authorize(id)};
+    $$('#google-connect').forEach(b=>b.onclick=startGoogle);
+    $('#client-id')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();startGoogle()}});
     if($('#google-disconnect'))$('#google-disconnect').onclick=disconnectGoogle;
-    if($('#microsoft-connect'))$('#microsoft-connect').onclick=()=>{saveAdvanced();if(!$('#ms-client-id').value.trim()){$('#conn-advanced').open=true;err('Add your Microsoft application ID under Advanced setup first.');return}authorizeMicrosoft()};
+    if($('#microsoft-connect'))$('#microsoft-connect').onclick=()=>{saveAdvanced();if(!$('#ms-client-id').value.trim()){$('#conn-advanced').open=true;err('Add your Microsoft application ID under Optional setup first.');return}authorizeMicrosoft()};
     if($('#microsoft-disconnect'))$('#microsoft-disconnect').onclick=async()=>{try{await microsoftApp?.clearCache({account:microsoftAccount})}catch{}microsoftAccount=null;microsoftApp=null;providerData.microsoft={events:null,mails:null,tasks:null};renderAll();$('#connections').classList.toggle('active',Boolean(token));connectDialog();toast('Microsoft disconnected')};
+    if(opts.focusId)requestAnimationFrame(()=>$('#client-id')?.focus());
   }
   async function disconnectGoogle(){
     if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)}
@@ -93,16 +123,33 @@
   $('#close')?.addEventListener('click',()=>$('#overlay').classList.remove('show'));
   $('#overlay').onclick=e=>{if(e.target.id==='overlay')$('#overlay').classList.remove('show')};
 
-  function authorize() {
-    const clientId=$('#client-id').value.trim();
-    if(!clientId.endsWith('.apps.googleusercontent.com')) { $('#connect-error').textContent='Enter your Google OAuth Client ID first.'; return; }
+  function googleAuthError(code){
+    const map={
+      popup_closed_by_user:'Sign-in was closed before finishing. Tap Connect again.',
+      access_denied:'Access was denied. Allow Daylight on Google’s screen, or add your Gmail as a test user in the OAuth consent screen.',
+      immediate_failed:'Google could not complete sign-in automatically. Try Connect again.',
+      invalid_request:'Google rejected the request. Check that this site origin is listed under Authorized JavaScript origins.',
+      idpiframe_initialization_failed:'Google sign-in could not start. Allow third-party cookies for accounts.google.com, or try another browser.',
+      origin_mismatch:`This site (${location.origin}) is not allowed for your Client ID. Add it under Authorized JavaScript origins in Google Cloud.`
+    };
+    return map[code]||('Google authorization failed: '+(code||'unknown error'));
+  }
+  function authorize(clientId) {
+    clientId=(clientId||$('#client-id')?.value||localStorage.getItem('daylight-client-id')||'').trim().replace(/\s+/g,'');
+    const errBox=m=>{const el=$('#connect-error');if(el){el.hidden=!m;el.textContent=m||''}else if(m)toast(m)};
+    if(!clientId.endsWith('.apps.googleusercontent.com')) { errBox('Enter your Google Client ID first (ends with .apps.googleusercontent.com).'); return; }
     localStorage.setItem('daylight-client-id',clientId);
-    if(!window.google?.accounts?.oauth2) { $('#connect-error').textContent='Google sign-in is still loading. Try again in a moment.'; return; }
+    if(!window.google?.accounts?.oauth2) { errBox('Google sign-in is still loading. Try again in a moment.'); return; }
+    errBox('');
     tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:scopes,include_granted_scopes:true,callback:async response=>{
-      if(response.error){$('#connect-error').textContent='Google authorization failed: '+response.error;return;}
-      token=response.access_token;$('#overlay').classList.remove('show');$('#connections').classList.add('active');$('#sync-status').textContent='Google connected · refreshing…';setTimeout(()=>{token=null;$('#connections').classList.remove('active');$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));await refreshAll();
-    }});
-    tokenClient.requestAccessToken({prompt:'consent'});
+      if(response.error){errBox(googleAuthError(response.error));return;}
+      if(!response.access_token){errBox('Google did not return access. Try Connect again.');return;}
+      token=response.access_token;$('#overlay').classList.remove('show');$('#connections').classList.add('active');$('#sync-status').textContent='Google connected · refreshing…';
+      setTimeout(()=>{token=null;$('#connections').classList.remove('active');$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));
+      try{await refreshAll();toast('Google connected');}catch(e){toast('Connected, but some data failed to load');}
+    },error_callback:e=>{errBox(googleAuthError(e?.type||e?.message||'popup_closed_by_user'))}});
+    try{tokenClient.requestAccessToken({prompt:'consent'})}
+    catch(e){errBox(googleAuthError(e?.message||'invalid_request'))}
   }
   const microsoftScopes=['User.Read','Mail.ReadBasic','Calendars.ReadBasic','Tasks.Read'];
   async function authorizeMicrosoft() {
@@ -189,11 +236,14 @@
     providerData.microsoft.tasks=groups.flatMap((g,i)=>(g.value||[]).filter(t=>t.status!=='completed').map(t=>({title:t.title,due:t.dueDateTime?.dateTime?new Date(t.dueDateTime.dateTime).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'',dueDate:t.dueDateTime?.dateTime||'',listName:lists.value[i].displayName,source:'Microsoft To Do'}))).slice(0,8);renderTasks();return providerData.microsoft.tasks.length;
   }
   async function refreshAll(){
-    if(!token&&!microsoftAccount)return;$('#sync-status').textContent=`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · refreshing…`;
+    if(!token&&!microsoftAccount){if(DEMO){await loadLoops(true);renderCategories();renderSmart()}return}
+    $('#sync-status').textContent=`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · refreshing…`;
     const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays(),loadLoops(refreshAll.force));refreshAll.force=false;loadProfile();if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
-    const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();
+    const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();renderCategories();
     const eventCount=(providerData.google.events||[]).length+(providerData.microsoft.events||[]).length,mailCount=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length,taskCount=(providerData.google.tasks||[]).length+(providerData.microsoft.tasks||[]).length;
-    $('#headline-note').innerHTML=`Today: <b>${eventCount} events</b> · <b>${mailCount} inbox messages</b> · <b>${taskCount} open tasks</b>`;
+    const cats=computeCategories();
+    const money=cats.money||computeMoney();
+    $('#headline-note').innerHTML=`Today: <b>${eventCount} events</b> · <b>${cats.pending.length} pending</b> · <b>${money.counts.total} money</b> · <b>${loopsData?computeLoops().length:0} loops</b>`;
     $('#sync-status').textContent=failed.length?`Some connected data could not load · ${failed.map(x=>x.reason.message).join('; ')}`:`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`;
     if(failed.length)toast('Some services need permission or API setup; check the status line.');
   }
@@ -416,33 +466,109 @@
     renewal:{label:'Renewal',cls:'t-renewal',icon:'<path d="M20 12a8 8 0 1 1-2.3-5.6L20 9"/><path d="M20 4v5h-5"/>'},
     travel:{label:'Trip',cls:'t-travel',icon:'<path d="M3 13h18M6 13l2-6h8l2 6M6 17h.01M18 17h.01"/><rect x="3" y="13" width="18" height="5" rx="2"/>'}};
   const AUTOMATED=/(no-?reply|do-?not-?reply|notification|newsletter|mailer|bounce|^updates?@|^news@|^info@|marketing|^hello@|^team@|^support@|^billing@|^receipts?@|^account@|^alerts?@)/i;
-  const RENEWAL=/\b(renew(al|s|ing)?|subscription|trial (ends|ending|expires)|expir(es|ing|ation)|payment (due|failed|reminder)|invoice|bill(ing)? (due|reminder)|auto-?renew)/i;
-  const TRAVEL=/\b(booking|reservation|itinerary|e-?ticket|boarding pass|flight|train|check-?in|hotel|airbnb)\b/i;
+  const RENEWAL=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial (ends|ending|expires)|expir(es|ing|ation)|auto-?renew)\b/i;
+  const PENDING_PAY=/\b(payment (due|failed|reminder|declined)|past due|overdue (bill|payment)|action required.*(pay|bill)|unpaid|failed payment)\b/i;
+  const BILL=/\b(invoice|bill(ing)?|statement|utilities?|electric|gas bill|water bill|internet bill|phone bill)\b/i;
+  const STORE_PAY=/\b(order|purchase|bought|shipped|delivered|pickup|in[- ]store|receipt from|your (order|purchase)|zalando|amazon|ikea|lidl|tesco|albert|rossmann|dm drogerie|alza|mediamarkt)\b/i;
+  const ONLINE_PAY=/\b(paypal|stripe|apple pay|google pay|card ending|charged|payment received|payment confirm|sepa|iban|wise|revolut|sumup)\b/i;
+  const MONEY=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial|expir|payment|invoice|receipt|bill(ing)?|auto-?renew|charged|statement|paypal|stripe|sepa|order|purchase)\b/i;
+  const TRAVEL=/\b(booking|reservation|itinerary|e-?ticket|boarding[\s-]?pass|flights?|train|bahn|rail|eurostar|(?:flight|hotel|airport)\s*check-?in|hotel|airbnb|boarding pass|departure|arrival|gate\s?[A-Z]?\d+|PNR|confirmation code|trip to)\b/i;
+  const DOCUMENT=/\b(document|contract|agreement|signed|signature|attachment|pdf|passport|visa|insurance|policy|tax|steuer|certificate|invoice attached|your copy)\b/i;
   const DEADLINE=/\b(deadline|due|submit|submission)\b/i;
+  const DEMO=/\b(?:demo|preview)=1\b/i.test(location.search)||localStorage.getItem('daylight-demo')==='1';
+  const MONEY_COLORS=['#6d7cff','#e08a4c','#4aa88a','#d0627a','#7b6ad6','#3f9ab8'];
+  function brandColor(name){let h=0;for(const c of String(name||''))h=(h*31+c.charCodeAt(0))>>>0;return MONEY_COLORS[h%MONEY_COLORS.length]}
+  function parseMoneyWhen(subject,fallbackDate){
+    const s=String(subject||'');
+    let m;
+    if(/\brenews?\s+soon\b/i.test(s)||/\bexpir(?:es|ing)\s+soon\b/i.test(s))return {label:'Soon',urgent:true,sort:Date.now()+3*86400000};
+    if(/\b(today|tonight)\b/i.test(s))return {label:'Today',urgent:true,sort:localMidnight.getTime()};
+    if(/\btomorrow\b/i.test(s))return {label:'Tomorrow',urgent:true,sort:localMidnight.getTime()+86400000};
+    if((m=s.match(/\b(?:renews?|due|expires?|on|by)\s+(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/i))){
+      const day=+m[1],mo=+m[2]-1,yr=m[3]?(m[3].length===2?2000+(+m[3]):+m[3]):localMidnight.getFullYear();
+      let d=new Date(yr,mo,day);if(d<localMidnight&&!m[3])d=new Date(yr+1,mo,day);
+      const days=Math.round((d-localMidnight)/86400000);
+      return {label:days===0?'Today':days===1?'Tomorrow':d.toLocaleDateString(undefined,{day:'numeric',month:'short'}),urgent:days<=3,sort:d.getTime()};
+    }
+    if((m=s.match(/\b(?:renews?|due|expires?|on|by)\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})\b/i))){
+      const mon=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].slice(0,3).toLowerCase());
+      let d=new Date(localMidnight.getFullYear(),mon,+m[2]);if(d<localMidnight)d.setFullYear(d.getFullYear()+1);
+      const days=Math.round((d-localMidnight)/86400000);
+      return {label:days===0?'Today':days===1?'Tomorrow':d.toLocaleDateString(undefined,{day:'numeric',month:'short'}),urgent:days<=3,sort:d.getTime()};
+    }
+    const age=fallbackDate?Date.now()-fallbackDate.getTime():0;
+    return {label:fallbackDate?ago(fallbackDate):'',urgent:false,sort:fallbackDate?fallbackDate.getTime():0,received:true};
+  }
+  function moneyKind(subject,from){
+    const text=subject+' '+from;
+    if(PENDING_PAY.test(text)||/\bpayment due\b/i.test(text))return 'pending';
+    if(RENEWAL.test(text))return 'subscription';
+    if(BILL.test(text))return 'bill';
+    if(STORE_PAY.test(text))return 'store';
+    if(ONLINE_PAY.test(text)||/\breceipt\b/i.test(text))return 'online';
+    if(MONEY.test(text))return 'online';
+    return null;
+  }
   var loopsData=null,loopsFetched=0,loopsShowAll=false;
   const loopState=()=>readJSON('daylight-loops',{});
   const saveLoopState=s=>{const now=Date.now();Object.keys(s).forEach(k=>{if(s[k].t&&now-s[k].t>30*86400000)delete s[k]});writeJSON('daylight-loops',s)};
   const parseFrom=v=>{const m=/^\s*"?([^"<]*)"?\s*<([^>]+)>/.exec(v||'');return m?{name:m[1].trim()||m[2],email:m[2].toLowerCase()}:{name:(v||'').trim(),email:(v||'').trim().toLowerCase()}};
   const gmailLink=id=>`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
   async function loadLoops(force){
-    if(!token)return 0;
-    if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();return 0}
+    if(!token){if(DEMO){loopsData=demoLoopsData();loopsFetched=Date.now();renderLoops();renderCategories();return computeLoops().length}return 0}
+    if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();renderCategories();return 0}
     const G='https://gmail.googleapis.com/gmail/v1/users/me';
     const meta=id=>api(`${G}/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`);
-    const inbox=await api(`${G}/messages?labelIds=INBOX&maxResults=25`).then(r=>Promise.all((r.messages||[]).map(m=>meta(m.id)))).catch(()=>[]);
-    const sent=await api(`${G}/messages?labelIds=SENT&maxResults=15`).catch(()=>({messages:[]}));
+    const listMeta=async (qs,n=12)=>{try{const r=await api(`${G}/messages?${qs}&maxResults=${n}`);return Promise.all((r.messages||[]).map(m=>meta(m.id)))}catch{return[]}};
+    const [inbox,financeMail,travelMail,docsMail,sent]=await Promise.all([
+      listMeta('labelIds=INBOX',40),
+      listMeta('q='+encodeURIComponent('(subscription OR invoice OR payment OR billing OR receipt OR renew OR trial OR charged OR "payment due" OR order OR purchase OR paypal OR stripe) newer_than:60d'),25),
+      listMeta('q='+encodeURIComponent('(flight OR train OR booking OR itinerary OR "boarding pass" OR hotel OR reservation OR e-ticket) newer_than:45d'),15),
+      listMeta('q='+encodeURIComponent('(document OR contract OR agreement OR signed OR insurance OR passport OR visa OR pdf OR tax) newer_than:45d has:attachment'),12),
+      api(`${G}/messages?labelIds=SENT&maxResults=15`).catch(()=>({messages:[]}))
+    ]);
+    const byId=new Map();[...inbox,...financeMail,...travelMail,...docsMail].forEach(m=>{if(m?.id)byId.set(m.id,m)});
     const threadIds=[...new Set((sent.messages||[]).map(m=>m.threadId))].slice(0,12);
     const threads=await Promise.all(threadIds.map(t=>api(`${G}/threads/${encodeURIComponent(t)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`).catch(()=>null)));
     const calU=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
-    calU.searchParams.set('timeMin',new Date().toISOString());calU.searchParams.set('timeMax',new Date(localMidnight.getTime()+8*86400000).toISOString());calU.searchParams.set('singleEvents','true');calU.searchParams.set('orderBy','startTime');calU.searchParams.set('maxResults','40');
+    calU.searchParams.set('timeMin',new Date().toISOString());calU.searchParams.set('timeMax',new Date(localMidnight.getTime()+14*86400000).toISOString());calU.searchParams.set('singleEvents','true');calU.searchParams.set('orderBy','startTime');calU.searchParams.set('maxResults','50');
     const upcoming=await api(calU).then(r=>r.items||[]).catch(()=>[]);
-    loopsData={inbox,threads:threads.filter(Boolean),upcoming,files:{}};
+    loopsData={inbox:[...byId.values()],financeMail,travelMail,docsMail,threads:threads.filter(Boolean),upcoming,files:{}};
     // look for a related Drive file for the next few meetings
     const meetings=upcoming.filter(e=>(e.attendees||[]).length>1&&e.start?.dateTime&&new Date(e.start.dateTime)<new Date(localMidnight.getTime()+2*86400000)).slice(0,3);
     await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
       try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${word.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','1');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,webViewLink)');
         const f=(await api(u)).files?.[0];if(f)loopsData.files[e.id]=f}catch{}}));
-    loopsFetched=Date.now();renderLoops();return computeLoops().length;
+    loopsFetched=Date.now();renderLoops();renderCategories();return computeLoops().length;
+  }
+  function demoLoopsData(){
+    const days=n=>new Date(Date.now()-n*86400000).toISOString();
+    const mail=(id,from,subject,agoDays,labels=['INBOX','UNREAD'])=>({id,threadId:id,labelIds:labels,internalDate:String(Date.now()-agoDays*86400000),payload:{headers:[{name:'From',value:from},{name:'Subject',value:subject},{name:'Date',value:days(agoDays)}]}});
+    const ev=(id,summary,inDays,loc='')=>({id,summary,htmlLink:'#',location:loc,start:{dateTime:new Date(localMidnight.getTime()+inDays*86400000+10*3600000).toISOString()},end:{dateTime:new Date(localMidnight.getTime()+inDays*86400000+11*3600000).toISOString()},attendees:[{email:'a@x.com'},{email:'b@x.com'}]});
+    const money=[
+        mail('d1','Netflix <noreply@netflix.com>','Your Netflix subscription renews on Mar 15 · $19.99',2,['INBOX','CATEGORY_UPDATES']),
+      mail('d2','Spotify <no-reply@spotify.com>','Spotify Premium renews soon · $4.99',5,['INBOX','CATEGORY_UPDATES']),
+      mail('d7','Adobe <noreply@adobe.com>','Adobe Creative Cloud membership — payment due $59.99',1,['INBOX','IMPORTANT','UNREAD']),
+      mail('d8','Vodafone <billing@vodafone.cz>','Your Vodafone bill for February is ready · 499 Kč',3,['INBOX','CATEGORY_UPDATES']),
+      mail('d9','ČEZ <noreply@cez.cz>','Electricity invoice — payment due by Mar 12 · 1 240 Kč',4,['INBOX']),
+      mail('d10','Amazon <auto-confirm@amazon.com>','Your Amazon order has shipped · $42.10',1,['INBOX','CATEGORY_UPDATES']),
+      mail('d11','Zalando <no-reply@zalando.com>','Receipt for your Zalando purchase · €68.00',6,['INBOX','CATEGORY_UPDATES']),
+      mail('d12','PayPal <service@paypal.com>','You paid €24.90 via PayPal',2,['INBOX','CATEGORY_UPDATES']),
+      mail('d13','Apple <no_reply@email.apple.com>','Receipt from Apple — App Store · $15.99',7,['INBOX','CATEGORY_UPDATES']),
+      mail('d14','Cursor <noreply@cursor.com>','Cursor Pro free trial renews on Mar 9 · $15.99',0.5,['INBOX','CATEGORY_UPDATES'])
+    ];
+    return {
+      inbox:[
+        ...money,
+        mail('d3','Deutsche Bahn <noreply@bahn.de>','Your train ticket: Berlin → Prague',1,['INBOX','IMPORTANT']),
+        mail('d4','Lufthansa <noreply@lufthansa.com>','Boarding pass · LH 1234 Munich–Lisbon',3,['INBOX']),
+        mail('d5','Ana <ana@uni.cz>','Quick question about Friday’s lab',0.3,['INBOX','UNREAD','CATEGORY_PERSONAL']),
+        mail('d6','HR Portal <docs@company.com>','Please sign: internship agreement PDF',4,['INBOX','UNREAD'])
+      ],
+      financeMail:money,travelMail:[],docsMail:[],threads:[],
+      upcoming:[ev('e1','Flight LH 1234',2,'Munich Airport'),ev('e2','Project check-in',0),ev('e3','Submit thesis abstract',1)],
+      files:{}
+    };
   }
   function computeLoops(){
     const out=[],now=Date.now(),day=86400000;
@@ -477,22 +603,157 @@
     return out.filter(l=>{if(seen.has(l.id))return false;seen.add(l.id);const s=st[l.id];return !(s&&(s.done||(s.snooze&&s.snooze>now)))})
       .sort((a,b)=>(order[a.type]-order[b.type])||((b.weight||0)-(a.weight||0)));
   }
+  function mailItem(m){
+    const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1);
+    return {id:m.threadId||m.id,title:subject,detail:from.name,meta:ago(when),href:gmailLink(m.threadId||m.id),when:when.getTime(),unread:(m.labelIds||[]).includes('UNREAD')};
+  }
+  const MONEY_LABEL={subscription:'Subscription',bill:'Bill',store:'Store',online:'Online',pending:'Pending'};
+  function moneyFromMail(m){
+    const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)',when=new Date(header(h,'Date')||m.internalDate*1);
+    const kind=moneyKind(subject,from.name+' '+from.email);if(!kind)return null;
+    const renew=parseMoneyWhen(subject,when);
+    const amt=(subject.match(/(?:€|EUR|USD|\$|Kč|CZK)\s?[\d\s.,]+|\d[\d\s.,]*\s?(?:€|EUR|USD|\$|Kč|CZK)/i)||[])[0]?.replace(/\s+/g,' ').trim();
+    const brand=from.name.replace(/\s*(billing|noreply|no-?reply|receipts?|support|service)\s*/ig,' ').replace(/\s+/g,' ').trim()||from.email.split('@')[0];
+    const subline=kind==='subscription'
+      ?(renew.received?`From ${brand}`:`Renews ${renew.label||'soon'}`)+(amt?` · ${amt}`:'')
+      :kind==='pending'?`Payment pending${amt?' · '+amt:''}`
+      :kind==='bill'?`Bill from ${brand}${amt?' · '+amt:''}`
+      :kind==='store'?`Store purchase${amt?' · '+amt:''}`
+      :`Online payment${amt?' · '+amt:''}`;
+    return {id:m.threadId||m.id,title:brand,subject,detail:subline,from:brand,meta:renew.label||ago(when),href:gmailLink(m.threadId||m.id),when:renew.sort||when.getTime(),kind,tag:MONEY_LABEL[kind]||'Money',urgent:!!renew.urgent||kind==='pending',amount:amt||'',color:brandColor(brand),received:!!renew.received};
+  }
+  function computeMoney(){
+    const groups={subscription:[],bill:[],store:[],online:[],pending:[]},seen=new Set(),now=Date.now(),day=86400000;
+    const mails=loopsData?[...(loopsData.inbox||[]),...(loopsData.financeMail||[])]:[];
+    const uniq=new Map();mails.forEach(m=>{if(m?.id)uniq.set(m.id,m)});
+    uniq.forEach(m=>{
+      const age=now-new Date((m.payload?.headers&&header(m.payload.headers,'Date'))||m.internalDate*1);
+      if(age>90*day)return;
+      const item=moneyFromMail(m);if(!item||seen.has(item.id))return;seen.add(item.id);
+      (groups[item.kind]||groups.online).push(item);
+    });
+    const byUrg=(a,b)=>(b.urgent-a.urgent)||(a.when||0)-(b.when||0)||a.title.localeCompare(b.title);
+    Object.keys(groups).forEach(k=>groups[k].sort(byUrg));
+    const all=[...groups.pending,...groups.subscription,...groups.bill,...groups.store,...groups.online];
+    return {...groups,all,counts:{subscription:groups.subscription.length,bill:groups.bill.length,store:groups.store.length,online:groups.online.length,pending:groups.pending.length,total:all.length}};
+  }
+  function computeCategories(){
+    const money=computeMoney(),finance=money.all.map(i=>({...i,title:i.subject||i.title,detail:i.from,meta:i.meta,kind:'finance'})),travel=[],pending=[],documents=[],now=Date.now(),day=86400000;
+    const push=(arr,item)=>{const k=String(item.id||item.title);if(arr._seen.has(k))return;arr._seen.add(k);arr.push(item)};
+    travel._seen=new Set();pending._seen=new Set();documents._seen=new Set();
+    const mails=loopsData?[...(loopsData.inbox||[]),...(loopsData.financeMail||[]),...(loopsData.travelMail||[]),...(loopsData.docsMail||[])]:[];
+    const uniq=new Map();mails.forEach(m=>{if(m?.id)uniq.set(m.id,m)});
+    uniq.forEach(m=>{const h=m.payload?.headers||[],subject=header(h,'Subject')||'',age=now-new Date(header(h,'Date')||m.internalDate*1),item=mailItem(m);
+      if(TRAVEL.test(subject)&&age<45*day)push(travel,{...item,kind:'travel',tag:/\b(flight|boarding|lufthansa|ryanair|easyjet)\b/i.test(subject)?'Flight':/\b(train|bahn|rail|eurostar)\b/i.test(subject)?'Train':'Trip'});
+      if(DOCUMENT.test(subject)&&age<45*day)push(documents,{...item,kind:'docs',tag:'Mail'});
+    });
+    (loopsData?.upcoming||[]).forEach(e=>{const st=new Date(e.start?.dateTime||e.start?.date),title=e.summary||'(No title)',days=Math.floor((st-localMidnight)/day);
+      const when=days===0?'Today':days===1?'Tomorrow':st.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+      const time=e.start?.dateTime?' · '+hm(st):'';
+      if(TRAVEL.test(title+' '+(e.location||''))&&days<=14)push(travel,{id:'cal:'+e.id,title,detail:`${when}${time}${e.location?' · '+e.location:''}`,meta:'Calendar',href:e.htmlLink||'',when:st.getTime(),kind:'travel',tag:'Calendar'});
+      if(DEADLINE.test(title)&&days<=3)push(pending,{id:'caldead:'+e.id,title,detail:`${when}${time}`,meta:'Calendar',href:e.htmlLink||'',when:st.getTime(),kind:'pending',tag:days<0?'Overdue':'Due soon'});
+    });
+    const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+    const allTasks=[...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks.map(t=>({...t,source:'Daylight',listName:t.project||'Personal'}))];
+    if(DEMO&&!token)allTasks.push({title:'Pay Spotify before renewal',dueDate:new Date(localMidnight.getTime()+86400000).toISOString(),due:'Tomorrow',listName:'Personal',source:'Daylight'},{title:'Pack for Lisbon trip',dueDate:new Date(localMidnight.getTime()+2*86400000).toISOString(),due:'In 2 days',listName:'Travel',source:'Daylight'},{title:'Reply to Ana about lab',dueDate:localMidnight.toISOString(),due:'Today',listName:'Uni',source:'Daylight'});
+    allTasks.forEach((t,i)=>{
+      const href=t.source==='Daylight'?'':t.source==='Microsoft To Do'?'https://to-do.office.com/':'https://tasks.google.com/';
+      if(!t.dueDate){if(t.hasTime)return;push(pending,{id:'taskopen:'+ (t.id||t.title)+i,title:t.title,detail:t.listName||t.source||'Task',meta:'Open',href,when:0,kind:'pending',tag:'Task'});return}
+      const d=dueDay(t.dueDate);if(d>new Date(localMidnight.getTime()+7*day))return;
+      const tag=d<localMidnight?'Overdue':d<tomorrow?'Today':d<new Date(localMidnight.getTime()+2*day)?'Tomorrow':'This week';
+      push(pending,{id:'task:'+(t.id||t.title)+i,title:t.title,detail:[t.listName,t.source].filter(Boolean).join(' · '),meta:tag,href,when:d.getTime(),kind:'pending',tag});
+    });
+    personalTasks.filter(t=>t.hasTime&&t.dueDate).forEach(t=>{
+      const d=new Date(t.dueDate);if(d<now-6*3600000||d>now+2*day)return;
+      const dueLabel=d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+      push(pending,{id:'rem:'+t.id,title:t.title,detail:dueLabel+(t.project?' · '+t.project:''),meta:d<=now?'Reminder now':'Reminder',href:'',when:d.getTime(),kind:'pending',tag:'Reminder'});
+    });
+    (providerData.google.files||[]).forEach(f=>{
+      const name=f.name||'File',[label]=kind(f.mimeType),when=f.viewedByMeTime||f.modifiedTime;
+      if(DOCUMENT.test(name)||/pdf|doc|contract|invoice|ticket|boarding/i.test(name)||label==='PDF'||label==='Doc')
+        push(documents,{id:'file:'+f.id,title:name,detail:label+(when?' · '+ago(new Date(when)):''),meta:'Drive',href:f.webViewLink||'',when:when?new Date(when).getTime():0,kind:'docs',tag:label});
+    });
+    if(DEMO&&!token){
+      if(!travel.length){travel.push(
+        {id:'t1',title:'Your train ticket: Berlin → Prague',detail:'Deutsche Bahn',meta:'1 d ago',href:'#',when:Date.now()-day,kind:'travel',tag:'Train'},
+        {id:'t2',title:'Boarding pass · LH 1234 Munich–Lisbon',detail:'Lufthansa',meta:'3 d ago',href:'#',when:Date.now()-3*day,kind:'travel',tag:'Flight'},
+        {id:'t3',title:'Flight LH 1234',detail:'In 2 days · Munich Airport',meta:'Calendar',href:'#',when:Date.now()+2*day,kind:'travel',tag:'Calendar'});}
+      if(!documents.length)documents.push({id:'docdemo',title:'Internship agreement.pdf',detail:'PDF · 4 d ago',meta:'Drive',href:'#',when:Date.now(),kind:'docs',tag:'PDF'});
+    }
+    const byWhen=(a,b)=>(b.when||0)-(a.when||0)||(a.title||'').localeCompare(b.title||'');
+    return {finance,money,travel:travel.sort(byWhen),pending:pending.sort((a,b)=>{const rank={Overdue:0,'Reminder now':1,Today:2,Reminder:3,Tomorrow:4,'Due soon':5,'This week':6,Open:7,Task:8};return (rank[a.tag]??9)-(rank[b.tag]??9)||byWhen(a,b)}),documents:documents.sort(byWhen)};
+  }
   const loopsTile=document.createElement('article');loopsTile.className='card loops wide';loopsTile.dataset.widget='loops';
   loopsTile.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 12a5 5 0 1 1 5 5"/><path d="M12 17H5m0 0 3-3m-3 3 3 3"/></svg></span>Open loops <span class="loop-count" id="loop-total"></span></div><span class="tiny loops-hint">Things you started but haven’t finished</span></div><div class="loop-grid" id="loop-grid"></div><div class="loops-foot" id="loops-foot"></div>';
   { const ord=readJSON('daylight-order',[]);const hero=$('.hero');
     if(ord.includes('loops'))ord.forEach(id=>{const c=$('#layout').querySelector(`[data-widget="${id}"]`)||(id==='loops'?loopsTile:null);if(c)$('#layout').append(c)});else if(hero)hero.after(loopsTile);else $('#layout').prepend(loopsTile) }
   TILE_NAMES.loops='Open loops';
+  makeTile('finance','finance money-tile',['g-amber','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h2"/></svg>'],'Subscriptions','<span class="loop-count" id="finance-count"></span>','<div class="money-tabs" id="money-tabs" role="tablist"><button type="button" data-money="all" aria-pressed="true">All</button><button type="button" data-money="subscription" aria-pressed="false">Subscriptions</button><button type="button" data-money="pending" aria-pressed="false">Pending</button><button type="button" data-money="bill" aria-pressed="false">Bills</button><button type="button" data-money="store" aria-pressed="false">Store</button><button type="button" data-money="online" aria-pressed="false">Online</button></div><div class="money-sec" id="finance-list"><div class="cat-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div></div><div class="cat-foot" id="finance-foot"></div>');
+  makeTile('travel','travel',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13h18M6 13l2-6h8l2 6M6 17h.01M18 17h.01"/><rect x="3" y="13" width="18" height="5" rx="2"/></svg>'],'Travel','<span class="loop-count" id="travel-count"></span>','<div class="cat-list" id="travel-list"><div class="cat-empty">Flights, trains and bookings from mail and calendar will show up here.</div></div><div class="cat-foot" id="travel-foot"></div>');
+  makeTile('pending','pending',['g-rose','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4L19 6"/><circle cx="12" cy="12" r="9"/></svg>'],'Pending tasks','<span class="loop-count" id="pending-count"></span>','<div class="cat-list" id="pending-list"><div class="cat-empty">Due tasks and reminders from Google Tasks and Daylight appear here.</div></div><div class="cat-foot" id="pending-foot"></div>');
+  makeTile('documents','documents',['g-blue','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>'],'Documents','<span class="loop-count" id="documents-count"></span>','<div class="cat-list" id="documents-list"><div class="cat-empty">Contracts, PDFs and signed docs from mail and Drive.</div></div><div class="cat-foot" id="documents-foot"></div>');
+  let moneyFilter=getLS('daylight-money-filter')||'all';
+  function catHTML(item,tone){
+    const body=`<i class="cat-mark" aria-hidden="true"></i><span><b>${esc(item.title)}</b><small>${esc([item.tag,item.detail].filter(Boolean).join(' · '))}</small></span><span class="cat-time">${esc(item.meta||'')}</span>`;
+    return item.href?`<a class="cat-item ${tone}" href="${esc(item.href)}" target="_blank" rel="noopener">${body}</a>`:`<div class="cat-item ${tone}">${body}</div>`;
+  }
+  function moneyHTML(item){
+    const initial=(item.title||'?').trim().slice(0,2).toUpperCase();
+    let when=item.meta||'';
+    if(item.kind==='subscription'&&!item.received)when=item.meta?`Renews ${item.meta}`:'Renews soon';
+    else if(item.kind==='pending')when=item.meta&&!item.received?`Due ${item.meta}`:(item.meta||'Pending');
+    const body=`<span class="money-av" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span><span class="money-copy"><b>${esc(item.title)}</b><small>${esc(item.detail)}</small></span><span class="money-side"><span class="when">${esc(when)}</span><span class="tag">${esc(item.tag)}</span></span>`;
+    return item.href?`<a class="money-row${item.urgent?' is-urgent':''}" href="${esc(item.href)}" target="_blank" rel="noopener">${body}</a>`:`<div class="money-row${item.urgent?' is-urgent':''}">${body}</div>`;
+  }
+  function renderMoney(){
+    const list=$('#finance-list'),count=$('#finance-count'),foot=$('#finance-foot'),tabs=$('#money-tabs');
+    if(!list)return;
+    if(tabs)$$('#money-tabs [data-money]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.money===moneyFilter?'true':'false'));
+    if(!token&&!microsoftAccount&&!DEMO){list.innerHTML='<div class="cat-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div>';if(count)count.textContent='';if(foot)foot.textContent='';return}
+    if(!loopsData&&token){list.innerHTML='<div class="cat-empty">Sorting payments from your inbox…</div>';return}
+    const money=computeMoney(),order=['pending','subscription','bill','store','online'],labels={pending:'Pending payments',subscription:'Subscriptions',bill:'Bills',store:'Store payments',online:'Online payments'};
+    const max=+(wset('finance').max||8);
+    let items=moneyFilter==='all'?money.all:money[moneyFilter]||[];
+    if(count)count.textContent=money.counts.total||'';
+    if(!items.length){list.innerHTML=`<div class="cat-empty">${moneyFilter==='all'?'No subscriptions, bills or payments in recent mail.':'Nothing in this category right now.'}</div>`;if(foot)foot.textContent=DEMO&&!token?'Preview sample · live mail after connect':'';return}
+    if(moneyFilter==='all'){
+      const chunks=[];let left=max;
+      for(const k of order){const group=money[k];if(!group.length||left<=0)continue;const slice=group.slice(0,left);left-=slice.length;
+        chunks.push(`<div class="money-sec-h"><span>${labels[k]}</span><span>${group.length}</span></div>${slice.map(moneyHTML).join('')}`);}
+      list.innerHTML=chunks.join('')||'<div class="cat-empty">No subscriptions, bills or payments in recent mail.</div>';
+    }else list.innerHTML=items.slice(0,max).map(moneyHTML).join('');
+    if(foot)foot.textContent=items.length>max?`+${items.length-max} more`:(DEMO&&!token?'Preview sample · connect Google for live mail':'');
+  }
+  $('#money-tabs')?.addEventListener('click',e=>{const b=e.target.closest('[data-money]');if(!b)return;moneyFilter=b.dataset.money;setLS('daylight-money-filter',moneyFilter);renderMoney();fitAll?.()});
+  function renderCategory(key,tone,emptyConnected,emptyOffline){
+    const cats=computeCategories(),items=cats[key]||[],list=$(`#${key}-list`),count=$(`#${key}-count`),foot=$(`#${key}-foot`);
+    if(!list)return;
+    if(count)count.textContent=items.length||'';
+    if(!token&&!microsoftAccount&&!DEMO){list.innerHTML=`<div class="cat-empty">${emptyOffline}</div>`;if(foot)foot.textContent='';return}
+    if(!loopsData&&token){list.innerHTML='<div class="cat-empty">Sorting your inbox…</div>';return}
+    const max=+(wset(key).max||5);
+    list.innerHTML=items.length?items.slice(0,max).map(i=>catHTML(i,tone)).join(''):`<div class="cat-empty">${emptyConnected}</div>`;
+    if(foot)foot.textContent=items.length>max?`+${items.length-max} more in this category`:(DEMO&&!token?'Preview sample · connect Google for live mail':'');
+  }
+  function renderCategories(){
+    renderMoney();
+    renderCategory('travel','t-travel','No trips found in recent mail or the next two weeks of calendar.','Flights, trains and bookings from mail and calendar will show up here.');
+    renderCategory('pending','t-pending','Nothing due in the next week.','Due tasks and reminders from Google Tasks and Daylight appear here.');
+    renderCategory('documents','t-docs','No matching documents right now.','Contracts, PDFs and signed docs from mail and Drive.');
+  }
   function renderLoops(){
     const grid=$('#loop-grid');if(!grid)return;const WORK=['reply','followup','prepare','overdue','deadline'],loops=computeLoops().filter(l=>wset('loops').include!=='Work only'||WORK.includes(l.type));
-    $('#loop-total').textContent=loops.length?loops.length:'';if($('#loop-count'))$('#loop-count').textContent=token?loops.length:'—';
-    if(!token&&!microsoftAccount&&!loops.length){grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';$('#loops-foot').innerHTML='';renderSummary(null);return}
+    $('#loop-total').textContent=loops.length?loops.length:'';if($('#loop-count'))$('#loop-count').textContent=(token||DEMO)?loops.length:'—';
+    if(!token&&!microsoftAccount&&!DEMO&&!loops.length){grid.innerHTML='<div class="empty">Connect Google to find emails waiting for a reply, meetings to prepare for and overdue tasks.</div>';$('#loops-foot').innerHTML='';renderSummary(null);renderCategories();return}
     if(!loopsData&&token){grid.innerHTML='<div class="empty">Looking through your inbox, calendar and tasks…</div>';return}
     const lmax=+(wset('loops').max||6),shown=loopsShowAll?loops:loops.slice(0,lmax);
-    grid.classList.toggle('as-list',(wset('loops').view||'List')==='List');grid.innerHTML=loops.length?shown.map(loopHTML).join('')
-      :'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>';
+    grid.classList.toggle('as-list',(wset('loops').view||'List')==='List');
+    const paint=typeof loopHTML==='function'?loopHTML:(l=>{const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply;return `<div class="arow ${t.cls}" data-loop="${esc(l.id)}"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><div class="arow-main"><div class="arow-top"><b>${esc(l.title)}</b><span class="arow-src">${esc(l.meta||'')}</span></div><div class="arow-detail">${esc(l.detail||'')}</div></div></div>`});
+    try{grid.innerHTML=loops.length?shown.map(paint).join(''):'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>'}
+    catch(e){console.warn('loops render',e);grid.innerHTML=loops.length?shown.map(l=>`<div class="arow ${LOOP_TYPES[l.type]?.cls||''}"><div class="arow-main"><b>${esc(l.title)}</b><div class="arow-detail">${esc(l.detail||'')}</div></div></div>`).join(''):'<div class="empty all-clear">No open loops right now. You’re all caught up.</div>'}
     $('#loops-foot').innerHTML=loops.length>lmax?`<button class="connect" type="button" id="loops-more">${loopsShowAll?'Show fewer':`Show all ${loops.length}`}</button>`:'';
     if($('#loops-more'))$('#loops-more').onclick=()=>{loopsShowAll=!loopsShowAll;renderLoops()};
-    renderSummary(loops.length);
+    renderSummary(loops.length);renderCategories();
   }
   $('#loop-grid').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const id=b.closest('[data-loop]').dataset.loop,s=loopState();
     s[id]=b.dataset.act==='done'?{done:true,t:Date.now()}:{snooze:Date.now()+86400000,t:Date.now()};saveLoopState(s);renderLoops();
@@ -564,6 +825,10 @@
     summary:{name:'Daily briefing',desc:'What matters today, in a few lines',size:{w:12,h:3},min:{w:3,h:2},settings:{detail:{label:'Detail',options:['Short','Detailed']}}},
     overview:{name:'Day at a glance',desc:'Counts, up next and today’s timeline',size:{w:12,h:4},min:{w:4,h:3}},
     loops:{name:'Open loops',desc:'Things you started but haven’t finished',size:{w:12,h:5},min:{w:3,h:3},settings:{view:{label:'View',options:['List','Cards']},max:{label:'Items shown',options:['3','6','9','12']},include:{label:'Include',options:['Everything','Work only']}}},
+    finance:{name:'Subscriptions',desc:'Who, renew when, pending bills and payments',size:{w:6,h:6},min:{w:3,h:4},settings:{max:{label:'Items shown',options:['4','6','8','12']}}},
+    travel:{name:'Travel',desc:'Flights, trains and bookings',size:{w:4,h:5},min:{w:3,h:3},settings:{max:{label:'Items shown',options:['3','5','8']}}},
+    pending:{name:'Pending tasks',desc:'Due tasks and reminders',size:{w:4,h:5},min:{w:3,h:3},settings:{max:{label:'Items shown',options:['3','5','8']}}},
+    documents:{name:'Documents',desc:'Contracts and files from mail and Drive',size:{w:4,h:5},min:{w:3,h:3},settings:{max:{label:'Items shown',options:['3','5','8']}}},
     calendar:{name:'Calendar',desc:'Today’s events',size:{w:4,h:5},min:{w:3,h:3}},
     tasks:{name:'Tasks',desc:'Google Tasks and personal tasks',size:{w:4,h:5},min:{w:3,h:3}},
     mail:{name:'Mail',desc:'Recent inbox messages',size:{w:4,h:5},min:{w:3,h:3},settings:{count:{label:'Emails shown',options:['3','5','8']},only:{label:'Show',options:['All','Unread only']}}},
@@ -577,33 +842,59 @@
   const cardOf=id=>document.querySelector(`.card[data-widget="${CSS.escape(id)}"]`);
   const U=8,P=(id,x,y,w,h)=>({id,x,y:y*U,w,h:h*U});
   const PRESETS={
-    'Default':[P('summary',0,0,12,3),P('overview',0,3,12,4),P('loops',0,7,12,5),P('calendar',0,12,4,5),P('tasks',4,12,4,5),P('mail',8,12,4,5),P('focus',0,17,4,4),P('notes',4,17,4,4),P('weather',8,17,4,4),P('drive',0,21,4,4),P('birthdays',4,21,4,4),P('markets',8,21,4,4)],
-    'Work focus':[P('overview',0,0,8,4),P('focus',8,0,4,4),P('loops',0,4,12,5),P('calendar',0,9,6,5),P('tasks',6,9,6,5),P('drive',0,14,6,4),P('notes',6,14,6,4)],
-    'Inbox zero':[P('summary',0,0,12,3),P('loops',0,3,12,6),P('mail',0,9,8,6),P('tasks',8,9,4,6)],
+    'Default':[P('summary',0,0,12,3),P('loops',0,3,12,6)],
+    'Work focus':[P('overview',0,0,8,4),P('focus',8,0,4,4),P('loops',0,4,12,5),P('pending',0,9,4,5),P('calendar',4,9,4,5),P('tasks',8,9,4,5),P('drive',0,14,6,4),P('notes',6,14,6,4)],
+    'Inbox zero':[P('summary',0,0,12,3),P('loops',0,3,12,6),P('finance',0,9,4,5),P('mail',4,9,4,5),P('pending',8,9,4,5)],
+    'Life admin':[P('summary',0,0,12,3),P('finance',0,3,4,5),P('travel',4,3,4,5),P('documents',8,3,4,5),P('pending',0,8,6,5),P('calendar',6,8,6,5)],
     'Minimal':[P('summary',0,0,12,3),P('calendar',0,3,6,5),P('tasks',6,3,6,5),P('weather',0,8,6,4),P('markets',6,8,6,4)]};
 
   // Smart summary (rules for now; an AI-written version can replace renderSmart later)
   const sumCard=document.createElement('article');sumCard.className='card summary-w';sumCard.dataset.widget='summary';
-  sumCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">✦</span>Daily briefing</div></div><div class="smart" id="smart-summary"></div><div class="smart-chips" id="smart-chips"></div>';
+  sumCard.innerHTML='<div class="card-head"><div class="card-title"><span class="glyph g-blue">✦</span>Daily briefing</div></div><div class="smart" id="smart-summary"></div><div class="smart-chips" id="smart-chips"></div><div class="smart-actions" id="smart-actions"></div>';
   $('#layout').prepend(sumCard);
   function renderSmart(){
-    const el=$('#smart-summary');if(!el)return;const chips=$('#smart-chips');
-    if(!token&&!microsoftAccount){el.innerHTML='Connect Google and Daylight will sum up your day here: meetings, people waiting on you and your best time to focus.';chips.innerHTML='';return}
+    const el=$('#smart-summary');if(!el)return;const chips=$('#smart-chips'),actions=$('#smart-actions');
+    const greet=()=>{const h=new Date().getHours(),p=readProfile(),first=(p.name||'').split(' ')[0];return `${h<12?'Good morning':h<18?'Good afternoon':'Good evening'}${first?', '+esc(first):''}.`};
+    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML=`${greet()} Connect Google and I’ll turn your mail, calendar and tasks into a short briefing.`;chips.innerHTML='';if(actions)actions.innerHTML='<button class="connect primary" type="button" id="smart-connect">Connect Google</button>';$('#smart-connect')?.addEventListener('click',()=>connectDialog({setup:true,focusId:true}));return}
     const now=new Date(),{timed,connected}=todayEvents(),detailed=wset('summary').detail==='Detailed';
-    const loops=computeLoops(),n=t=>loops.filter(l=>l.type===t).length,pl=(k,one,many)=>k===1?one:many;
-    const s=[];
-    if(connected){const left=timed.filter(e=>e.end>now),next=left[0];
-      if(!left.length)s.push('No more meetings today.');
-      else{const mins=Math.round((next.start-now)/60000);s.push(`${left.length} ${pl(left.length,'meeting','meetings')} left today${next.start<=now?`; <em>${esc(next.title)}</em> is on now`:`; next is <em>${esc(next.title)}</em> ${mins<60?`in ${mins} min`:'at '+hm(next.start)}`}.`)}}
-    const bits=[];if(n('reply'))bits.push(`<em>${n('reply')} ${pl(n('reply'),'person is','people are')}</em> waiting for your reply`);if(n('overdue'))bits.push(`<em>${n('overdue')} ${pl(n('overdue'),'task is','tasks are')} overdue</em>`);if(n('deadline'))bits.push(`${n('deadline')} due soon`);
-    if(bits.length)s.push(bits.join(', ').replace(/, ([^,]*)$/,' and $1')+'.');
+    const loops=computeLoops(),cats=computeCategories(),money=cats.money||computeMoney(),n=t=>loops.filter(l=>l.type===t).length,pl=(k,one,many)=>k===1?one:many;
+    const s=[greet()],line=[];
+    if(connected||DEMO){const left=timed.filter(e=>e.end>now),next=left[0];
+      if(!left.length&&connected)line.push('Your calendar is clear for the rest of the day');
+      else if(next){const mins=Math.round((next.start-now)/60000);line.push(next.start<=now?`<em>${esc(next.title)}</em> is happening now`:mins<60?`Next up: <em>${esc(next.title)}</em> in ${mins} min`:`Next up: <em>${esc(next.title)}</em> at ${hm(next.start)}`);
+        if(left.length>1)line.push(`${left.length-1} more after that`)}}
+    if(line.length)s.push(line.join(' · ')+'.');
+    const dueToday=cats.pending.filter(p=>['Overdue','Today','Reminder now','Reminder'].includes(p.tag));
+    if(dueToday.length)s.push(`You’ve got <em>${dueToday.length} ${pl(dueToday.length,'thing','things')}</em> asking for you today${dueToday[0]?` — starting with ${esc(dueToday[0].title)}`:''}.`);
+    if(n('reply'))s.push(`<em>${n('reply')} ${pl(n('reply'),'person is','people are')}</em> waiting on a reply.`);
+    if(n('overdue'))s.push(`And <em>${n('overdue')} overdue ${pl(n('overdue'),'task','tasks')}</em> could use a reschedule.`);
+    const pendingPay=money.pending||[],soonSub=(money.subscription||[]).filter(x=>x.urgent);
+    if(pendingPay.length)s.push(`<em>${pendingPay.length} pending ${pl(pendingPay.length,'payment','payments')}</em>${pendingPay[0]?` from ${esc(pendingPay[0].title)}`:''}.`);
+    else if(soonSub.length)s.push(`${soonSub[0].title} renews ${esc(soonSub[0].meta||'soon')}.`);
+    else if(money.counts?.total)s.push(`${money.counts.total} money ${pl(money.counts.total,'item','items')} sorted under Subscriptions.`);
+    if(cats.travel.length)s.push(`${cats.travel.length} ${pl(cats.travel.length,'trip','trips')} on the radar.`);
     const dayEnd=new Date(localMidnight.getTime()+DAY_END*3600000),dayStart=new Date(localMidnight.getTime()+DAY_START*3600000);
     const slot=connected&&freeGaps(timed,new Date(Math.max(now,dayStart)),dayEnd).find(g=>g.min>=45);
-    if(slot)s.push(`Best time to focus: <em>${hm(slot.start)}–${hm(slot.end)}</em>.`);
-    if(detailed){const extra=[];if(n('followup'))extra.push(`${n('followup')} ${pl(n('followup'),'conversation needs','conversations need')} a follow-up`);if(n('prepare'))extra.push(`${n('prepare')} ${pl(n('prepare'),'meeting','meetings')} to prepare`);if(n('renewal'))extra.push(`${n('renewal')} ${pl(n('renewal'),'renewal','renewals')} to review`);
+    if(slot)s.push(`Quiet window for focus: <em>${hm(slot.start)}–${hm(slot.end)}</em>.`);
+    if(detailed){const extra=[];if(n('followup'))extra.push(`${n('followup')} ${pl(n('followup'),'conversation needs','conversations need')} a follow-up`);if(n('prepare'))extra.push(`${n('prepare')} ${pl(n('prepare'),'meeting','meetings')} to prepare`);
       const bday=(providerData.google.birthdays||[]).filter(b=>b.days===0).map(b=>b.name);if(bday.length)extra.push(`it’s ${esc(bday.join(' and '))}’s birthday`);if(extra.length)s.push(extra.join(', ').replace(/^./,c=>c.toUpperCase())+'.')}
-    el.innerHTML=s.length?s.join(' '):'Nothing pressing right now. A good moment to plan ahead.';
-    chips.innerHTML=loops.slice(0,3).map(l=>l.href?`<a class="tl-chip" href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.title)}</a>`:`<span class="tl-chip">${esc(l.title)}</span>`).join('');
+    el.innerHTML=s.length>1?s.join(' '):`${greet()} Nothing pressing — a good moment to plan ahead.`;
+    const chipItems=[...pendingPay.slice(0,1),...dueToday.slice(0,1),...loops.slice(0,2),...(soonSub[0]?[soonSub[0]]:[])];
+    const seen=new Set();
+    chips.innerHTML=chipItems.filter(l=>{const k=l.id||l.title;if(seen.has(k))return false;seen.add(k);return true}).slice(0,4).map(l=>{
+      const cls=l.tag==='Overdue'||l.type==='overdue'||l.kind==='pending'?'tl-chip warn':(l.tag==='Today'||l.tag==='Reminder now'||l.urgent?'tl-chip due':'tl-chip');
+      const label=l.from||l.title;
+      return l.href?`<a class="${cls}" href="${esc(l.href)}" target="_blank" rel="noopener">${esc(label)}</a>`:`<span class="${cls}">${esc(label)}</span>`;
+    }).join('');
+    if(actions){const btns=[];
+      if(loops[0]?.href)btns.push(`<a class="connect primary" href="${esc(loops[0].href)}" target="_blank" rel="noopener">Open first loop</a>`);
+      else if(loops[0])btns.push(`<button class="connect primary" type="button" data-scroll-loops>Review open loops</button>`);
+      if(pendingPay[0]?.href)btns.push(`<a class="connect" href="${esc(pendingPay[0].href)}" target="_blank" rel="noopener">Check pending payment</a>`);
+      else if(money.counts?.total)btns.push(`<button class="connect" type="button" data-open-inbox>Open Inbox</button>`);
+      actions.innerHTML=btns.join('');
+      actions.querySelector('[data-scroll-loops]')?.addEventListener('click',()=>cardOf('loops')?.scrollIntoView({behavior:'smooth',block:'center'}));
+      actions.querySelector('[data-open-inbox]')?.addEventListener('click',()=>{if(mq.matches)setTab('inbox');else{const f=cardOf('finance');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});else toast('Add the Subscriptions widget from Customize')}});
+    }
   }
   { const o=renderLoops;renderLoops=function(){o();renderSmart()} }
   setInterval(renderSmart,60000);
@@ -622,14 +913,14 @@
     const content=document.createElement('div');content.className='grid-stack-item-content';content.append(card);content.insertAdjacentHTML('beforeend',toolsHTML(it.id));el.append(content);
     $('#layout').append(el);grid.makeWidget(el);return el;
   }
-  function saveLayout(){if(!grid||grid.getColumn()!==12)return;writeJSON('daylight-layout-v3',grid.save(false).map(n=>({id:n.id,x:n.x,y:n.y,w:n.w,h:n.h})))}
+  function saveLayout(){if(!grid||grid.getColumn()!==12)return;writeJSON('daylight-layout-v6',grid.save(false).map(n=>({id:n.id,x:n.x,y:n.y,w:n.w,h:n.h})))}
   function loadItems(items){
     if(!grid)return;$$('#layout .card').forEach(c=>STORE.append(c));grid.removeAll();
     items.forEach(it=>{if(typeOf(it.id)==='markets'&&!cardOf(it.id))marketsCard(it.id);placeItem(it)});saveLayout();
   }
   function initGrid(){
     if(!window.GridStack){$('#layout').classList.add('no-grid');return false}
-    let items=readJSON('daylight-layout-v3',null);if(!Array.isArray(items)){const v2=readJSON('daylight-layout-v2',null);if(Array.isArray(v2))items=v2.map(i=>({...i,y:i.y*U,h:i.h*U}))}
+    let items=readJSON('daylight-layout-v6',null);
     if(!Array.isArray(items)||!items.length){const hidden=readJSON('daylight-hidden',[]);items=presetItems('Default').filter(i=>!hidden.includes(i.id))}
     items.forEach(it=>{if(typeOf(it.id)==='markets'&&!cardOf(it.id))marketsCard(it.id)});
     $$('#layout > .card').forEach(c=>STORE.append(c));
@@ -641,6 +932,11 @@
     return true;
   }
   const gridOK=initGrid();
+  if(DEMO&&!token){
+    try{loadLoops(true)}catch(e){console.warn(e)}
+    setTimeout(()=>{renderCategories();renderSmart();fitAll?.()},0);
+    toast('Preview mode · sample Gmail categories. Connect Google for your real inbox.');
+  }
 
   // No scrolling inside widgets: each widget's height follows its content
   const CELL=U;
@@ -688,7 +984,7 @@
       ${typeOf(id)==='markets'?'<p class="muted-note">Change the coins and currency pairs with Edit on the widget itself.</p>':''}`;
     wpanel.hidden=false;wpanel.dataset.for=id;
   }
-  const rerender={summary:renderSmart,loops:renderLoops,mail:renderMail,drive:renderDrive,birthdays:renderBirthdays,focus:renderInsights};
+  const rerender={summary:renderSmart,loops:renderLoops,mail:renderMail,drive:()=>{renderDrive();renderCategories()},birthdays:renderBirthdays,focus:renderInsights,finance:renderCategories,travel:renderCategories,pending:renderCategories,documents:renderCategories};
   wpanel.addEventListener('click',e=>{
     if(e.target.closest('[data-close]'))return closePanel();
     const add=e.target.closest('[data-addw]');if(!add||add.disabled)return;const type=add.dataset.addw;let id=type;
@@ -843,66 +1139,127 @@
   // ======== Open loops: attention-inbox list view ========
   function srcOf(l){const h=l.href||'';return h.includes('mail.google')?'Gmail':h.includes('calendar.google')?'Calendar':h.includes('tasks.google')?'Google Tasks':h.includes('to-do.office')?'To Do':'Daylight'}
   const TAGS={overdue:['Overdue','hot'],deadline:['Due soon','warm'],reply:['Suggested action',''],followup:['Suggested action',''],prepare:['Upcoming',''],renewal:['Review',''],travel:['Reminder','']};
-  function loopHTML(l){const t=LOOP_TYPES[l.type],list=(wset('loops').view||'List')==='List';
+  function loopHTML(l){const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply;const list=(wset('loops').view||'List')==='List';
     if(!list)return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}"><div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div><div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}<div class="loop-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done">Done</button></div></div>`;
     const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&!(l.type==='overdue'))tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);
     return `<div class="arow ${t.cls}" data-loop="${esc(l.id)}"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
       <div class="arow-main"><div class="arow-top"><b>${esc(l.title)}</b><span class="arow-src">${esc([srcOf(l),l.meta].filter(Boolean).join(' · '))}</span></div>
       <div class="arow-detail">${esc(l.detail)}${l.related?` · <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a>`:''}</div>
       <div class="arow-foot"><span class="arow-tags">${tags.map(([x,c])=>`<span class="atag ${c}">${x}</span>`).join('')}</span><span class="arow-actions">${l.href?`<a class="connect primary" href="${esc(l.href)}" target="_blank" rel="noopener">Open</a>`:''}<button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done" aria-label="Mark done">Done</button></span></div></div></div>`}
-  // ======== Mobile app (≤680px): Home · Calendar · + · Assistant · Statistics ========
+  // ======== Mobile app (≤680px): Home · Inbox · + · Assistant · Statistics ========
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>'};
+  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M9 15v-3M12 15V9M15 15v-5"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>'};
   const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
   const mapp=document.createElement('div');mapp.id='mapp';mapp.className='mapp';
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,20)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,20)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
    <section class="m-screen" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
-     <div class="m-seg" role="tablist" id="m-seg"><button type="button" data-f="all" class="on">All tasks</button><button type="button" data-f="personal">Personal</button><button type="button" data-f="work">Work</button></div>
-     <h3 class="m-count" id="m-count"></h3><div class="m-stat" id="m-stat"></div><div class="m-list" id="m-list"></div><div class="m-more" id="m-more"></div></section>
-   <section class="m-screen" data-screen="calendar"><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
+     <div class="m-brief" id="m-brief"></div>
+     <div class="m-home-block" id="m-loops-block"><h3 class="m-sub">Open loops</h3><div class="m-list" id="m-list"></div></div>
+     <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
+   <section class="m-screen" data-screen="inbox">
+     <div class="m-inbox-head"><div class="m-inbox-tabs" role="tablist" id="m-inbox-tabs"><button type="button" data-inbox="all" class="on">All</button><button type="button" data-inbox="subscription">Subs</button><button type="button" data-inbox="bill">Bills</button><button type="button" data-inbox="payments">Payments</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,18)}</button></div>
+     <div id="m-inbox"></div>
+   </section>
+   <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
    <section class="m-screen" data-screen="assistant"><div class="m-chat" id="m-chat"></div><form class="m-msg" id="m-msg"><input id="m-msg-input" placeholder="Message…" autocomplete="off" aria-label="Message Daylight"><button type="submit" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m21 3-9.5 18-2-7.5L2 11.5Z"/><path d="m9.5 13.5 5-5"/></svg></button></form></section>
    <section class="m-screen" data-screen="stats"><div id="m-stats"></div></section>
-   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${svg(ICON.home)}<span>Home</span></button><button data-tab="calendar" type="button">${svg(ICON.calendar)}<span>Calendar</span></button><button class="m-fab" id="m-fab" type="button" aria-label="Quick capture"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button data-tab="assistant" type="button">${svg(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${svg(ICON.stats)}<span>Statistics</span></button></nav>`;
+   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${svg(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${svg(ICON.inbox)}<span>Inbox</span></button><button class="m-fab" id="m-fab" type="button" aria-label="Quick capture"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button data-tab="assistant" type="button">${svg(ICON.assistant)}<span>Assistant</span></button><button data-tab="stats" type="button">${svg(ICON.stats)}<span>Statistics</span></button></nav>`;
   document.body.append(mapp);
   // move overlays out of the desktop shell so they work on the phone too
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
-  let mTab=getLS('daylight-mtab')||'home',mFilter='all',mSel=new Date(localMidnight),mWeekCache={},mChat=[];
-  const TITLES={home:'',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
+  let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mSel=new Date(localMidnight),mWeekCache={},mChat=[];
+  if(mTab==='calendar')mTab='inbox';
+  const TITLES={home:'',inbox:'Inbox',calendar:'Calendar',assistant:'Assistant',stats:'Statistics'};
   function setTab(t){mTab=t;setLS('daylight-mtab',t);$$('#mapp .m-screen').forEach(s=>s.hidden=s.dataset.screen!==t);$$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
     mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];renderMobile();if(t==='assistant'&&!mChat.length)chatHello()}
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab);else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);
   $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-  // Home
-  function todayItems(){
-    const now=new Date(),items=[],evs=[...(providerData.google.events||[]),...(providerData.microsoft.events||[])];
-    evs.forEach(e=>{if(!e.start?.dateTime)return;const utc=e.start.timeZone==='UTC'&&!/[zZ]|[+-]\d\d:?\d\d$/.test(e.start.dateTime);const s=new Date(e.start.dateTime+(utc?'Z':'')),en=new Date((e.end?.dateTime||e.start.dateTime)+(utc?'Z':''));if(en<=localMidnight||s>=tomorrow)return;
-      items.push({kind:'event',title:e.summary||e.subject||'(No title)',sort:s,time:`${hm(s)}–${hm(en)}`,state:en<=now?'done':s<=now?'now':'todo',work:(e.attendees||[]).length>1,href:e.htmlLink||e.webLink})});
-    const day=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
-    [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[])].forEach(t=>{if(!t.dueDate||day(t.dueDate)>=tomorrow)return;const late=day(t.dueDate)<localMidnight;items.push({kind:'task',title:t.title,sort:new Date(localMidnight.getTime()+23*3600000),time:late?'Overdue · was due '+day(t.dueDate).toLocaleDateString(undefined,{day:'numeric',month:'short'}):'Due today',state:late?'late':'todo',work:true,href:t.source==='Microsoft To Do'?'https://to-do.office.com/':'https://tasks.google.com/'})});
-    personalTasks.forEach(t=>{if(!t.dueDate)return;const d=new Date(t.dueDate);if(day(t.dueDate)>=tomorrow)return;const late=day(t.dueDate)<localMidnight;
-      items.push({kind:'personal',id:t.id,title:t.title,sort:t.hasTime?d:new Date(localMidnight.getTime()+22*3600000),time:(late?'Overdue · ':'')+(t.hasTime&&!late?hm(d):late?fmtDue(t):'Today')+(t.project?' · '+t.project:''),state:late?'late':(t.hasTime&&d<=now?'now':'todo'),work:!!t.project&&/work|lab|office|client|research|thesis|project/i.test(t.project)})});
-    readJSON('daylight-done-log',[]).filter(d=>new Date(d.at)>=localMidnight).forEach(d=>items.push({kind:'personal',title:d.title,sort:new Date(d.at),time:'Done '+hm(new Date(d.at))+(d.project?' · '+d.project:''),state:'done',work:/work|lab|office|client|research|thesis|project/i.test(d.project||'')}));
-    return items.sort((a,b)=>a.sort-b.sort);
-  }
-  function donut(done,now,left){const tot=Math.max(1,done+now+left),C=2*Math.PI*26,seg=(v,off,col)=>v?`<circle r="26" cx="32" cy="32" fill="none" stroke="${col}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${Math.max(0,C*v/tot-4)} ${C}" stroke-dashoffset="${-C*off/tot}"/>`:'';
-    return `<svg viewBox="0 0 64 64" width="72" height="72" class="m-donut"><circle r="26" cx="32" cy="32" fill="none" stroke="var(--m-ring)" stroke-width="8"/><g transform="rotate(-90 32 32)">${seg(done,0,'var(--m-green)')}${seg(now,done,'var(--accent)')}</g></svg>`}
+  // Home — daily brief + open loops only
   function renderHome(){
-    const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Morning':h<18?'Afternoon':'Evening';
-    $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});$('#m-hello').innerHTML=`${part}${first?', '+esc(first):''} <span aria-hidden="true">👋</span>`;
-    let items=todayItems();if(mFilter!=='all')items=items.filter(i=>mFilter==='work'?i.work:!i.work);
-    const done=items.filter(i=>i.state==='done').length,now=items.filter(i=>i.state==='now').length,left=items.length-done-now;
-    $('#m-count').textContent=`${items.length} ${items.length===1?'thing':'things'} for today`;
-    $('#m-stat').innerHTML=`${donut(done,now,left)}<div class="m-legend"><div><i style="background:var(--m-green)"></i><b>${done} done</b><span>completed</span></div><div><i style="background:var(--accent)"></i><b>${now} now</b><span>in progress</span></div><div><i style="background:var(--m-ring)"></i><b>${left} left</b><span>to do</span></div></div>`;
-    $('#m-list').innerHTML=items.length?items.map(i=>`<${i.href?`a href="${esc(i.href)}" target="_blank" rel="noopener"`:'div'} class="m-item s-${i.state}"><span class="m-bar"></span><span class="m-item-main"><b>${esc(i.title)}</b><small>${esc(i.time)}</small></span>${i.kind==='personal'&&i.state!=='done'?`<button class="m-check" type="button" data-done="${esc(i.id)}" aria-label="Mark ${esc(i.title)} done"></button>`:`<span class="m-check${i.state==='done'?' on':''}" aria-hidden="true"></span>`}</${i.href?'a':'div'}>`).join('')
-      :`<div class="m-empty">${token||microsoftAccount?'Nothing scheduled for today. Tap + to add something.':'Connect Google from the menu (tap your photo) to see your day here. Tap + to add a reminder.'}</div>`;
-    const loops=(token||microsoftAccount)?computeLoops().filter(l=>!['overdue','deadline'].includes(l.type)).slice(0,3):[];
-    $('#m-more').innerHTML=loops.length?`<h3 class="m-sub">Needs attention</h3>${loops.map(l=>`<${l.href?`a href="${esc(l.href)}" target="_blank" rel="noopener"`:'div'} class="m-item s-attn ${LOOP_TYPES[l.type].cls}"><span class="m-bar"></span><span class="m-item-main"><b>${esc(l.title)}</b><small>${esc([srcOf(l),l.detail].filter(Boolean).join(' · '))}</small></span></${l.href?'a':'div'}>`).join('')}`:'';
+    const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+    $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});$('#m-hello').textContent=`${part}${first?', '+first:''}`;
+    const loops=(token||microsoftAccount||DEMO)?computeLoops():[],money=computeMoney(),{timed,connected}=todayEvents(),now=new Date();
+    const left=timed.filter(e=>e.end>now),next=left[0],pendingPay=money.pending||[];
+    let brief=`${part}${first?', '+esc(first):''}.`;
+    if(!token&&!microsoftAccount&&!DEMO)brief=`${brief} Connect Google and I’ll brief you from mail, calendar and tasks.`;
+    else{
+      if(next){const mins=Math.round((next.start-now)/60000);brief+=next.start<=now?` <em>${esc(next.title)}</em> is on now.`:mins<60?` Next: <em>${esc(next.title)}</em> in ${mins} min.`:` Next: <em>${esc(next.title)}</em> at ${hm(next.start)}.`;}
+      else if(connected)brief+=' Calendar looks clear.';
+      if(loops.length)brief+=` <em>${loops.length} open ${loops.length===1?'loop':'loops'}</em> waiting.`;
+      if(pendingPay.length)brief+=` <em>${pendingPay.length} pending ${pendingPay.length===1?'payment':'payments'}</em>.`;
+      else if(money.counts.total)brief+=` ${money.counts.total} items waiting in Inbox.`;
+      if(!loops.length&&!money.counts.total&&!next)brief+=' Nothing pressing — nice.';
+    }
+    const chips=[];
+    if(loops[0])chips.push(loops[0].href?`<a href="${esc(loops[0].href)}" target="_blank" rel="noopener">Open first loop</a>`:`<button type="button" data-ask="Who is waiting for a reply?">Review loops</button>`);
+    if(pendingPay.length||money.counts.total)chips.push(`<button type="button" data-goto-inbox>Open Inbox</button>`);
+    $('#m-brief').innerHTML=`<div class="eyebrow">Daily brief</div><p>${brief}</p>${chips.length?`<div class="m-chips">${chips.join('')}</div>`:''}`;
+    const loopList=loops.slice(0,8);
+    $('#m-list').innerHTML=(!token&&!microsoftAccount&&!DEMO)
+      ?`<div class="m-empty">Connect Google from the menu to surface replies, renewals and trips here.</div>`
+      :loopList.length?loopList.map(l=>`<${l.href?`a href="${esc(l.href)}" target="_blank" rel="noopener"`:'div'} class="m-item s-attn ${LOOP_TYPES[l.type]?.cls||''}"><span class="m-bar"></span><span class="m-item-main"><b>${esc(l.title)}</b><small>${esc([LOOP_TYPES[l.type]?.label||l.type,l.detail,l.meta].filter(Boolean).join(' · '))}</small></span><button class="m-check" type="button" data-loop-done="${esc(l.id)}" aria-label="Mark done"></button></${l.href?'a':'div'}>`).join('')
+      :`<div class="m-empty">No open loops. You’re caught up.</div>`;
   }
-  $('#m-seg').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;mFilter=b.dataset.f;$$('#m-seg button').forEach(x=>x.classList.toggle('on',x===b));renderHome()};
-  $('#m-list').addEventListener('click',e=>{const b=e.target.closest('[data-done]');if(!b)return;e.preventDefault();const t=personalTasks.find(x=>x.id===b.dataset.done);logDone(t);personalTasks=personalTasks.filter(x=>x.id!==b.dataset.done);savePersonal();renderTasks();renderLoops();toast('Done · nice work')});
+  $('#m-list').addEventListener('click',e=>{
+    const loopDone=e.target.closest('[data-loop-done]');
+    if(loopDone){e.preventDefault();e.stopPropagation();const s=loopState();s[loopDone.dataset.loopDone]={done:true,t:Date.now()};saveLoopState(s);renderLoops();toast('Marked as done');return}
+    const b=e.target.closest('[data-done]');if(!b)return;e.preventDefault();const t=personalTasks.find(x=>x.id===b.dataset.done);logDone(t);personalTasks=personalTasks.filter(x=>x.id!==b.dataset.done);savePersonal();renderTasks();renderLoops();toast('Done · nice work')
+  });
+  $('#m-brief')?.addEventListener('click',e=>{
+    if(e.target.closest('[data-goto-inbox]')){setTab('inbox');return}
+    const a=e.target.closest('[data-ask]');if(a){setTab('assistant');ask(a.dataset.ask)}
+  });
+  // Inbox — subscriptions, bills, payments
+  function inboxItems(filter){
+    const money=computeMoney();
+    if(filter==='subscription')return money.subscription;
+    if(filter==='bill')return money.bill;
+    if(filter==='payments')return [...money.pending,...money.store,...money.online];
+    return money.all;
+  }
+  function inboxDateLabel(item){
+    if(item.meta&&/^(Soon|Today|Tomorrow)$/i.test(item.meta))return item.meta;
+    if(!item.received&&item.when){
+      const d=new Date(item.when);
+      if(!Number.isNaN(d.getTime())&&Math.abs(d-localMidnight)<400*86400000)
+        return d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:d.getFullYear()!==localMidnight.getFullYear()?'numeric':undefined});
+    }
+    return item.meta||'';
+  }
+  function inboxDaysLabel(item){
+    if(item.kind==='pending')return item.urgent?'Due soon':'Pending';
+    if(item.received||!item.when)return item.kind==='store'?'Store':item.kind==='online'?'Paid':item.tag||'';
+    const days=Math.round((item.when-localMidnight.getTime())/86400000);
+    if(days<0)return 'Overdue';
+    if(days===0)return 'Today';
+    if(days===1)return '1 day';
+    return `${days} days`;
+  }
+  function inboxCard(item){
+    const initial=(item.title||'?').trim().slice(0,2).toUpperCase();
+    const amt=item.amount||'—';
+    const body=`<span class="m-inbox-logo" style="--a1:${esc(item.color)};--a2:${esc(item.color)}" aria-hidden="true">${esc(initial)}</span><span class="m-inbox-copy"><b>${esc(item.title)}</b><small>${esc(inboxDateLabel(item))}</small></span><span class="m-inbox-side"><span class="amt">${esc(amt)}</span><span class="meta">${esc(inboxDaysLabel(item))}</span></span>`;
+    return item.href?`<a class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}" href="${esc(item.href)}" target="_blank" rel="noopener">${body}</a>`:`<div class="m-inbox-card${item.urgent||item.kind==='pending'?' is-urgent':''}">${body}</div>`;
+  }
+  function renderInbox(){
+    const el=$('#m-inbox');if(!el)return;
+    $$('#m-inbox-tabs [data-inbox]').forEach(b=>b.classList.toggle('on',b.dataset.inbox===mInboxFilter));
+    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty">Connect Google to pull subscriptions, bills and payments from Gmail.</div>';return}
+    if(!loopsData&&token){el.innerHTML='<div class="m-empty">Sorting money mail…</div>';return}
+    const items=inboxItems(mInboxFilter);
+    if(!items.length){el.innerHTML=`<div class="m-empty">${mInboxFilter==='all'?'Nothing in Inbox yet.':'Nothing in this category.'}</div>`;return}
+    const coming=items.filter(i=>i.kind==='pending'||i.urgent||(!i.received&&i.when&&(i.when-localMidnight.getTime())<=7*86400000));
+    const comingIds=new Set(coming.map(i=>i.id));
+    const due=items.filter(i=>!comingIds.has(i.id)&&!i.received&&i.when);
+    const recent=items.filter(i=>!comingIds.has(i.id)&&!due.includes(i));
+    const block=(title,list)=>list.length?`<div class="m-inbox-sec"><h3 class="m-inbox-sec-h">${title}</h3><div class="m-inbox-list">${list.map(inboxCard).join('')}</div></div>`:'';
+    el.innerHTML=block('Coming up',coming)+block('Due soon',due)+block(mInboxFilter==='payments'?'Recent payments':'Recent',recent);
+  }
+  $('#m-inbox-tabs')?.addEventListener('click',e=>{const b=e.target.closest('[data-inbox]');if(!b)return;mInboxFilter=b.dataset.inbox;setLS('daylight-inbox-filter',mInboxFilter);renderInbox()});
+  $('#m-inbox-filter')?.addEventListener('click',()=>toast('Sorted by soonest first'));
   // Calendar
   const weekStart=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
   async function weekEvents(ws){const k=ws.toISOString();if(mWeekCache[k])return mWeekCache[k];if(!token)return [];const ev=await eventsBetween(ws,new Date(ws.getTime()+7*86400000))||[];mWeekCache[k]=ev;setTimeout(()=>delete mWeekCache[k],5*60000);return ev}
@@ -953,9 +1310,10 @@
   $('#m-fab').onclick=e=>{e.stopPropagation();openCmd(true)};$('#m-search').onclick=e=>{e.stopPropagation();openCmd(false)};
   document.addEventListener('click',e=>{if(document.body.classList.contains('cmd-open')&&!e.composedPath().includes($('#cmd')))document.body.classList.remove('cmd-open')});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('cmd-open')});
-  function renderMobile(){if(!mq.matches)return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='calendar')renderCalendar2();else if(mTab==='stats')renderStats()}
+  function renderMobile(){if(!mq.matches)return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(mTab==='calendar')renderCalendar2();else if(mTab==='stats')renderStats()}
   { const o=renderLoops;renderLoops=function(){o();renderMobile()} }
-  { const o=renderTasks;renderTasks=function(){o();if(mq.matches&&mTab==='home')renderHome()} }
+  { const o=renderTasks;renderTasks=function(){o();if(mq.matches&&(mTab==='home'||mTab==='inbox')){if(mTab==='home')renderHome();else renderInbox()}} }
+  { const o=renderCategories;renderCategories=function(){o();if(mq.matches&&mTab==='inbox')renderInbox()} }
   // notification panel and a 'Widgets' view on the phone
   const notif=$('#notif-panel'),notifHome=notif?.parentElement;
   const placeNotif=()=>{if(!notif)return;if(mq.matches)document.body.append(notif);else notifHome?.append(notif)};
