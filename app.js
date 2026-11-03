@@ -1144,16 +1144,30 @@
     return r;
   }
   function createAiReminders(extraction,mailMeta){
+    const stamped=readJSON('daylight-ai-reminders',{});
+    const entityKey=extraction.entityKey||mailMeta.mailId;
+    const cancelled=extraction.intent==='cancellation'||/cancel/i.test(extraction.travel?.status||'')||/cancel/i.test(extraction.event?.status||'');
+    // Cancellations: disable AI reminders for this entity instead of creating new ones
+    if(cancelled){
+      let disabled=0;
+      personalTasks.forEach(t=>{
+        if(!t.aiGenerated)return;
+        if((t.entityKey&&t.entityKey===entityKey)||(t.mailId===mailMeta.mailId)){
+          if(!t.disabled){t.disabled=true;t.disabledReason='cancelled';disabled++}
+        }
+      });
+      if(disabled)savePersonal();
+      return -disabled;
+    }
     if(!extraction?.reminders?.length)return 0;
     let n=0;
-    const stamped=readJSON('daylight-ai-reminders',{});
     extraction.reminders.forEach(rem=>{
       if(!rem?.title)return;
       if(extraction.requires_confirmation||rem.requires_confirmation)return; // never auto-create uncertain
       if(!rem.datetime)return;
-      const key=(extraction.entityKey||mailMeta.mailId)+'::'+rem.title;
+      const key=entityKey+'::'+rem.title;
       if(stamped[key])return;
-      if(personalTasks.some(t=>t.mailId===mailMeta.mailId&&t.title===rem.title)){stamped[key]=Date.now();return}
+      if(personalTasks.some(t=>!t.disabled&&(t.mailId===mailMeta.mailId||t.entityKey===entityKey)&&t.title===rem.title)){stamped[key]=Date.now();return}
       const due=new Date(rem.datetime);
       if(isNaN(due.getTime()))return;
       personalTasks.unshift({
@@ -1162,7 +1176,7 @@
         dueDate:due.toISOString(),hasTime:!/T00:00/.test(rem.datetime),
         project:extraction.order?'Shopping':extraction.travel?'Travel':'Reminders',
         mailId:mailMeta.mailId,href:mailMeta.href||gmailLink(mailMeta.threadId||mailMeta.mailId),
-        suggested:true,aiGenerated:true,reason:rem.reason||'',entityKey:extraction.entityKey||'',
+        suggested:true,aiGenerated:true,reason:rem.reason||'',entityKey,
         created:new Date().toISOString()
       });
       stamped[key]=Date.now();n++;

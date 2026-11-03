@@ -1,0 +1,185 @@
+{
+  "generatedAt": "2026-11-03T07:00:01.094Z",
+  "commitTarget": "8dfa25b+",
+  "productionReady": false,
+  "productionReadyReason": "Worker /api/gemini/* returns 404 — redeploy worker + set GEMINI_API_KEY secret",
+  "sections": {
+    "A": {
+      "name": "A_local_heuristic",
+      "ran": true,
+      "skippedGeminiOnly": [
+        "invoice",
+        "sub-renewal"
+      ],
+      "total": 10,
+      "passed": 10,
+      "failed": [],
+      "rows": [
+        {
+          "id": "amazon-confirm",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.86
+        },
+        {
+          "id": "amazon-delivery",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.86
+        },
+        {
+          "id": "amazon-delay",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.86
+        },
+        {
+          "id": "flight-booking",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.88
+        },
+        {
+          "id": "flight-cancel",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.88
+        },
+        {
+          "id": "flight-reschedule",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.88
+        },
+        {
+          "id": "hotel",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.88
+        },
+        {
+          "id": "ambiguous-date",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.86
+        },
+        {
+          "id": "non-english",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.86
+        },
+        {
+          "id": "promo-noise",
+          "ok": true,
+          "errors": [],
+          "source": "local-heuristic",
+          "confidence": 0.86
+        }
+      ]
+    },
+    "B": {
+      "name": "B_live_gemini_api",
+      "ran": false,
+      "reason": "GEMINI_API_KEY not set in environment",
+      "total": 0,
+      "passed": 0,
+      "failed": [],
+      "calls": 0,
+      "success": 0,
+      "fail": 0,
+      "avgMs": null,
+      "tokens": null
+    },
+    "C": {
+      "name": "C_worker_consent_fallback",
+      "ran": true,
+      "worker": "https://daylight-api.kratveer050.workers.dev",
+      "healthOk": true,
+      "routesDeployed": false,
+      "authEnforced": false,
+      "consentBlocksWhenOff": true,
+      "financialOptInEnforced": true,
+      "fallbackWithoutServer": true,
+      "ambiguousEscalates": true,
+      "checks": [
+        {
+          "name": "health",
+          "status": 200,
+          "ms": 240,
+          "body": {
+            "ok": true
+          }
+        },
+        {
+          "name": "gemini_status_noauth",
+          "status": 404,
+          "ms": 77,
+          "body": "Not found"
+        },
+        {
+          "name": "gemini_status_fake",
+          "status": 404,
+          "ms": 108,
+          "body": "Not found"
+        },
+        {
+          "name": "gemini_analyse_fake",
+          "status": 404,
+          "ms": 125,
+          "body": "Not found"
+        },
+        {
+          "name": "gemini_analyse_noauth",
+          "status": 404,
+          "ms": 43,
+          "body": "Not found"
+        }
+      ],
+      "verdict": "ROUTES_NOT_DEPLOYED_404"
+    },
+    "D": {
+      "name": "D_lifecycle_dedupe",
+      "ran": true,
+      "sameOrderIdAcrossUpdates": true,
+      "orderKeysAlign": true,
+      "samePnrCancel": true,
+      "flightKeys": {
+        "book": "pnr:abc12x",
+        "cancel": "pnr:abc12x",
+        "equal": true
+      },
+      "deliveryDateChanges": true,
+      "cancelDetected": true,
+      "rescheduleChanges": 4,
+      "note": "Lifecycle keys verified at extraction layer; wallet/reminder wiring covered by unit expectations in report"
+    }
+  },
+  "metrics": {
+    "geminiCalls": 0,
+    "geminiSuccess": 0,
+    "geminiFailed": 0,
+    "classificationAccuracy_B": null,
+    "intentAccuracy_B": null,
+    "avgProcessingMs_B": null,
+    "tokenUsage_B": null,
+    "heuristicPassRate_A": 1,
+    "workerRoutesDeployed": false,
+    "duplicateCreationRate_D": 0,
+    "falseReminderRate": null
+  },
+  "fixesAppliedThisPhase": [
+    "Escalate to Gemini when local heuristic requires_confirmation",
+    "Default model → gemini-3.5-flash-lite (2.5-flash-lite restricted for new projects)",
+    "Cancellation disables AI-generated reminders for the same entityKey"
+  ]
+}

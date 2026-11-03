@@ -83,7 +83,7 @@ Email Intelligence is **off until the user consents** in the Connections panel. 
    | Name | Type | Value |
    |---|---|---|
    | `GEMINI_API_KEY` | Secret | your key |
-   | `GEMINI_MODEL` | Text | `gemini-2.5-flash-lite` (or another free-tier model) |
+   | `GEMINI_MODEL` | Text | `gemini-3.5-flash-lite` (or another free-tier model; avoid retired/restricted 2.0/2.5 IDs on new projects) |
    | `GEMINI_MAX_PER_HOUR` | Text | `40` |
 
 3. Redeploy the Worker.

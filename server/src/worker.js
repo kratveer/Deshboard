@@ -144,7 +144,7 @@ async function handle(req, env) {
     if (!s) return json(env, req, { error: 'reauth' }, 401);
     if (!env.GEMINI_API_KEY) return json(env, req, { error: 'gemini_not_configured' }, 503);
 
-    const model = String(env.GEMINI_MODEL || 'gemini-2.5-flash-lite').replace(/[^a-zA-Z0-9._-]/g, '');
+    const model = String(env.GEMINI_MODEL || 'gemini-3.5-flash-lite').replace(/[^a-zA-Z0-9._-]/g, '');
     const limitKey = 'gemini-rl:' + (await sha256(s.key));
     const hourBucket = Math.floor(Date.now() / 3600000);
     const rl = (await env.SESSIONS.get(limitKey, 'json')) || { hour: hourBucket, count: 0 };
@@ -212,7 +212,7 @@ async function handle(req, env) {
     return json(env, req, {
       ok: true,
       configured: !!env.GEMINI_API_KEY,
-      model: String(env.GEMINI_MODEL || 'gemini-2.5-flash-lite'),
+      model: String(env.GEMINI_MODEL || 'gemini-3.5-flash-lite'),
       max_per_hour: Math.min(120, Math.max(10, Number(env.GEMINI_MAX_PER_HOUR) || 40)),
     });
   }

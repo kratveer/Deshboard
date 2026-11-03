@@ -302,8 +302,11 @@ Pass current_datetime and timezone from the user message as the reference "now".
       if (/\b(delivered|was delivered|left at|zugestellt|doručeno)\b/i.test(text)) { intent = 'delivered'; status = 'delivered'; }
       if (/\brefund\b/i.test(text)) { intent = 'refund'; status = 'refunded'; }
       if (/\b(shipped|dispatched|on its way|tracking|versandt|odeslán)\b/i.test(text) && intent === 'order_confirmation') { intent = 'order_shipped'; status = 'shipped'; }
-      const orderId = (text.match(/\b(?:order|bestellung|#)\s*([A-Z0-9-]{6,})\b/i) || [])[1] || null;
-      const tracking = (text.match(/\b(?:tracking(?:\s*(?:number|no\.?#?))?)[:\s#]*([A-Z0-9]{8,})\b/i) || [])[1] || null;
+      // Require a real order token (digits); never capture words like "confirmed"
+      const orderId = (text.match(/\b(?:order|bestellung)\s*(?:number|no\.?|id|#)?\s*[:#]?\s*#?\s*([0-9][A-Z0-9-]{5,})\b/i) || [])[1]
+        || (text.match(/#\s*([0-9][A-Z0-9-]{5,})\b/) || [])[1]
+        || null;
+      const tracking = (text.match(/\b(?:tracking(?:\s*(?:number|no\.?))?)[:\s#]*([A-Z0-9]{8,})\b/i) || [])[1] || null;
       let deliveryDate = null;
       const tom = /\b(tomorrow|morgen|zítra)\b/i.test(text);
       const today = /\b(today|heute|dnes)\b/i.test(text);
@@ -357,8 +360,10 @@ Pass current_datetime and timezone from the user message as the reference "now".
       const cancelled = /\bcancel+ed|cancellation\b/i.test(text);
       const resched = /\breschedul|schedule\s+chang|new\s+departure\b/i.test(text);
       const flight = (text.match(/\b([A-Z]{2}\s?\d{2,4})\b/) || [])[1] || null;
-      const pnr = (text.match(/\b(?:PNR|booking\s*(?:ref|reference|code)|confirmation(?:\s*(?:code|number))?)\s*[:#]?\s*([A-Z0-9]{5,8})\b/i) || [])[1]
-        || (/\b(?:PNR|booking ref)\b/i.test(text) ? (text.match(/\b([A-Z0-9]{6})\b/) || [])[1] : null)
+      // Prefer explicit PNR / booking ref — never treat "confirmation LH400" as a PNR
+      const pnr = (text.match(/\bPNR\s*[:#]?\s*([A-Z0-9]{5,8})\b/i) || [])[1]
+        || (text.match(/\bbooking\s*(?:ref|reference|code)\s*[:#]?\s*([A-Z0-9]{5,8})\b/i) || [])[1]
+        || (text.match(/\bconfirmation\s*(?:code|number)\s*[:#]?\s*([A-Z0-9]{5,8})\b/i) || [])[1]
         || null;
       const route = text.match(/\b([A-Z]{3})\s*(?:→|->|to)\s*([A-Z]{3})\b/)
         || text.match(/\b([A-ZÁ-ž][A-ZÁ-ža-z .'-]{2,20})\s*(?:→|->|to)\s*([A-ZÁ-ž][A-ZÁ-ža-z .'-]{2,20})\b/);
@@ -506,8 +511,9 @@ ${SCHEMA_HINT}`;
     const local = localHeuristicExtract(normalized, ctx?.nowIso, ctx?.timezone);
     const rule = ctx?.ruleResult || null;
 
-    // Prefer local high-confidence for known templates to save cost
-    if (local && local.confidence >= 0.84 && !shouldForceGemini(ctx)) {
+    // Prefer local high-confidence for known templates to save cost.
+    // Still escalate to Gemini when the local result needs confirmation (ambiguous dates, missing fields).
+    if (local && local.confidence >= 0.84 && !local.requires_confirmation && !shouldForceGemini(ctx)) {
       setStatus(local.intent === 'flight_booking' ? 'Booking detected' : 'Delivery date extracted', local.summary);
       return { ...local, source: 'local-heuristic' };
     }
