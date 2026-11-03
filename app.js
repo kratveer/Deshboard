@@ -1291,14 +1291,23 @@
     const tickets=loopsData?.classified?.byCategory?.ticket||[];
     if(!tickets.length||typeof readWallet!=='function'||typeof saveWallet!=='function')return;
     let list=readWallet(),changed=false;
+    const Data=window.DaylightData;
     tickets.forEach(t=>{
       if(!t.mailId)return;
       if(list.some(w=>w.mailId===t.mailId||(w.href&&t.href&&w.href===t.href)))return;
+      // Prefer AI extraction travel datetime when present — never invent
+      const ex=Data?.extractionForMail?.(t.mailId)||readAiExtractions()?.[t.mailId];
+      const depart=ex?.travel?.depart_datetime||ex?.travel?.check_in||null;
+      const travelAt=depart&&!isNaN(new Date(depart))?new Date(depart).toISOString():null;
       const id='ticket:'+t.mailId;
       list.unshift({
         id,kind:'tickets',title:t.subject||t.title||'Ticket',
         typeLabel:'Ticket',note:t.fromName||t.domain||'',org:t.title||'',
         href:t.href||'',mailId:t.mailId,at:new Date(t.whenMs||Date.now()).toISOString(),
+        travelAt,eventAt:travelAt,
+        flight:ex?.travel?{from:ex.travel.from,to:ex.travel.to,flight:ex.travel.flight_number,depart:ex.travel.depart_datetime,pnr:ex.travel.pnr,seat:ex.travel.seat}:null,
+        // No QR unless authentic scan/attachment later
+        qrAuthentic:false,barcodeAuthentic:false,
         color:'#2f8fb0',category:'ticket',recordKey:t.recordKey
       });
       changed=true;
@@ -2206,7 +2215,8 @@
     return{kind:'task',label:'AI Suggestion',text:l.title,cta:'Add task',primary:'Open'};
   }
   const mailDetailCache={};
-  function decodeMailText(payload){
+  function decodeMailText(payload,{limit}={}){
+    const max=limit==null?12000:limit;
     const decode=d=>{try{const bin=atob(String(d).replace(/-/g,'+').replace(/_/g,'/'));try{return decodeURIComponent(escape(bin))}catch{return bin}}catch{return''}};
     const walk=p=>{
       if(!p)return'';
@@ -2215,7 +2225,24 @@
       if(p.mimeType==='text/html'&&p.body?.data)return decode(p.body.data).replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
       return'';
     };
-    return(walk(payload)||'').trim().slice(0,1400);
+    return(walk(payload)||'').trim().slice(0,max);
+  }
+  function listMailAttachments(payload){
+    const out=[];
+    const walk=(p,depth)=>{
+      if(!p||depth>8)return;
+      const filename=p.filename||'';
+      const attId=p.body?.attachmentId;
+      if(filename&&attId){
+        out.push({
+          filename,mimeType:p.mimeType||'application/octet-stream',
+          size:p.body?.size||0,attachmentId:attId
+        });
+      }
+      (p.parts||[]).forEach(x=>walk(x,depth+1));
+    };
+    walk(payload,0);
+    return out;
   }
   function utf8ToBase64Url(str){
     const bytes=new TextEncoder().encode(str);
@@ -2263,16 +2290,39 @@
       const messageId=header(h,'Message-ID')||header(h,'Message-Id')||'';
       const prevRefs=header(h,'References')||'';
       const references=[prevRefs,messageId].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+      const attachments=listMailAttachments(m.payload);
       const detail={
         id:m.id,threadId:m.threadId,snippet:m.snippet||'',subject:header(h,'Subject')||'(No subject)',
         from,replyTo,replyEmail:replyTo.email||from.email||'',messageId,inReplyTo:messageId,references,
-        date:new Date(header(h,'Date')||m.internalDate*1),body:decodeMailText(m.payload)||m.snippet||'',labelIds:m.labelIds||[]
+        date:new Date(header(h,'Date')||m.internalDate*1),
+        body:decodeMailText(m.payload)||m.snippet||'',
+        attachments,labelIds:m.labelIds||[]
       };
       mailDetailCache[mailId]=detail;return detail;
     }catch(e){
       console.warn('mail detail',e);
       const msg=String(e?.message||e||'');
       if(/403|insufficient|METADATA_SCOPE/i.test(msg))toast('Reconnect Google to read full email content');
+      return null;
+    }
+  }
+  async function fetchMailAttachment(mailId,attachmentId,filename){
+    if(!mailId||!attachmentId||!token)return null;
+    // Read-only: never modify Gmail. Fetch attachment bytes on demand only.
+    try{
+      const r=await api(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(mailId)}/attachments/${encodeURIComponent(attachmentId)}`);
+      const data=r?.data;if(!data)return null;
+      const bin=atob(String(data).replace(/-/g,'+').replace(/_/g,'/'));
+      const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+      const blob=new Blob([bytes],{type:'application/octet-stream'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download=filename||'attachment';a.rel='noopener';
+      document.body.append(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      return {ok:true,size:bytes.length,filename:filename||'attachment'};
+    }catch(e){
+      console.warn('attachment',e);
+      toast('Could not download attachment',{type:'err'});
       return null;
     }
   }
@@ -2455,15 +2505,25 @@
     const mailEmail=mail?.from?.email||l.fromEmail||relatedMail?.from?.email||'';
     const mailSub=mail?.subject||relatedMail?.subject||subject;
     const logoBrand={...brand,fromEmail:mailEmail||brand.fromEmail,title:mailFrom||brand.title,domain:l.domain||brand.domain};
+    const mid=mail?.id||l.mailId||relatedMail?.mailId||null;
+    const linked=mid&&window.DaylightData?.linkedRecordsForMail?window.DaylightData.linkedRecordsForMail(mid):{orders:[],wallet:[],extraction:null};
     $('#ls-head').innerHTML=`<span class="td-ico m-brand" style="--a1:${esc(logoBrand.color)};--a2:${esc(logoBrand.color)}" aria-hidden="true">${brandLogoHTML(logoBrand,initialsOf(mailFrom||l.title))}</span>
       <div class="td-head-copy">${prio?`<span class="td-prio">High Priority</span>`:''}<h2 id="ls-title">${esc(composing?'Write a reply':l.title)}</h2>
       <div class="td-meta-row"><span class="td-chip">${esc(srcOf(l)||'Daylight')}</span>${whenTxt?`<span class="td-chip">${esc(whenTxt)}</span>`:''}${l.amount?`<span class="td-chip accent">${esc(l.amount)}</span>`:''}${l.tripId?`<span class="td-chip">Trip</span>`:''}</div></div>`;
     const tripCard=tripPass.length?`<div class="td-card td-need"><span class="td-need-l">Linked trip</span>${tripPass.map(w=>`<p style="margin:6px 0 0"><button type="button" class="td-link" data-open-wallet="${esc(w.id)}">${esc(w.title)}</button> <small>${esc(w.typeLabel||WALLET_LABEL[w.kind]||'')}</small></p>`).join('')}</div>`:'';
+    const linkedBits=[];
+    (linked.orders||[]).forEach(o=>linkedBits.push(`<p style="margin:6px 0 0"><b>Order</b> ${esc(o.merchant||o.orderId||'Order')} <small>${esc(o.status||'')}</small></p>`));
+    (linked.wallet||[]).forEach(w=>linkedBits.push(`<p style="margin:6px 0 0"><button type="button" class="td-link" data-open-wallet="${esc(w.id)}">${esc(w.title)}</button> <small>${esc(w.typeLabel||'Wallet')}</small></p>`));
+    if(linked.extraction?.intent)linkedBits.push(`<p style="margin:6px 0 0"><small>AI · ${esc(linked.extraction.intent)}${linked.extraction.category?' · '+esc(linked.extraction.category):''}</small></p>`);
+    const linkedCard=linkedBits.length?`<div class="td-card td-need"><span class="td-need-l">Linked records</span>${linkedBits.join('')}</div>`:'';
     const loadingMail=isMail&&!mail&&!!(l.mailId||relatedMail?.mailId)&&!!token;
     const mailBodyTxt=mail?body:(loadingMail?'Loading email from Gmail…':(body||l.detail||'No email body yet.'));
+    const atts=(mail?.attachments||[]).filter(a=>a.attachmentId&&a.filename);
+    const attHtml=atts.length?`<div class="td-mail-atts">${atts.map(a=>`<button type="button" class="td-att" data-mail-att="${esc(mail.id)}" data-att-id="${esc(a.attachmentId)}" data-att-name="${esc(a.filename)}">${esc(a.filename)}${a.size?` <small>${Math.max(1,Math.round(a.size/1024))} KB</small>`:''}</button>`).join('')}</div>`:'';
     const emailCard=`<div class="td-card td-mail" id="ls-mail">
         <div class="td-mail-h"><span class="td-av m-brand" style="--a1:${esc(logoBrand.color)};--a2:${esc(logoBrand.color)}">${brandLogoHTML(logoBrand,initialsOf(mailFrom))}</span><div><b>${esc(mailFrom||'Unknown sender')}</b><small>${esc(mailSub||'(No subject)')}</small></div><span class="td-mail-t">${esc(timeStr)}</span></div>
         <p class="td-mail-b">${esc(mailBodyTxt)}</p>
+        ${attHtml}
       </div>`;
     const st=replyState&&replyState.loopId===l.id?replyState:null;
     const statusHtml=st?.status==='sending'?`<div class="td-compose-status is-sending" role="status">Sending…</div>`
@@ -2479,14 +2539,16 @@
     const details=`
       ${isMail?emailCard:`<div class="td-card td-need"><span class="td-need-l">What needs to be done</span><p>${esc(need)}</p></div>`}
       ${isMail?`<div class="td-card td-need"><span class="td-need-l">Suggested</span><p>${esc(need)}</p></div>`:''}
-      ${tripCard}
+      ${linkedCard}${tripCard}
       ${!isMail?`<div class="td-card td-ai"><div class="td-ai-top"><span class="td-ai-ico" aria-hidden="true">✦</span><b>${esc(sug.label)}</b></div><p>${esc(sug.text)}</p></div>`:''}`;
-    const email=`${isMail?emailCard:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>`}${tripCard}${compose}`;
-    const notes=`<div class="td-card td-need"><span class="td-need-l">Notes</span><p>${esc(l.detail||l.snippet||'No notes yet.')}</p></div>${tripCard}`;
+    const email=`${isMail?emailCard:`<div class="td-card"><p class="td-mail-b">No email linked to this item.</p></div>`}${linkedCard}${tripCard}${compose}`;
+    const notes=`<div class="td-card td-need"><span class="td-need-l">Notes</span><p>${esc(l.detail||l.snippet||'No notes yet.')}</p></div>${linkedCard}${tripCard}`;
     const activity=`<div class="td-card td-attrs">
         <div class="td-attr"><span class="td-attr-l">Source</span><span class="td-attr-v">${esc(srcOf(l))}</span></div>
         <div class="td-attr"><span class="td-attr-l">Updated</span><span class="td-attr-v">${esc(whenTxt||'—')}</span></div>
         <div class="td-attr"><span class="td-attr-l">Favourite</span><span class="td-attr-v">${fav?'Yes':'No'}</span></div>
+        ${mid?`<div class="td-attr"><span class="td-attr-l">Mail id</span><span class="td-attr-v">${esc(mid.slice(0,12))}…</span></div>`:''}
+        ${(mail?.attachments||[]).length?`<div class="td-attr"><span class="td-attr-l">Attachments</span><span class="td-attr-v">${mail.attachments.length}</span></div>`:''}
       </div>`;
     $('#ls-body').innerHTML=`
       <div class="td-tabs" role="tablist">
@@ -2542,6 +2604,12 @@
         const tab=e.target.closest('[data-td-tab]');if(tab&&!tab.disabled){
           if(replyState?.open){syncReplyFieldsFromDom();replyState.open=false}
           tdTab=tab.dataset.tdTab;feel.select();paintLoopDetail(currentDetail(),null);if(currentDetail()?.mailId&&token&&tdTab==='email'){fetchMailDetail(currentDetail().mailId).then(m=>{if(m&&openLoopId===currentDetail()?.id)paintLoopDetail(currentDetail(),m)})}return
+        }
+        const attBtn=e.target.closest('[data-mail-att]');
+        if(attBtn){
+          feel.select();
+          fetchMailAttachment(attBtn.dataset.mailAtt,attBtn.dataset.attId,attBtn.dataset.attName);
+          return;
         }
         const act=e.target.closest('[data-ls-act]');if(!act||!openLoopId)return;
         const loop=currentDetail();if(!loop)return;
@@ -2626,11 +2694,11 @@
      </div>
      <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
    <section class="m-screen" data-screen="inbox" hidden>
-     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscription" aria-selected="false">Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-inbox="bill" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="ticket" aria-selected="false">Tickets</button><button type="button" role="tab" data-inbox="shopping" aria-selected="false">Shopping</button><button type="button" role="tab" data-inbox="other" aria-selected="false">Other</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
+     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscriptions" aria-selected="false">Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-inbox="receipts" aria-selected="false">Receipts</button><button type="button" role="tab" data-inbox="bills" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-inbox="important" aria-selected="false">Important</button><button type="button" role="tab" data-inbox="promotions" aria-selected="false">Promotions</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
      <div id="m-inbox"></div>
    </section>
    <section class="m-screen" data-screen="wallet" hidden>
-     <div class="m-wallet-head"><div class="m-wallet-tabs m-pills" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-wallet="coupons" aria-selected="false">Coupons</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">Documents</button><button type="button" role="tab" data-wallet="others" aria-selected="false">Others</button></div></div>
+     <div class="m-wallet-head"><div class="m-wallet-tabs m-pills" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">Documents</button><button type="button" role="tab" data-wallet="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-wallet="cards" aria-selected="false">Cards</button></div></div>
      <div id="m-wallet"></div>
    </section>
    <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
@@ -2701,7 +2769,15 @@
   // move overlays out of the desktop shell so they work on the phone too
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
   let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mAssistDay=new Date(localMidnight),mAssistAsk=false,mWeekCache={},mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
-  if(!['all','subscription','payments','bill','ticket','shopping','other'].includes(mInboxFilter))mInboxFilter='all';
+  if(!['all','subscriptions','payments','receipts','bills','tickets','important','promotions','subscription','bill','ticket','shopping','other'].includes(mInboxFilter))mInboxFilter='all';
+  // Migrate legacy inbox filter ids
+  if(mInboxFilter==='subscription')mInboxFilter='subscriptions';
+  if(mInboxFilter==='bill')mInboxFilter='bills';
+  if(mInboxFilter==='ticket')mInboxFilter='tickets';
+  if(mInboxFilter==='shopping')mInboxFilter='receipts';
+  if(mInboxFilter==='other')mInboxFilter='important';
+  if(!['all','tickets','documents','payments','cards','coupons','others'].includes(mWalletFilter))mWalletFilter='all';
+  if(mWalletFilter==='coupons'||mWalletFilter==='others')mWalletFilter='cards';
   if(mTab==='calendar')mTab='inbox';
   const TITLES={home:'Daylight',inbox:'Inbox',wallet:'Wallet',calendar:'Calendar',assistant:'Timeline',stats:'Health'};
   const WALLET_COLORS={tickets:['#1f6feb','#0b3d91'],coupons:['#d9480f','#a33b0a'],documents:['#2f9e44','#1b6b2e'],others:['#7048e8','#4c2db3']};
@@ -2710,27 +2786,29 @@
   function barcodeUrl(payload){return(window.DaylightScan?.barcodeImageUrl?.(payload))||('https://bwipjs-api.metafloor.com/?bcid=code128&text='+encodeURIComponent(payload)+'&scale=3&includetext&guardwhitespace')}
   function readWallet(){
     const list=readJSON('daylight-wallet',null);
-    if(Array.isArray(list)){
-      let changed=false;
-      list.forEach(i=>{
-        if(!i.qrPayload){i.qrPayload=String(i.barcode||i.number||i.id||'').replace(/^#/,'');changed=true}
+    // Never seed fabricated tickets/QR. Empty wallet stays empty until real mail/scan data arrives.
+    if(!Array.isArray(list))return [];
+    let changed=false;
+    list.forEach(i=>{
+      // Only render QR/barcode images when marked authentic (scan/attachment) — never invent codes from PNR/mailId
+      if(i.qrAuthentic||i.barcodeAuthentic||i.exactQr||i.scanSource){
         if(i.qrPayload&&!i.qrImage){i.qrImage=qrUrl(i.qrPayload,220);changed=true}
-        if(i.qrPayload&&!i.barcodeImage){i.barcodeImage=barcodeUrl(i.barcode||i.qrPayload);changed=true}
-        if(i.kind==='tickets'&&!i.flight&&/\b(→|->|seat|flight|gate|coach)\b/i.test(i.note||i.title||'')){
-          i.flight=window.DaylightScan?.extractFlight?.([i.title,i.note,i.ocr].filter(Boolean).join('\n'))||null;if(i.flight)changed=true;
-        }
-      });
-      if(changed)writeJSON('daylight-wallet',list);
-      return list;
-    }
-    const seed=[
-      {id:'w1',title:'Prague → Berlin',kind:'tickets',note:'Seat 14A · Coach 3',org:'Deutsche Bahn',typeLabel:'Train ticket',number:'#DB88421',date:'2 Nov 2024',expiry:'',at:new Date().toISOString(),color:WALLET_COLORS.tickets,barcode:'DB88421PRGBER14A',qrPayload:'DB88421PRGBER14A',flight:{from:'PRG',to:'BER',flight:'RJ 782',seat:'14A',coach:'3',gate:'',pnr:'DB88421',depart:'09:40',arrive:'14:15'}},
-      {id:'w2',title:'Coffee free refill',kind:'coupons',note:'Valid until month end',org:'Local Roasters',typeLabel:'Coupon',number:'#CF440',expiry:'30 Nov 2024',at:new Date(Date.now()-86400000).toISOString(),color:WALLET_COLORS.coupons,barcode:'COFFEE-FREE-440',qrPayload:'COFFEE-FREE-440'},
-      {id:'w3',title:'Legal forms scan',kind:'documents',note:'III. Legal forms',org:'Daylight Docs',typeLabel:'Document',number:'#DOC12',at:new Date(Date.now()-2*86400000).toISOString(),color:WALLET_COLORS.documents,barcode:'DOC-LEGAL-12',qrPayload:'DOC-LEGAL-12'},
-      {id:'w4',title:'Library card',kind:'others',note:'Member since 2024',org:'City Library',typeLabel:'Membership',number:'#2301',memberSince:'13 May 2024',expiry:'20 May 2025',at:new Date(Date.now()-5*86400000).toISOString(),color:WALLET_COLORS.others,barcode:'LIB-2301',qrPayload:'LIB-2301'}
-    ];
-    seed.forEach(i=>{if(i.qrPayload){i.qrImage=qrUrl(i.qrPayload,220);i.barcodeImage=barcodeUrl(i.barcode||i.qrPayload)}});
-    writeJSON('daylight-wallet',seed);return seed;
+        if((i.barcode||i.qrPayload)&&!i.barcodeImage){i.barcodeImage=barcodeUrl(i.barcode||i.qrPayload);changed=true}
+      }else{
+        // Strip previously auto-generated images that were fabricated from ids
+        if(i.qrImage&&!i.qrAuthentic&&!i.scanSource){delete i.qrImage;changed=true}
+        if(i.barcodeImage&&!i.barcodeAuthentic&&!i.scanSource){delete i.barcodeImage;changed=true}
+      }
+      // Ensure travelAt when flight depart ISO is known
+      if(!i.travelAt&&i.flight?.depart&&/\d{4}-\d{2}-\d{2}/.test(String(i.flight.depart))){
+        const d=new Date(i.flight.depart);if(!isNaN(d)){i.travelAt=d.toISOString();changed=true}
+      }
+      if(i.kind==='tickets'&&!i.flight&&/\b(→|->|seat|flight|gate|coach)\b/i.test(i.note||i.title||'')){
+        i.flight=window.DaylightScan?.extractFlight?.([i.title,i.note,i.ocr].filter(Boolean).join('\n'))||null;if(i.flight)changed=true;
+      }
+    });
+    if(changed)writeJSON('daylight-wallet',list);
+    return list;
   }
   function saveWallet(list){writeJSON('daylight-wallet',list.slice(0,80));try{queueDaylightHydrate?.()}catch{}}
   /* ---- Cross-app intelligence: travel Wallet, trips, meeting↔mail, payment tasks ---- */
@@ -2882,23 +2960,26 @@
       if(change){existing.lastChange=change;existing.updatedAt=new Date().toISOString()}
       return {added:false,updated:!!change,change};
     }
-    const item=ensurePassCodes({
+    const bookingRef=booking.flight?.pnr||null;
+    const item={
       id:'mail:'+booking.mailId,
       mailId:booking.mailId,sourceId:booking.mailId,threadId:booking.threadId,tripId:booking.tripId,
       title,kind:isStay?'documents':'tickets',note,
       org:booking.from?.name||(isStay?'Hotel':'Travel'),
       typeLabel:booking.kind==='hotel'?'Hotel booking':booking.kind==='train'?'Train ticket':'Flight ticket',
-      number:booking.flight?.pnr?('#'+booking.flight.pnr):'',
+      number:bookingRef?('#'+bookingRef):'',
       date:new Date(booking.whenMs).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}),
       travelAt:new Date(booking.whenMs).toISOString(),
+      eventAt:new Date(booking.whenMs).toISOString(),
       at:new Date().toISOString(),
       color:isStay?WALLET_COLORS.documents:WALLET_COLORS.tickets,
       href:booking.href,flight:booking.flight||null,
-      barcode:booking.flight?.pnr||booking.mailId.slice(0,14),
-      qrPayload:booking.flight?.pnr||booking.mailId,
+      // Store booking reference for display — never invent QR from PNR/mailId
+      bookingRef:bookingRef,
+      qrAuthentic:false,barcodeAuthentic:false,
       status:booking.cancelled?'cancelled':'active',
       _bookingFp:bookingFingerprint(booking)
-    });
+    };
     list.unshift(item);return {added:true,updated:false,change:null};
   }
   function syncTravelWalletAndTrips(){
@@ -3253,20 +3334,57 @@
         });
       });
     }
+    // Recover AI shopping orders from daylight-orders into Store (non-destructive dual-write)
+    try{
+      const Data=window.DaylightData;
+      const orderList=Data?.orders?Data.orders():readAiOrders();
+      orderList.forEach(o=>{
+        if(!o)return;
+        const orderKey=o.entityKey||o.orderId||o.id;
+        if(!orderKey)return;
+        const due=Data?.eventAt?.(o)||(o.deliveryDate?new Date(o.deliveryDate):null);
+        const whenMs=due&&!isNaN(due)?due.getTime():(o.sortAt||null);
+        const entityId=accountId+'|order:'+String(orderKey).slice(0,80);
+        entities.push({
+          ...base,type:'order',source:'ai',
+          id:entityId,
+          sourceIds:{orderId:String(orderKey),messageId:o.mailId||null,recordKey:o.entityKey||null},
+          title:o.merchant||o.title||('Order '+(o.orderId||'')).trim(),
+          subtitle:o.status||o.summary||'',
+          whenMs:whenMs&&!isNaN(whenMs)?whenMs:null,
+          href:o.href||(o.mailId?gmailLink(o.mailId):''),
+          tags:['order',o.cancelled?'cancelled':null,o.status?'status:'+String(o.status).slice(0,24):null].filter(Boolean),
+          privacyClass:Store.PRIVACY.NORMAL,
+          payload:{
+            orderId:o.orderId||null,status:o.status||'',merchant:o.merchant||'',
+            deliveryDate:o.deliveryDate||o.delivery_date||null,eventAt:o.eventAt||null,
+            mailId:o.mailId||null,sourceMailIds:o.sourceMailIds||[],source:'daylight-orders'
+          }
+        });
+        (o.sourceMailIds||[]).concat(o.mailId?[o.mailId]:[]).filter(Boolean).forEach(mid=>{
+          relationships.push({
+            ...base,fromId:entityId,toId:Store.id.mail(accountId,mid),type:'from_mail',
+            confidence:0.9,confirmed:'auto',method:'ai-order',
+            evidence:[{kind:'daylight-orders'}],sourceIds:{orderId:String(orderKey),messageId:mid}
+          });
+        });
+      });
+    }catch(e){console.warn('hydrate orders',e)}
     readWallet().forEach(w=>{
       if(!w?.id)return;
       const tags=w.kind?[w.kind]:[];
+      const travelMs=w.travelAt?Date.parse(w.travelAt):(w.eventAt?Date.parse(w.eventAt):NaN);
       entities.push({
         ...base,type:'wallet',source:'local',
         sourceIds:{walletId:w.id},
         title:w.title||'Pass',
         subtitle:w.typeLabel||w.org||w.kind||'',
-        whenMs:w.travelAt?Date.parse(w.travelAt):(w.at?Date.parse(w.at):null),
+        whenMs:!isNaN(travelMs)?travelMs:(w.at?Date.parse(w.at):null),
         href:w.href||'',
         tripId:w.tripId||null,
         tags,
         privacyClass:w.kind==='documents'?Store.PRIVACY.IDENTITY:Store.PRIVACY.NORMAL,
-        payload:{mailId:w.mailId||'',number:w.number||'',org:w.org||''}
+        payload:{mailId:w.mailId||'',number:w.number||'',org:w.org||'',travelAt:w.travelAt||null,eventAt:w.eventAt||null,qrAuthentic:!!(w.qrAuthentic||w.scanSource)}
       });
       if(w.mailId){
         relationships.push({
@@ -3952,43 +4070,69 @@
   $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
   $('#m-loops-see')?.addEventListener('click',()=>openLoopsPop());
   function collectDailyBrief(){
+    const Data=window.DaylightData;
+    const dayStart=localMidnight;
+    const dayEnd=new Date(localMidnight.getTime()+86400000);
     const loops=(token||microsoftAccount||DEMO)?computeLoops():[];
     const money=(token||microsoftAccount||DEMO)?computeMoney():{pending:[],bill:[],subscription:[],all:[],counts:{total:0}};
     const {timed,allDay,connected}=todayEvents();
-    const now=Date.now(),dayEnd=localMidnight.getTime()+2*86400000;
-    const actions=loops.filter(l=>['reply','overdue','deadline','prepare','followup'].includes(l.type))
-      .sort((a,b)=>(b.weight||0)-(a.weight||0)||(a.whenMs||0)-(b.whenMs||0)).slice(0,8)
+    const sameDay=(ms)=>{
+      if(ms==null||isNaN(ms))return false;
+      return Data?Data.sameLocalDay(ms,dayStart):(ms>=dayStart.getTime()&&ms<dayEnd.getTime());
+    };
+    // Priority actions: overdue always; reply/deadline only when date-relevant today
+    const actions=loops.filter(l=>{
+      if(l.type==='overdue')return true;
+      if(l.type==='deadline')return sameDay(l.whenMs)||(l.whenMs&&l.whenMs<dayEnd.getTime()&&l.whenMs>=dayStart.getTime()-0);
+      if(l.type==='reply'||l.type==='followup')return true; // outstanding attention today
+      if(l.type==='prepare')return sameDay(l.whenMs);
+      return false;
+    }).sort((a,b)=>(b.weight||0)-(a.weight||0)||(a.whenMs||0)-(b.whenMs||0)).slice(0,8)
       .map(l=>({kind:'action',id:l.id,title:l.title,meta:l.meta||l.detail||l.category||'',type:l.type,href:l.href||''}));
+    // Payments due today only (when a reliable when/due exists); else pending tagged urgent
     const payments=[...(money.pending||[]),...(money.bill||[])]
       .filter((x,i,a)=>a.findIndex(y=>y.id===x.id||(y.mailId&&y.mailId===x.mailId))===i)
+      .filter(p=>{
+        if(p.urgent)return true;
+        if(p.when&&sameDay(p.when))return true;
+        if(p.whenMs&&sameDay(p.whenMs))return true;
+        return false;
+      })
       .slice(0,8)
       .map(p=>({kind:'pay',id:p.id||p.mailId,title:p.title||p.subject||'Payment',meta:[p.amount,p.meta||p.tag].filter(Boolean).join(' · '),amount:p.amount||'',href:p.href||'',mailId:p.mailId}));
-    const events=timed.filter(e=>e.start.getTime()<dayEnd).slice(0,8).map(e=>({
+    // Calendar: today only — no 14-day upcoming fallback
+    const events=timed.filter(e=>sameDay(e.start)).slice(0,8).map(e=>({
       kind:'cal',id:'ev:'+e.start.getTime()+e.title,title:e.title,
       meta:`${hm(e.start)} – ${hm(e.end)}`,whenMs:e.start.getTime()
     }));
-    allDay.slice(0,3).forEach(t=>events.push({kind:'cal',id:'allday:'+t,title:t,meta:'All day'}));
-    if(!events.length&&loopsData?.upcoming){
-      (loopsData.upcoming||[]).slice(0,6).forEach(e=>{
-        const st=new Date(e.start?.dateTime||e.start?.date||NaN);if(isNaN(st))return;
-        events.push({kind:'cal',id:'up:'+e.id,title:e.summary||'(No title)',meta:st.toLocaleString(undefined,{weekday:'short',hour:'2-digit',minute:'2-digit'}),href:e.htmlLink||'',whenMs:st.getTime()});
+    allDay.slice(0,6).forEach(t=>events.push({kind:'cal',id:'allday:'+t,title:t,meta:'All day'}));
+    // Travel today from wallet (requires travelAt/eventAt — never mail received)
+    try{
+      (Data?.walletItems?Data.walletItems({filter:'tickets'}):[]).forEach(w=>{
+        const ev=Data.eventAt(w);if(!ev||!sameDay(ev))return;
+        events.push({kind:'cal',id:'travel:'+w.id,title:w.title,meta:w.typeLabel||'Travel',whenMs:ev.getTime(),href:w.href||''});
       });
-    }
+    }catch{}
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(String(v))?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
     const reminders=[
       ...personalTasks.map(t=>({...t,src:'Daylight'})),
       ...(providerData.google.tasks||[]).map(t=>({...t,src:'Google Tasks'})),
       ...(providerData.microsoft.tasks||[]).map(t=>({...t,src:'To Do'}))
     ].filter(t=>{
-      if(!t?.title)return false;
-      if(!t.dueDate)return !!t.suggested;
-      const d=dueDay(t.dueDate).getTime();
-      return d<=dayEnd;
+      if(!t?.title||!t.dueDate)return false;
+      return sameDay(dueDay(t.dueDate))||dueDay(t.dueDate)<localMidnight; // today or overdue
     }).slice(0,8).map(t=>{
-      const due=t.dueDate?dueDay(t.dueDate):null;
-      const tag=due?(due<localMidnight?'Overdue':due<tomorrow?'Today':'Tomorrow'):(t.project||t.src||'Reminder');
+      const due=dueDay(t.dueDate);
+      const tag=due<localMidnight?'Overdue':'Today';
       return {kind:'task',id:'task:'+(t.id||t.title),title:t.title,meta:[tag,t.amount,t.listName||t.project||t.src].filter(Boolean).join(' · '),href:t.href||'',mailId:t.mailId};
     });
+    // AI orders with delivery today
+    try{
+      (Data?.orders?Data.orders():[]).forEach(o=>{
+        const ev=Data.eventAt(o);if(!ev||!sameDay(ev)||o.cancelled)return;
+        payments.push({kind:'pay',id:'ord:'+o.id,title:(o.merchant||'Order')+' delivery',meta:o.status||'delivery',href:o.href||'',mailId:o.mailId});
+      });
+    }catch{}
     const bits=[];
     if(actions.length)bits.push(`${actions.length} action${actions.length===1?'':'s'}`);
     if(payments.length)bits.push(`${payments.length} payment${payments.length===1?'':'s'}`);
@@ -3996,7 +4140,7 @@
     if(reminders.length)bits.push(`${reminders.length} reminder${reminders.length===1?'':'s'}`);
     const summary=!token&&!microsoftAccount&&!DEMO
       ?'Connect Google to brief your day from Calendar, Gmail and Tasks.'
-      :(bits.length?`Here’s what needs attention: ${bits.join(', ')}.`:'You’re clear for now — nothing urgent from mail, calendar or tasks.');
+      :(bits.length?`Today: ${bits.join(', ')}.`:'You’re clear for today — nothing due from mail, calendar or tasks.');
     return {actions,payments,events,reminders,summary,connected:!!(token||microsoftAccount||DEMO),calConnected:!!connected};
   }
   function briefRowHtml(item){
@@ -4173,16 +4317,51 @@
     document.addEventListener('touchend',end,{passive:true});
     document.addEventListener('touchcancel',end,{passive:true});
   })();
-  // Inbox — driven by stored classification (not keyword search at paint time)
-  function inboxItems(filter){
+  // Inbox — driven by stored classification + DaylightData bucket mapping (no second engine)
+  function inboxUniverse(){
     const money=computeMoney();
-    let list=filter==='subscription'?money.subscription
-      :filter==='bill'?money.bill
-      :filter==='payments'?money.pending
-      :filter==='ticket'?money.ticket||[]
-      :filter==='shopping'?money.shopping||[]
-      :filter==='other'?money.other||[]
-      :money.all;
+    const Data=window.DaylightData;
+    const raw=[...(money.all||[])];
+    // Recover AI shopping orders into receipts/payments surface without duplicating mail ids
+    try{
+      const seen=new Set(raw.map(i=>i.mailId||i.id));
+      (Data?.orders?.()||[]).forEach(o=>{
+        const mid=o.mailId||o.id;
+        if(!mid||seen.has(mid))return;seen.add(mid);
+        raw.push({
+          id:o.id,mailId:o.mailId,title:o.merchant||'Order',subject:o.summary||o.orderId||'Order update',
+          detail:o.status||'',kind:'shopping',category:'shopping',tag:'Order',amount:'',
+          when:o.sortAt||Date.now(),whenMs:o.sortAt||Date.now(),href:o.href||(o.mailId?gmailLink(o.mailId):''),
+          snippet:o.status||'',color:'#3d8b6e',intent:o.status,sourceMailIds:o.sourceMailIds
+        });
+      });
+    }catch{}
+    return raw.map(i=>{
+      const ex=Data?.extractionForMail?.(i.mailId||i.id);
+      const labels=i.labelIds||[];
+      const enriched={...i,intent:ex?.intent||i.intent,category:ex?.inboxCategory||ex?.category||i.category||i.kind,labelIds:labels};
+      const bucket=Data?.inboxBucket?.(enriched)||'important';
+      return {...enriched,inboxBucket:bucket};
+    });
+  }
+  function inboxItems(filter){
+    const f=filter||mInboxFilter||'all';
+    let list=inboxUniverse();
+    // Default "All" / Important exclude promotions; Promotions tab is opt-in
+    if(f==='all'||f==='important')list=list.filter(i=>i.inboxBucket!=='promotions');
+    if(f==='subscriptions')list=list.filter(i=>i.inboxBucket==='subscriptions');
+    else if(f==='payments')list=list.filter(i=>i.inboxBucket==='payments');
+    else if(f==='receipts')list=list.filter(i=>i.inboxBucket==='receipts');
+    else if(f==='bills')list=list.filter(i=>i.inboxBucket==='bills');
+    else if(f==='tickets')list=list.filter(i=>i.inboxBucket==='tickets');
+    else if(f==='important')list=list.filter(i=>i.inboxBucket==='important');
+    else if(f==='promotions')list=list.filter(i=>i.inboxBucket==='promotions');
+    // legacy aliases
+    else if(f==='subscription')list=list.filter(i=>i.inboxBucket==='subscriptions');
+    else if(f==='bill')list=list.filter(i=>i.inboxBucket==='bills');
+    else if(f==='ticket')list=list.filter(i=>i.inboxBucket==='tickets');
+    else if(f==='shopping')list=list.filter(i=>i.inboxBucket==='receipts');
+    else if(f==='other')list=list.filter(i=>i.inboxBucket==='important');
     const st=loopState(),now=Date.now();
     return list.filter(i=>{const s=st['inbox:'+i.id];return !(s&&(s.done||(s.snooze&&s.snooze>now)))});
   }
@@ -4228,7 +4407,7 @@
       </button>
     </div>`;
   }
-  const INBOX_ORDER=['all','subscription','payments','bill','ticket','shopping','other'];
+  const INBOX_ORDER=['all','subscriptions','payments','receipts','bills','tickets','important','promotions'];
   let inboxAnim=null;
   function syncInboxThumb(animate=true){
     const tabs=$('#m-inbox-tabs'),thumb=$('#m-inbox-thumb'),on=tabs?.querySelector('[data-inbox].on');
@@ -4239,7 +4418,7 @@
     if(!animate){void thumb.offsetWidth;thumb.style.transition=''}
   }
   function paintInbox(el){
-    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Connect to fill Inbox</b><p>Classified mail from Gmail appears in Subscriptions, Payments, Bills, Tickets, Shopping and Other.</p></div>';return}
+    if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Connect to fill Inbox</b><p>Classified mail appears in Subscriptions, Payments, Receipts, Bills, Tickets and Important. Promotions stay in a separate tab.</p></div>';return}
     if(!loopsData&&token){el.innerHTML=skelRows(5);return}
     const items=inboxItems(mInboxFilter);
     if(!items.length){el.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Inbox is clear</b><p>${mInboxFilter==='all'?'Nothing needs attention right now.':'Nothing in this category.'}</p></div>`;return}
@@ -4330,10 +4509,24 @@
     if(!animate){void thumb.offsetWidth;thumb.style.transition=''}
   }
   function walletItems(filter){
-    const all=readWallet().slice().sort((a,b)=>new Date(b.at)-new Date(a.at));
+    const Data=window.DaylightData;
+    if(Data?.walletItems){
+      const map={all:'all',tickets:'tickets',coupons:'cards',documents:'documents',others:'cards',payments:'payments',cards:'cards'};
+      return Data.walletItems({filter:map[filter]||filter||'all'}).map(w=>{
+        // Prefer event date label on cards when known
+        if(w.eventAt&&!w._labelWhen){try{w._labelWhen=new Date(w.eventAt).toLocaleDateString(undefined,{month:'short',day:'numeric'})}catch{}}
+        return w;
+      });
+    }
+    const all=readWallet().slice().sort((a,b)=>{
+      const ae=a.travelAt||a.eventAt,be=b.travelAt||b.eventAt;
+      if(ae&&be)return new Date(ae)-new Date(be);
+      if(ae&&!be)return -1;if(!ae&&be)return 1;
+      return new Date(b.at)-new Date(a.at);
+    });
     return filter==='all'?all:all.filter(i=>i.kind===filter);
   }
-  const WALLET_ICO={tickets:ICON.calendar,coupons:'<path d="M4 9a2.5 2.5 0 0 0 0 5v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2.5 2.5 0 0 0 0-5V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2Z"/><path d="M9 12h.01M15 12h.01"/>',documents:'<path d="M8 4h6l4 4v12H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M13 4v5h5M10 13h5M10 17h3"/>',others:ICON.wallet};
+  const WALLET_ICO={tickets:ICON.calendar,coupons:'<path d="M4 9a2.5 2.5 0 0 0 0 5v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2.5 2.5 0 0 0 0-5V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2Z"/><path d="M9 12h.01M15 12h.01"/>',documents:'<path d="M8 4h6l4 4v12H8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M13 4v5h5M10 13h5M10 17h3"/>',others:ICON.wallet,payments:ICON.wallet,cards:ICON.wallet};
   function walletExpiryLabel(item){
     const raw=item.expiry||item.pass?.expiry||item.date||'';
     if(!raw)return '';
@@ -4346,20 +4539,25 @@
   }
   function walletPassHTML(item,mode){
     const color=item.color||WALLET_COLORS[item.kind]||WALLET_COLORS.others;
-    const when=item.at?new Date(item.at).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+    const Data=window.DaylightData;
+    const ev=Data?.eventAt?.(item);
+    const when=ev?ev.toLocaleDateString(undefined,{month:'short',day:'numeric'}):(item.at?new Date(item.at).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'');
     const ico=WALLET_ICO[item.kind]||WALLET_ICO.others;
     const exp=walletExpiryLabel(item);
+    const st=item.walletStatus||Data?.walletStatus?.(item)||'';
+    const stLabel=st==='upcoming'?'Upcoming':st==='expired'?'Expired':st==='cancelled'?'Cancelled':'';
     if(mode==='row'){
       return `<button type="button" class="m-wallet-row kind-${esc(item.kind||'others')}" data-wid="${esc(item.id)}">
         <span class="m-wallet-row-ico" style="--a1:${esc(color[0])};--a2:${esc(color[1])}" aria-hidden="true">${svg(ico,18)}</span>
-        <span class="m-wallet-row-copy"><b>${esc(item.title)}</b><small>${esc([WALLET_LABEL[item.kind],exp||item.note||when].filter(Boolean).join(' · '))}</small></span>
+        <span class="m-wallet-row-copy"><b>${esc(item.title)}</b><small>${esc([WALLET_LABEL[item.kind],stLabel||exp||item.note||when].filter(Boolean).join(' · '))}</small></span>
         <span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>
       </button>`;
     }
-    const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:(item.qrImage?`<img class="wp-thumb" src="${esc(item.qrImage)}" alt="">`:'');
+    const authentic=!!(item.qrAuthentic||item.barcodeAuthentic||item.exactQr||item.scanSource);
+    const img=item.image?`<img class="wp-thumb" src="${esc(item.image)}" alt="">`:(authentic&&item.qrImage?`<img class="wp-thumb" src="${esc(item.qrImage)}" alt="">`:'');
     const route=item.flight&&(item.flight.from||item.flight.to)?`<div class="wp-route"><b>${esc(item.flight.from||'—')}</b><span>→</span><b>${esc(item.flight.to||'—')}</b></div>`:'';
     return `<article class="m-wallet-pass kind-${esc(item.kind||'others')}" data-wid="${esc(item.id)}" style="background:linear-gradient(145deg,${color[0]},${color[1]})">
-      <div class="wp-top"><span class="wp-kind">${svg(ico,14)} ${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-when">${esc(exp||when)}</span></div>
+      <div class="wp-top"><span class="wp-kind">${svg(ico,14)} ${esc(WALLET_LABEL[item.kind]||'Pass')}</span><span class="wp-when">${esc(stLabel||exp||when)}</span></div>
       ${route||`<h3 class="wp-title">${esc(item.title)}</h3>`}
       ${route?`<p class="wp-note">${esc(item.title)}${item.flight?.flight?' · '+item.flight.flight:''}</p>`:(item.note?`<p class="wp-note">${esc(item.note)}</p>`:'')}
       ${img}
@@ -4367,7 +4565,13 @@
   }
   function ensurePassCodes(item){
     if(!item)return item;
-    const payload=item.qrPayload||item.barcode||item.number||item.id;
+    // Only materialise QR/barcode images when the code is authentic (scan/attachment)
+    const authentic=!!(item.qrAuthentic||item.barcodeAuthentic||item.exactQr||item.scanSource);
+    if(!authentic){
+      delete item.qrImage;delete item.barcodeImage;
+      return item;
+    }
+    const payload=item.qrPayload||item.barcode;
     if(payload&&!item.qrImage)item.qrImage=qrUrl(String(payload).replace(/^#/,''),220);
     if(payload&&!item.barcodeImage)item.barcodeImage=barcodeUrl(String(payload).replace(/^#/,''));
     return item;
@@ -4424,7 +4628,8 @@
     const number=item.number||item.pass?.number||'';
     const since=item.memberSince||item.pass?.memberSince||'';
     const expiry=item.expiry||item.pass?.expiry||item.date||'';
-    const code=item.qrPayload||item.barcode||String(number||item.id).replace(/^#/,'');
+    const authentic=!!(item.qrAuthentic||item.barcodeAuthentic||item.exactQr||item.scanSource);
+    const bookingRef=item.bookingRef||item.flight?.pnr||number||'';
     const fields=[];
     if(f){
       if(f.from||f.to)fields.push(['From',f.from||'—'],['To',f.to||'—']);
@@ -4434,7 +4639,7 @@
       if(f.gate)fields.push(['Gate',f.gate]);
       if(f.depart)fields.push(['Depart',f.depart]);
       if(f.arrive)fields.push(['Arrive',f.arrive]);
-      if(f.pnr)fields.push(['PNR',f.pnr]);
+      if(f.pnr)fields.push(['Booking ref',f.pnr]);
     }else{
       fields.push(['Type',typeLabel]);
       if(number)fields.push(['Number',number]);
@@ -4443,8 +4648,17 @@
       if(item.amount)fields.push(['Amount',item.amount]);
     }
     const fieldHTML=fields.map(([k,v])=>`<div class="pass-field"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
-    const status=f?'Confirmed':(walletExpiryLabel(item)==='Expired'?'Expired':'Active');
-    const statusCls=status==='Confirmed'||status==='Active'?'is-ok':status==='Expired'?'is-bad':'';
+    const Data=window.DaylightData;
+    const wStatus=Data?.walletStatus?.(item)||(walletExpiryLabel(item)==='Expired'?'expired':'active');
+    const status=item.status==='cancelled'||wStatus==='cancelled'?'Cancelled':wStatus==='expired'?'Expired':wStatus==='upcoming'?'Upcoming':(f?'Confirmed':'Active');
+    const statusCls=status==='Confirmed'||status==='Active'||status==='Upcoming'?'is-ok':status==='Expired'||status==='Cancelled'?'is-bad':'';
+    const codeBlock=authentic&&(item.qrImage||item.barcodeImage)
+      ?`<div class="pass-code">
+          ${item.qrImage?`<div class="pass-qr-wrap"><img class="pass-qr" src="${esc(item.qrImage)}" alt="Ticket QR code"></div>`:''}
+          ${item.barcodeImage?`<img class="pass-bar" src="${esc(item.barcodeImage)}" alt="Ticket barcode">`:''}
+          <span class="pass-code-id">${esc(bookingRef||'')}</span>
+        </div>`
+      :`<div class="pass-code pass-code-ref"><span class="pass-code-id">${esc(bookingRef?('Ref · '+bookingRef):'No QR on this pass')}</span></div>`;
     $('#pass-scroll').innerHTML=`
       <article class="pass-card kind-${esc(item.kind||'others')}" style="--p1:${esc(color[0])};--p2:${esc(color[1])}">
         <div class="pass-brand"><span class="pass-logo" aria-hidden="true">${esc((org||'D')[0])}</span><span>${esc(org)}</span><span class="pass-status ${statusCls}">${esc(status)}</span></div>
@@ -4452,11 +4666,7 @@
         <p class="pass-flight-line">${esc([f.flight,item.title].filter(Boolean).join(' · '))}</p>`:
         `<div class="pass-hero"><div><h2>${esc(item.title)}</h2><p>${esc(item.note||typeLabel)}</p></div>${item.image?`<img class="pass-photo" src="${esc(item.image)}" alt="">`:''}</div>`}
         <div class="pass-fields">${fieldHTML}</div>
-        <div class="pass-code">
-          ${item.qrImage||code?`<div class="pass-qr-wrap"><img class="pass-qr" src="${esc(item.qrImage||qrUrl(code,240))}" alt="QR code"></div>`:''}
-          ${item.barcodeImage||code?`<img class="pass-bar" src="${esc(item.barcodeImage||barcodeUrl(code))}" alt="Barcode">`:''}
-          <span class="pass-code-id">${esc(number||code||'')}</span>
-        </div>
+        ${codeBlock}
         ${item.image&&f?`<img class="pass-scan-preview" src="${esc(item.image)}" alt="Original scan">`:''}
       </article>
       <div class="pass-meta-foot">
@@ -4482,12 +4692,24 @@
     requestAnimationFrame(()=>syncWalletThumb(true));
     const items=walletItems(mWalletFilter);
     if(!items.length){el.innerHTML=`<div class="m-wallet-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>No passes yet</b><p>Scan a ticket, coupon or document and it will appear here.</p><button class="m-wallet-scan-btn" type="button" id="m-wallet-empty-scan">Scan document</button></div>`;$('#m-wallet-empty-scan')?.addEventListener('click',openScan);return}
+    const Data=window.DaylightData;
+    const statusOf=i=>i.walletStatus||Data?.walletStatus?.(i)||'active';
+    const upcoming=items.filter(i=>statusOf(i)==='upcoming');
+    const active=items.filter(i=>{const s=statusOf(i);return s==='active'||(!upcoming.includes(i)&&s!=='expired'&&s!=='cancelled')});
+    const expired=items.filter(i=>statusOf(i)==='expired'||statusOf(i)==='cancelled');
+    // Prefer status sections when tickets/travel; otherwise keep compact list
+    const useStatus=mWalletFilter==='all'||mWalletFilter==='tickets';
+    if(useStatus&&(upcoming.length||expired.length)){
+      const sec=(title,list,mode)=>!list.length?'':`<div class="m-wallet-sec"><h3 class="m-inbox-sec-h">${esc(title)} <em>${list.length}</em></h3><div class="${mode==='card'?'m-wallet-list':'m-wallet-rows'}">${list.map(i=>walletPassHTML(i,mode)).join('')}</div></div>`;
+      el.innerHTML=`${sec('Upcoming',upcoming,'card')}${sec('Active',active.filter(i=>!upcoming.includes(i)),upcoming.length?'row':'card')}${sec('Expired',expired,'row')}`;
+      return;
+    }
     const pinned=items.filter(i=>i.kind==='tickets'||i.flight).slice(0,3);
     const pinnedIds=new Set(pinned.map(i=>i.id));
     const recent=items.filter(i=>!pinnedIds.has(i.id));
     el.innerHTML=`
-      ${pinned.length?`<div class="m-wallet-sec"><h3 class="m-inbox-sec-h">Pinned</h3><div class="m-wallet-list">${pinned.map(i=>walletPassHTML(i,'card')).join('')}</div></div>`:''}
-      <div class="m-wallet-sec"><h3 class="m-inbox-sec-h">${pinned.length?'Recent':'Passes'}</h3><div class="m-wallet-rows">${(pinned.length?recent:items).map(i=>walletPassHTML(i,pinned.length?'row':'card')).join('')||'<div class="m-empty">No other items.</div>'}</div></div>`;
+      ${pinned.length?`<div class="m-wallet-sec"><h3 class="m-inbox-sec-h">Upcoming</h3><div class="m-wallet-list">${pinned.map(i=>walletPassHTML(i,'card')).join('')}</div></div>`:''}
+      <div class="m-wallet-sec"><h3 class="m-inbox-sec-h">${pinned.length?'All':'Passes'}</h3><div class="m-wallet-rows">${(pinned.length?recent:items).map(i=>walletPassHTML(i,pinned.length?'row':'card')).join('')||'<div class="m-empty">No other items.</div>'}</div></div>`;
   }
   $('#m-wallet-tabs')?.addEventListener('click',e=>{
     const b=e.target.closest('[data-wallet]');if(!b||b.dataset.wallet===mWalletFilter)return;
@@ -4595,15 +4817,23 @@
     const ex=scanExtract||{};
     const ocrFlight=window.DaylightScan?.extractFlight?.(ocr)||ex.flight||null;
     const ocrPass=window.DaylightScan?.extractPassMeta?.(ocr,kind)||ex.pass||{};
-    const code=ex.qrPayload||ex.barcode||(ocrFlight&&ocrFlight.pnr)||'';
-    const item=ensurePassCodes({
+    // Only treat scan-detected barcodes as authentic; never invent from OCR PNR alone
+    const scannedCodes=(ex.barcodes||[]).filter(b=>b&&(b.rawValue||b.data||b.text));
+    const authenticCode=ex.qrPayload||ex.barcode||(scannedCodes[0]&&(scannedCodes[0].rawValue||scannedCodes[0].data||scannedCodes[0].text))||'';
+    const authentic=!!(authenticCode&&(ex.qrImage||ex.barcodeImage||scannedCodes.length||ex.engine));
+    const item={
       id:'w'+Date.now(),title,kind,note,amount,date,ocr,at:new Date().toISOString(),image:scanDraft,
       color:WALLET_COLORS[kind]||WALLET_COLORS.documents,
       org:ocrPass.org||ex.pass?.org||'',typeLabel:ocrPass.typeLabel||ex.pass?.typeLabel||WALLET_LABEL[kind],
       number:ocrPass.number||ex.pass?.number||'',memberSince:ocrPass.memberSince||'',expiry:ocrPass.expiry||date||'',
-      barcode:code,qrPayload:code,barcodeFormat:ex.barcodeFormat||'',barcodes:ex.barcodes||[],
-      qrImage:ex.qrImage||'',barcodeImage:ex.barcodeImage||'',flight:ocrFlight
-    });
+      travelAt:ocrFlight?.depart&&/\d{4}-\d{2}-\d{2}/.test(String(ocrFlight.depart))?new Date(ocrFlight.depart).toISOString():null,
+      eventAt:date&&window.DaylightData?.parseMaybeDate?.(date)?.toISOString?.()||null,
+      barcode:authentic?authenticCode:'',qrPayload:authentic?authenticCode:'',barcodeFormat:ex.barcodeFormat||'',barcodes:ex.barcodes||[],
+      qrImage:authentic?(ex.qrImage||''):'',barcodeImage:authentic?(ex.barcodeImage||''):'',
+      qrAuthentic:authentic,barcodeAuthentic:authentic,exactQr:authentic,scanSource:true,
+      bookingRef:ocrFlight?.pnr||ocrPass.number||'',flight:ocrFlight
+    };
+    if(authentic)ensurePassCodes(item);
     const list=readWallet();list.unshift(item);saveWallet(list);
     mWalletFilter='all';mWalletOpen=item.id;setLS('daylight-wallet-filter','all');
     Nav.drop('scan');dismissScan();setTab('wallet',{soft:true});
@@ -4697,12 +4927,15 @@
       const d=new Date(t.dueDate);const day=/T00:00:00(\.000)?Z$/.test(String(t.dueDate))?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):d;
       busy.add(dayKey(day));
     }});
+    const Data=window.DaylightData;
     week.innerHTML=days.map(d=>{
       const on=dayKey(d)===dayKey(mAssistDay),today=dayKey(d)===dayKey(localMidnight),has=busy.has(dayKey(d));
-      return `<button type="button" class="tl-day${on?' on':''}${today?' is-today':''}${has?' has-ev':''}" data-tl-day="${d.toISOString()}" role="tab" aria-selected="${on?'true':'false'}"><span>${d.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${d.getDate()}</b></button>`;
+      const localIso=Data?Data.localDayKey(d):(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+      return `<button type="button" class="tl-day${on?' on':''}${today?' is-today':''}${has?' has-ev':''}" data-tl-day="${localIso}" role="tab" aria-selected="${on?'true':'false'}"><span>${d.toLocaleDateString(undefined,{weekday:'short'})}</span><b>${d.getDate()}</b></button>`;
     }).join('');
   }
   async function dayTimelineItems(day){
+    const Data=window.DaylightData;
     const start=new Date(day.getFullYear(),day.getMonth(),day.getDate());
     const end=new Date(start.getTime()+86400000);
     const items=[];
@@ -4710,7 +4943,10 @@
     const push=it=>{if(!it||seen.has(it.id))return;seen.add(it.id);items.push(it)};
     const addEvent=e=>{
       const t=parseCalTimes(e);if(!t)return;
-      if(!(t.end>start&&t.start<end))return;
+      // Strict local-day overlap: timed events intersecting the day; all-day must start on this local day
+      if(t.allDay){
+        if(dayKey(t.start)!==dayKey(start))return;
+      }else if(!(t.end>start&&t.start<end))return;
       const title=e.summary||e.subject||'(No title)';
       const loc=typeof e.location==='string'?e.location:(e.location?.displayName||'');
       const mail=loopsData?.meetingMail?.[e.id];
@@ -4728,10 +4964,14 @@
       if(microsoftAccount)jobs.push(msEventsBetween(start,end));
       const parts=jobs.length?await Promise.all(jobs):[];
       parts.flat().forEach(addEvent);
-      // Fallback: already-synced provider events for today
+      // Fallback only from already-synced events that belong to this local day (never dump 14-day upcoming)
       if(!parts.flat().length){
         [...(providerData.google.events||[]),...(providerData.microsoft.events||[])].forEach(addEvent);
-        (loopsData?.upcoming||[]).forEach(addEvent);
+        (loopsData?.upcoming||[]).forEach(e=>{
+          const st=new Date(e.start?.dateTime||e.start?.date||NaN);
+          if(isNaN(st)||dayKey(st)!==dayKey(start))return;
+          addEvent(e);
+        });
       }
     }catch(err){console.warn('timeline cal',err)}
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(String(v))?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
@@ -4744,16 +4984,28 @@
       push({id:'task:'+(t.id||t.title),kind:/pay|bill|invoice/i.test(t.src||'')||t.project==='Payments'?'bill':'task',title:t.title,start:s,end:s,allDay:!t.hasTime,meta:t.src||'Task',href:t.href||''});
     });
     try{
-      readWallet().forEach(w=>{
-        const s=new Date(w.travelAt||w.at||w.date);if(isNaN(s)||dayKey(s)!==dayKey(start))return;
+      // Wallet/travel: only with a reliable event date (travelAt/eventAt) — never email received `at`
+      (Data?.walletItems?Data.walletItems({filter:'tickets'}):readWallet()).forEach(w=>{
+        const ev=Data?.eventAt?.(w)||(w.travelAt?new Date(w.travelAt):null);
+        if(!ev||isNaN(ev)||dayKey(ev)!==dayKey(start))return;
+        if(w.walletStatus==='cancelled'||/cancel/i.test(w.status||''))return;
         push({
-          id:'wallet:'+w.id,kind:'travel',title:w.title,start:s,end:s,allDay:!w.flight?.depart,
-          meta:[w.typeLabel||WALLET_LABEL[w.kind],w.tripId?'Trip linked':''].filter(Boolean).join(' · '),
-          href:w.href||'',walletId:w.id
+          id:'wallet:'+w.id,kind:'travel',title:w.title,start:ev,end:ev,allDay:!w.flight?.depart,
+          meta:[w.typeLabel||WALLET_LABEL[w.kind]||'Ticket',w.tripId?'Trip linked':''].filter(Boolean).join(' · '),
+          href:w.href||'',walletId:w.id,relatedMail:w.mailId?{mailId:w.mailId}:null
+        });
+      });
+      // AI orders with delivery on this local day
+      (Data?.orders?Data.orders({excludeCancelled:true}):[]).forEach(o=>{
+        const ev=Data?.eventAt?.(o);if(!ev||isNaN(ev)||dayKey(ev)!==dayKey(start))return;
+        push({
+          id:'order:'+o.id,kind:'bill',title:(o.merchant||'Order')+' delivery',start:ev,end:ev,allDay:true,
+          meta:o.status||'Delivery',href:o.href||'',relatedMail:o.mailId?{mailId:o.mailId}:null
         });
       });
     }catch{}
-    return items.sort((a,b)=>(!!a.allDay-!!b.allDay)||(a.start-b.start)||String(a.title).localeCompare(String(b.title)));
+    // All-day first (stable), then timed chronological
+    return items.sort((a,b)=>(!!b.allDay-!!a.allDay)||(a.start-b.start)||String(a.title).localeCompare(String(b.title)));
   }
   function tlIcon(kind){
     if(kind==='travel')return ICON.suitcase;
@@ -4806,7 +5058,12 @@
     const wk=e.target.closest('[data-tl-wk]');
     if(wk){mAssistDay=new Date(mAssistDay.getTime()+(+wk.dataset.tlWk)*7*86400000);paintAssistCal();feel.select();renderAssistant();return}
     const day=e.target.closest('[data-tl-day]');if(!day)return;
-    mAssistDay=new Date(day.dataset.tlDay);feel.select();
+    // data-tl-day is local Y-M-D (not UTC ISO) to avoid timezone day shifts
+    const raw=day.dataset.tlDay||'';
+    if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){const[y,m,dd]=raw.split('-').map(Number);mAssistDay=new Date(y,m-1,dd)}
+    else mAssistDay=new Date(raw);
+    if(isNaN(mAssistDay))mAssistDay=new Date(localMidnight);
+    feel.select();
     if(mAssistAsk)setAssistAsk(false);
     renderAssistant();
   });

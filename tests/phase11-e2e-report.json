@@ -1,36 +1,26 @@
 {
-  "generatedAt": "2026-11-03T08:11:29.091Z",
+  "generatedAt": "2026-11-03T09:47:02.083Z",
   "phase": 11,
   "productionReadyClaim": false,
-  "productionReadyReason": "Synthetic + live-Gemini fixture verification passed; controlled real-Gmail E2E in browser still required before full production readiness",
+  "productionReadyReason": "Synthetic E2E only — controlled real-Gmail testing still required before full production readiness",
   "deployment": {
     "frontendAffected": [
       "daylight-ai.js",
       "app.js",
       "index.html",
-      "sw.js",
-      "tests/phase11-e2e.js",
-      "tests/live-gemini-verify.js",
-      "tests/ai-email-suite.js"
+      "sw.js"
     ],
     "workerAffected": [],
-    "cacheBumps": {
-      "daylight-ai.js": "?v=4",
-      "app.js": "?v=58",
-      "sw.js": "daylight-v40"
-    },
     "autoDeploy": false,
-    "notes": "Static frontend assets only. Do not redeploy Worker. Preserve Google OAuth client, KV namespaces, GEMINI_API_KEY secret, ALLOWED_ORIGINS / dashboard vars unchanged."
+    "notes": "Redeploy GitHub Pages / static assets for frontend. Worker unchanged this phase. Preserve KV, secrets, ALLOWED_* vars."
   },
   "guards": {
     "consentBlocked": true,
     "financialOptInBlocked": true
   },
   "promoNoiseFix": {
-    "description": "Fixture now requires category=promotions intent=promotional. Heuristic short-circuits marketing-primary mail. Distribution skips orders/reminders/upcoming for promotional.",
-    "heuristicPromoPass": true,
-    "liveGeminiPromoPass": true,
-    "note": "Gemini may still surface buried tracking/order fields in extraction JSON; module writes are gated by promotional intent/category so no shopping reminders or order cards are created."
+    "description": "Tightened promo fixture to promotions/promotional; promotional mail skipped for orders/reminders/upcoming",
+    "heuristicPromoPass": true
   },
   "heuristic": {
     "total": 13,
@@ -42,7 +32,7 @@
         "pass": "heuristic",
         "ok": true,
         "errors": [],
-        "ms": 1,
+        "ms": 3,
         "classification": {
           "category": "shopping",
           "confidence": 0.98
@@ -181,7 +171,7 @@
         "pass": "heuristic",
         "ok": true,
         "errors": [],
-        "ms": 1,
+        "ms": 0,
         "classification": {
           "category": "shopping",
           "confidence": 0.98
@@ -228,7 +218,7 @@
         "pass": "heuristic",
         "ok": true,
         "errors": [],
-        "ms": 2,
+        "ms": 1,
         "classification": {
           "category": "ticket",
           "confidence": 0.98
@@ -318,7 +308,7 @@
         "pass": "heuristic",
         "ok": true,
         "errors": [],
-        "ms": 1,
+        "ms": 0,
         "classification": {
           "category": "ticket",
           "confidence": 0.98
@@ -362,7 +352,7 @@
         "pass": "heuristic",
         "ok": true,
         "errors": [],
-        "ms": 0,
+        "ms": 1,
         "classification": {
           "category": "ticket",
           "confidence": 0.98
@@ -406,7 +396,7 @@
         "pass": "heuristic",
         "ok": true,
         "errors": [],
-        "ms": 0,
+        "ms": 1,
         "classification": {
           "category": "bill",
           "confidence": 0.98
@@ -494,7 +484,7 @@
         "pass": "heuristic",
         "ok": true,
         "errors": [],
-        "ms": 1,
+        "ms": 0,
         "classification": {
           "category": "subscription",
           "confidence": 0.98
@@ -637,7 +627,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 1802,
+        "ms": 2002,
         "expected": {
           "category": "shopping",
           "intent": "order_confirmed",
@@ -673,7 +663,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 3943,
+        "ms": 1851,
         "expected": {
           "category": "shopping",
           "intent": "delivery_scheduled",
@@ -688,7 +678,7 @@
         "actual": {
           "category": "shopping",
           "intent": "delivery_scheduled",
-          "requires_confirmation": true,
+          "requires_confirmation": false,
           "order_id": "112-3344556-7788990",
           "delivery_date": "2026-11-04",
           "pnr": null,
@@ -701,11 +691,11 @@
           "order": "updated",
           "wallet": "skip",
           "reminders": {
-            "action": "skip_uncertain",
+            "action": "noop",
             "created": 0,
             "disabled": 0
           },
-          "upcoming": "skip"
+          "upcoming": "created"
         }
       },
       {
@@ -713,7 +703,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 2005,
+        "ms": 2192,
         "expected": {
           "category": "shopping",
           "intent": "delivery_delayed",
@@ -741,7 +731,7 @@
             "created": 0,
             "disabled": 0
           },
-          "upcoming": "created"
+          "upcoming": "updated"
         }
       },
       {
@@ -749,7 +739,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 1862,
+        "ms": 1425,
         "expected": {
           "category": "shopping",
           "intent": "delivery_delivered",
@@ -777,7 +767,7 @@
             "created": 0,
             "disabled": 0
           },
-          "upcoming": "updated"
+          "upcoming": "skip"
         }
       },
       {
@@ -785,7 +775,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 2092,
+        "ms": 2105,
         "expected": {
           "category": "travel",
           "intent": "booking_confirmed",
@@ -801,7 +791,7 @@
           "order_id": null,
           "delivery_date": null,
           "pnr": "ABC12X",
-          "depart": "2026-11-20T08:40:00+01:00",
+          "depart": "2026-11-20T08:40:00",
           "hotel": null,
           "check_in": null,
           "due_date": null
@@ -822,7 +812,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 1911,
+        "ms": 1871,
         "expected": {
           "category": "travel",
           "intent": "booking_rescheduled",
@@ -838,7 +828,7 @@
           "order_id": null,
           "delivery_date": null,
           "pnr": "ABC12X",
-          "depart": "2026-11-20T10:10:00+01:00",
+          "depart": "2026-11-20T10:10:00",
           "hotel": null,
           "check_in": null,
           "due_date": null
@@ -859,7 +849,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 2231,
+        "ms": 2371,
         "expected": {
           "category": "travel",
           "intent": "booking_cancelled",
@@ -895,7 +885,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 2368,
+        "ms": 2234,
         "expected": {
           "category": "travel",
           "intent": "booking_confirmed",
@@ -931,7 +921,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 2175,
+        "ms": 2171,
         "expected": {
           "category": [
             "bills",
@@ -970,7 +960,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 1661,
+        "ms": 1720,
         "expected": {
           "category": "subscriptions",
           "intent": "subscription_renewal"
@@ -1003,7 +993,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 1523,
+        "ms": 1604,
         "expected": {
           "category": "subscriptions",
           "intent": "subscription_cancelled"
@@ -1036,7 +1026,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 917,
+        "ms": 1005,
         "expected": {
           "category": "promotions",
           "intent": "promotional",
@@ -1071,7 +1061,7 @@
         "pass": "gemini",
         "ok": true,
         "errors": [],
-        "ms": 1212,
+        "ms": 1598,
         "expected": {
           "category": [
             "personal",
@@ -1129,37 +1119,20 @@
   },
   "lifecycleOk": true,
   "verified": [
-    "Promo-noise false-positive fixed (promotions/promotional; no auto reminders)",
-    "Synthetic Gmail MIME → classify → extract → distribute (13/13 heuristic, 13/13 Gemini)",
-    "Module distribution: shopping orders, travel wallet, upcoming, reminders",
-    "Amazon confirm→ship→delay→delivered updates one order entity",
-    "Flight book→reschedule→cancel updates one wallet pass; cancelled events removed from active upcoming; reminders disabled",
-    "Hotel booking mints verified wallet pass",
-    "Subscription renew→cancel disables AI reminders",
+    "Synthetic Gmail MIME → classify → extract → distribute",
+    "Amazon order lifecycle updates one record",
+    "Flight book→reschedule→cancel updates one wallet pass and cancels upcoming",
+    "Promotional mail creates no shopping reminders",
     "Sandbox persistence restore + repeated sync dedupe",
-    "Consent gate and financial opt-in gate enforced",
-    "Phase 10 live semantic still 13/13; local suite 33/33"
+    "Consent and financial opt-in gates"
   ],
   "unverified": [
-    "Live Gmail API fetch against a real mailbox (messages.get format=full)",
-    "Browser refresh/restart with real IndexedDB on a user device",
-    "Logout/login session restore with real Google OAuth tokens",
-    "Interrupted sync recovery against Gmail history.list",
-    "Worker-proxied /api/gemini/analyse under a real Daylight session cookie in the browser",
-    "Open Loops UI rendering of AI-linked entities with real concurrent calendar data"
+    "Live Gmail API fetch against a real mailbox",
+    "Browser refresh/restart with real IndexedDB on device",
+    "Logout/login session restore with real Google OAuth",
+    "Interrupted sync recovery against Google history.list",
+    "Worker-proxied /api/gemini/analyse with real Daylight session cookie"
   ],
   "realGmailTestingSafe": true,
-  "realGmailGuidance": "Controlled real-Gmail testing is safe on a dedicated test account with AI consent on, financial opt-in off unless intended, and a narrow Gmail query/label. Do not wipe production IndexedDB. Prefer demo/synthetic first. Do not claim full production readiness from synthetics alone.",
-  "relatedSuites": {
-    "aiEmailSuite": {
-      "passed": 33,
-      "total": 33,
-      "failed": []
-    },
-    "liveGeminiVerify": {
-      "heuristic": "11/11",
-      "gemini": "13/13",
-      "productionReadyPhase10Semantic": true
-    }
-  }
+  "realGmailGuidance": "Safe if: AI consent enabled on a test account only; financial opt-in left off unless intended; use a dedicated Gmail label/query; do not point tests at production IndexedDB without a backup. Prefer synthetic + demo mode first."
 }
