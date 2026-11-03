@@ -10,6 +10,10 @@ ALLOWED_ORIGINS = "https://kratveer.github.io,http://localhost:8000"
 ALLOWED_EMAILS = ""
 # Your Google OAuth client ID (the same Web application client the dashboard uses).
 GOOGLE_CLIENT_ID = ""
+# Gemini model id (free-tier friendly). Override without redeploying secrets.
+GEMINI_MODEL = "gemini-2.5-flash-lite"
+# Soft cap of analyse calls per signed-in session per hour.
+GEMINI_MAX_PER_HOUR = "40"
 
 # Created with: npx wrangler kv namespace create SESSIONS  — then paste the id below.
 [[kv_namespaces]]

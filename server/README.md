@@ -68,5 +68,25 @@ Open Daylight → link icon → **Stay signed in (uses your Daylight server)** �
 | POST | `/api/google/token` | Bearer session → short-lived access token |
 | POST | `/auth/logout` | Revokes Google access and deletes the session |
 | GET | `/health` | Health check |
+| POST | `/api/gemini/analyse` | Bearer session → Gemini JSON analysis (requires `GEMINI_API_KEY`) |
+| GET | `/api/gemini/status` | Bearer session → whether Gemini is configured |
 
 The dashboard keeps only a random session ID in local storage. Anyone holding it could get short-lived read-only Google tokens for your account until you choose **Sign out everywhere**, so treat the browsers you sign in on as trusted.
+
+## 4. Optional: Gemini Email Intelligence
+
+Email Intelligence is **off until the user consents** in the Connections panel. The browser never receives `GEMINI_API_KEY`.
+
+1. Create an API key at [Google AI Studio](https://aistudio.google.com/apikey).
+2. In the Worker: **Settings → Variables and Secrets**:
+
+   | Name | Type | Value |
+   |---|---|---|
+   | `GEMINI_API_KEY` | Secret | your key |
+   | `GEMINI_MODEL` | Text | `gemini-2.5-flash-lite` (or another free-tier model) |
+   | `GEMINI_MAX_PER_HOUR` | Text | `40` |
+
+3. Redeploy the Worker.
+4. In Daylight → Connections → **Email Intelligence** → consent + enable.
+
+Without the key, Daylight still classifies mail with local rules/heuristics and never fails open by dropping messages.

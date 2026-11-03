@@ -125,7 +125,15 @@
       </div>`:`<input id="client-id" type="hidden" value="${esc(savedId)}">`)}
       ${row('microsoft','M','ms-icon','Microsoft 365',ms?'<span class="dot"></span>Connected':'Outlook · Calendar · To Do',ms,ms?'<button class="connect ghost" id="microsoft-disconnect" type="button">Disconnect</button>':`<button class="connect ${msReady?'primary':''}" id="microsoft-connect" type="button">${msReady?'Connect':'Set up'}</button>`)}
       <div id="connect-error" class="error" role="alert" hidden></div>
-      <details class="conn-more"><summary>What Daylight can see</summary><ul class="conn-list"><li>Today’s calendar events</li><li>Recent Gmail senders, subjects, and (when you open a thread) message text used for replies</li><li>Send replies you write in Daylight through your Gmail account</li><li>Open tasks, recently opened Drive file names, and contact birthdays</li><li>Access tokens stay in this browser’s memory (or your optional Daylight server). Nothing is uploaded to Daylight’s product servers for analysis.</li></ul><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></details>
+      <details class="conn-more"><summary>What Daylight can see</summary><ul class="conn-list"><li>Today’s calendar events</li><li>Recent Gmail senders, subjects, and (when you open a thread) message text used for replies</li><li>Send replies you write in Daylight through your Gmail account</li><li>Open tasks, recently opened Drive file names, and contact birthdays</li><li>Access tokens stay in this browser’s memory (or your optional Daylight server).</li><li><b>Optional Email Intelligence:</b> only after you consent below, selected email text may be sent to Google Gemini through your Daylight server for classification and extraction. Disabled by default.</li></ul><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></details>
+      <details class="conn-more" id="ai-intel-panel" open><summary>Email Intelligence (Gemini)</summary>
+        <p class="hint" style="margin:8px 0 0">Daylight can understand shopping deliveries and travel bookings from email. Analysis runs through your Daylight server — the Gemini API key never sits in this browser. <b>Off until you consent.</b></p>
+        <label class="client-label" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="ai-consent" ${window.DaylightAI?.getConsent?.()?'checked':''}><span>I understand selected email content may be sent to Google Gemini via my Daylight server for personal organisation. Free-tier Gemini may use prompts to improve Google’s products.</span></label>
+        <label class="client-label" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="ai-enabled" ${window.DaylightAI?.isEnabled?.()?'checked':''} ${window.DaylightAI?.getConsent?.()?'':'disabled'}><span>Enable Email Intelligence</span></label>
+        <label class="client-label" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="ai-allow-financial" ${localStorage.getItem('daylight-ai-allow-financial')==='1'?'checked':''}><span>Allow AI on bills / payments / subscriptions</span></label>
+        <div class="hint" id="ai-status-line" style="margin-top:8px">${esc((window.DaylightAI?.getStatus?.()?.message)||'Idle')}</div>
+        <div class="server-actions" style="margin-top:8px"><button class="connect" type="button" id="ai-save">Save AI settings</button></div>
+      </details>
       ${g&&!hasGmailSend()?`<div class="error" role="status" style="margin-top:10px">Reply needs a one-time reconnect so Google can grant <b>gmail.send</b>. Disconnect and Connect again, then approve sending.</div>`:''}
       <details class="conn-more" id="conn-advanced"><summary>Optional: stay signed in / Microsoft</summary>
         <p class="hint" style="margin:8px 0 0">Only if you deployed the Daylight server. Never paste a Google <b>Client Secret</b> here — that belongs in Cloudflare secrets only.</p>
@@ -183,6 +191,19 @@
     $('#close-modal').onclick=()=>$('#overlay').classList.remove('show');
     $('#copy-origin')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(origin);toast('Origin copied');}catch{toast('Copy this: '+origin)}});
     $('#advanced-save').onclick=()=>{if(saveAdvanced()){toast('Settings saved on this device');connectDialog()}};
+    $('#ai-consent')?.addEventListener('change',e=>{
+      const on=e.target.checked;const en=$('#ai-enabled');
+      if(en)en.disabled=!on;if(!on&&en)en.checked=false;
+    });
+    $('#ai-save')?.addEventListener('click',()=>{
+      const AI=window.DaylightAI;if(!AI){toast('AI module not loaded',{type:'err'});return}
+      const consent=!!$('#ai-consent')?.checked;
+      AI.setConsent(consent);
+      AI.setEnabled(consent&&!!$('#ai-enabled')?.checked);
+      localStorage.setItem('daylight-ai-allow-financial',$('#ai-allow-financial')?.checked?'1':'0');
+      toast(consent&&AI.isEnabled()?'Email Intelligence enabled':'Email Intelligence off');
+      connectDialog();
+    });
     const startGoogle=()=>{if(!saveAdvanced())return;
       localStorage.removeItem('daylight-demo');
       if(serverUrl){location.href=serverUrl+'/auth/google/start?return='+encodeURIComponent(location.origin+location.pathname);return}
@@ -819,7 +840,7 @@
     throw lastErr||new Error('Request failed');
   }
   async function loadLoops(force){
-    if(!token){if(DEMO){loopsData=demoLoopsData();try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)};loopsFetched=Date.now();try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)};try{syncClassifiedTicketsToWallet()}catch(e){console.warn('ticket wallet',e)};queueDaylightHydrate();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();if(typeof renderWallet==='function'&&mq?.matches&&mTab==='wallet')renderWallet();return computeLoops().length}return 0}
+    if(!token){if(DEMO){loopsData=demoLoopsData();try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)};try{await enrichWithDaylightAI(loopsData)}catch(e){console.warn('daylight-ai',e)};loopsFetched=Date.now();try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)};try{syncClassifiedTicketsToWallet()}catch(e){console.warn('ticket wallet',e)};try{distributeAiExtractions(loopsData)}catch(e){console.warn('ai-distribute',e)};queueDaylightHydrate();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();if(typeof renderWallet==='function'&&mq?.matches&&mTab==='wallet')renderWallet();return computeLoops().length}return 0}
     if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return 0}
     const Store=window.DaylightStore;
     const accountId=Store?await Store.getActiveAccountId().catch(()=>null):null;
@@ -937,6 +958,7 @@
     loopsData={inbox:[...byId.values()],financeMail,travelMail,docsMail,threads:threads.filter(Boolean),upcoming,files:{},scanned:byId.size,financeHits:financeMail.length};
     // Classify-first: every fetched mail gets a primary category before UI use
     try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)}
+    try{await enrichWithDaylightAI(loopsData)}catch(e){console.warn('daylight-ai',e)}
     const meetings=upcoming.filter(e=>(e.attendees||[]).length>1&&e.start?.dateTime&&new Date(e.start.dateTime)<new Date(localMidnight.getTime()+2*86400000)).slice(0,3);
     await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
       try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${word.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','1');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,webViewLink)');
@@ -944,6 +966,7 @@
     loopsFetched=Date.now();
     try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)}
     try{syncClassifiedTicketsToWallet()}catch(e){console.warn('ticket wallet',e)}
+    try{distributeAiExtractions(loopsData)}catch(e){console.warn('ai-distribute',e)}
     if(Store&&accountId){
       try{
         await Store.recordSyncSuccess('gmail',{durationMs:Date.now()-t0,retries:gmailRetries,fetched:byId.size,cursor:historyId,mode:gmailMode},accountId);
@@ -972,6 +995,213 @@
     });
     data.classified=result;
     return result;
+  }
+  function readAiOrders(){try{return JSON.parse(localStorage.getItem('daylight-orders')||'[]')}catch{return[]}}
+  function saveAiOrders(list){try{localStorage.setItem('daylight-orders',JSON.stringify((list||[]).slice(0,120)))}catch{}}
+  function readAiExtractions(){try{return JSON.parse(localStorage.getItem('daylight-ai-extractions')||'{}')}catch{return{}}}
+  function saveAiExtractions(map){try{localStorage.setItem('daylight-ai-extractions',JSON.stringify(map||{}))}catch{}}
+  function normalizeMailForAi(m){
+    const Cls=window.DaylightEmailClassify;
+    const n=Cls?.normalizeMail?.(m)||null;
+    if(n)return n;
+    const h=m?.payload?.headers||[];
+    return{id:m.id,mailId:m.id,threadId:m.threadId||m.id,subject:header(h,'Subject')||'',fromEmail:parseFrom(header(h,'From')).email,fromName:parseFrom(header(h,'From')).name,body:mailSearchText(m),snippet:m.snippet||'',whenMs:Number(m.internalDate)||Date.now(),attachments:[]};
+  }
+  async function enrichWithDaylightAI(data){
+    const AI=window.DaylightAI;
+    if(!AI||!data?.classified)return null;
+    const pool=new Map();
+    [...(data.inbox||[]),...(data.financeMail||[]),...(data.travelMail||[]),...(data.docsMail||[])].forEach(m=>{if(m?.id)pool.set(m.id,m)});
+    const byMail=data.classified.byMailId||{};
+    const prev=readAiExtractions();
+    const next={...prev};
+    const enrichIds=[];
+    // Prioritise shopping + travel + needsReview (cost control: cap per sync)
+    const ranked=Object.values(byMail).sort((a,b)=>{
+      const score=x=>(x.needsReview?3:0)+(x.category==='shopping'||x.category==='ticket'?2:0)+(x.confidence<0.62?1:0);
+      return score(b)-score(a);
+    });
+    for(const c of ranked){
+      if(enrichIds.length>=12)break;
+      if(!c?.mailId||!pool.has(c.mailId))continue;
+      if(prev[c.mailId]?.method==='gemini'&&Date.now()-(prev[c.mailId]._at||0)<6*3600000&&!c.needsReview)continue;
+      enrichIds.push(c.mailId);
+    }
+    const ctxBase={
+      serverUrl,session:serverSession||'',
+      nowIso:new Date().toISOString(),
+      timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'
+    };
+    const accountEmail=(readProfile()?.email||serverEmail||'').toLowerCase();
+    if(accountEmail&&!AI.accountAllowed(accountEmail)){AI.setStatus('AI skipped for this account');data.aiEnrichment={skipped:true,reason:'account'};return data.aiEnrichment}
+    for(const id of enrichIds){
+      const m=pool.get(id),rule=byMail[id];
+      const mail=normalizeMailForAi(m);
+      try{
+        const extraction=await AI.analyseEmail(mail,{...ctxBase,ruleResult:rule});
+        if(!extraction||!extraction.valid)continue;
+        extraction._at=Date.now();
+        extraction.mailId=id;
+        extraction.threadId=mail.threadId||m.threadId||id;
+        extraction.entityKey=AI.entityKey(extraction,mail);
+        // Diff against previous extraction for lifecycle updates
+        if(prev[id]){
+          const diff=await AI.analyseEmailChanges(prev[id],extraction);
+          extraction.changes=diff.changes||[];
+        }
+        next[id]=extraction;
+        // Merge AI category into classify record when rules were uncertain or shopping/travel
+        if(rule&&(rule.needsReview||rule.category==='shopping'||rule.category==='ticket'||(rule.confidence||0)<0.62)){
+          if(extraction.inboxCategory&&extraction.confidence>=0.7){
+            const oldCat=rule.category;
+            rule.aiCategory=extraction.category;
+            rule.aiIntent=extraction.intent;
+            rule.aiSummary=extraction.summary;
+            rule.aiConfidence=extraction.confidence;
+            rule.requiresConfirmation=!!extraction.requires_confirmation;
+            rule.method=(rule.method||'rule')+'+'+(extraction.method||'ai');
+            if(extraction.inboxCategory!==oldCat&&extraction.confidence>=0.78&&!extraction.requires_confirmation){
+              // Move bucket
+              const list=data.classified.byCategory[oldCat];
+              if(list){const i=list.findIndex(x=>x.mailId===id);if(i>=0)list.splice(i,1)}
+              rule.category=extraction.inboxCategory;
+              rule.kind=extraction.inboxCategory==='subscription'?'subscription':extraction.inboxCategory==='payment'?'pending':extraction.inboxCategory==='bill'?'bill':extraction.inboxCategory==='shopping'?'shopping':extraction.inboxCategory==='ticket'?'ticket':'other';
+              rule.tag=({subscription:'Subscription',payment:'Payment',bill:'Bill',ticket:'Ticket',shopping:'Shopping',other:'Other'})[rule.category]||'Other';
+              data.classified.byCategory[rule.category]=data.classified.byCategory[rule.category]||[];
+              data.classified.byCategory[rule.category].push(rule);
+            }else{
+              rule.aiCategory=extraction.category;
+            }
+          }
+        }else if(rule){
+          rule.aiCategory=extraction.category;
+          rule.aiIntent=extraction.intent;
+          rule.aiSummary=extraction.summary;
+          rule.aiConfidence=extraction.confidence;
+          rule.requiresConfirmation=!!extraction.requires_confirmation;
+        }
+      }catch(e){console.warn('ai enrich',id,e)}
+    }
+    saveAiExtractions(next);
+    data.aiExtractions=next;
+    data.aiEnrichment={processed:enrichIds.length,total:Object.keys(byMail).length};
+    return data.aiEnrichment;
+  }
+  function upsertAiOrder(extraction,mailMeta){
+    if(!extraction?.order)return null;
+    const AI=window.DaylightAI;
+    const key=extraction.entityKey||AI?.entityKey?.(extraction,mailMeta)||('mail:'+mailMeta.mailId);
+    let list=readAiOrders();
+    let row=list.find(o=>o.entityKey===key||(extraction.order.order_id&&o.orderId===extraction.order.order_id)||(extraction.order.tracking_number&&o.tracking===extraction.order.tracking_number)||o.threadId===mailMeta.threadId);
+    const histEntry={at:new Date().toISOString(),mailId:mailMeta.mailId,intent:extraction.intent,status:extraction.order.status,summary:extraction.summary};
+    if(row){
+      row.status=extraction.order.status||row.status;
+      row.deliveryDate=extraction.order.delivery_date||row.deliveryDate;
+      row.tracking=extraction.order.tracking_number||row.tracking;
+      row.merchant=extraction.order.merchant||row.merchant;
+      row.orderId=extraction.order.order_id||row.orderId;
+      row.summary=extraction.summary||row.summary;
+      row.lastMailId=mailMeta.mailId;
+      row.updatedAt=new Date().toISOString();
+      row.history=(row.history||[]).concat(histEntry).slice(-20);
+      row.requiresConfirmation=!!extraction.requires_confirmation;
+      row.sourceMailIds=Array.from(new Set([...(row.sourceMailIds||[]),mailMeta.mailId]));
+    }else{
+      row={
+        id:key,entityKey:key,merchant:extraction.order.merchant||'Store',orderId:extraction.order.order_id||null,
+        tracking:extraction.order.tracking_number||null,deliveryDate:extraction.order.delivery_date||null,
+        status:extraction.order.status||'ordered',summary:extraction.summary||'',threadId:mailMeta.threadId,
+        lastMailId:mailMeta.mailId,sourceMailIds:[mailMeta.mailId],history:[histEntry],
+        requiresConfirmation:!!extraction.requires_confirmation,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
+      };
+      list.unshift(row);
+    }
+    saveAiOrders(list);
+    return row;
+  }
+  function upsertAiTravelIntoWallet(extraction,mailMeta){
+    if(!extraction?.travel||extraction.travel.type==='hotel'&&!extraction.travel.hotel_name&&!extraction.travel.check_in){
+      if(!extraction?.travel||extraction.travel.type!=='flight')return null;
+    }
+    const t=extraction.travel;
+    // Only mint a flight pass when we have verified booking details
+    const verified=!!(t.pnr||(t.flight_number&&t.depart_datetime)||(t.from&&t.to&&t.depart_datetime));
+    if(!verified)return null;
+    let list=readWallet();
+    const booking={
+      mailId:mailMeta.mailId,threadId:mailMeta.threadId,kind:t.type==='hotel'?'hotel':t.type==='train'?'train':'flight',
+      subject:extraction.summary||mailMeta.subject||'Travel',
+      from:{name:extraction.organisation||t.hotel_name||'Travel'},
+      dest:t.to||t.hotel_name||'',
+      flight:{from:t.from,to:t.to,flight:t.flight_number,depart:t.depart_datetime,arrive:t.arrive_datetime,seat:t.seat,gate:t.gate,pnr:t.pnr},
+      whenMs:t.depart_datetime?new Date(t.depart_datetime).getTime():(t.check_in?new Date(t.check_in).getTime():Date.now()),
+      tripId:null,href:mailMeta.href||gmailLink(mailMeta.threadId||mailMeta.mailId),
+      cancelled:/cancel/i.test(t.status||'')||extraction.intent==='cancellation'
+    };
+    booking.tripId=tripIdFor(booking.dest||booking.flight?.from||'travel',booking.whenMs);
+    const r=upsertWalletFromBooking(booking,list);
+    if(r.added||r.updated)saveWallet(list);
+    return r;
+  }
+  function createAiReminders(extraction,mailMeta){
+    if(!extraction?.reminders?.length)return 0;
+    let n=0;
+    const stamped=readJSON('daylight-ai-reminders',{});
+    extraction.reminders.forEach(rem=>{
+      if(!rem?.title)return;
+      if(extraction.requires_confirmation||rem.requires_confirmation)return; // never auto-create uncertain
+      if(!rem.datetime)return;
+      const key=(extraction.entityKey||mailMeta.mailId)+'::'+rem.title;
+      if(stamped[key])return;
+      if(personalTasks.some(t=>t.mailId===mailMeta.mailId&&t.title===rem.title)){stamped[key]=Date.now();return}
+      const due=new Date(rem.datetime);
+      if(isNaN(due.getTime()))return;
+      personalTasks.unshift({
+        id:crypto.randomUUID?.()||('ai-rem-'+Date.now()),
+        title:rem.title,
+        dueDate:due.toISOString(),hasTime:!/T00:00/.test(rem.datetime),
+        project:extraction.order?'Shopping':extraction.travel?'Travel':'Reminders',
+        mailId:mailMeta.mailId,href:mailMeta.href||gmailLink(mailMeta.threadId||mailMeta.mailId),
+        suggested:true,aiGenerated:true,reason:rem.reason||'',entityKey:extraction.entityKey||'',
+        created:new Date().toISOString()
+      });
+      stamped[key]=Date.now();n++;
+    });
+    if(n){savePersonal();writeJSON('daylight-ai-reminders',stamped)}
+    return n;
+  }
+  function distributeAiExtractions(data){
+    const map=data?.aiExtractions||readAiExtractions();
+    if(!map||!Object.keys(map).length)return {orders:0,wallet:0,reminders:0};
+    let orders=0,wallet=0,reminders=0;
+    const upcomingAi=[];
+    Object.values(map).forEach(ex=>{
+      if(!ex||!ex.valid)return;
+      const mailMeta={mailId:ex.mailId,threadId:ex.threadId,subject:ex.summary,href:gmailLink(ex.threadId||ex.mailId)};
+      if(ex.order){if(upsertAiOrder(ex,mailMeta))orders++}
+      if(ex.travel){const r=upsertAiTravelIntoWallet(ex,mailMeta);if(r&&(r.added||r.updated))wallet++}
+      reminders+=createAiReminders(ex,mailMeta);
+      if(ex.event?.exists&&ex.event.start_datetime&&!ex.requires_confirmation){
+        upcomingAi.push({
+          id:'ai-event:'+(ex.entityKey||ex.mailId),
+          summary:ex.event.title||ex.summary,
+          start:{dateTime:ex.event.all_day?undefined:ex.event.start_datetime,date:ex.event.all_day?ex.event.start_datetime.slice(0,10):undefined},
+          end:ex.event.end_datetime?{dateTime:ex.event.end_datetime}:undefined,
+          location:ex.event.location||'',
+          source:'daylight-ai',mailId:ex.mailId,entityKey:ex.entityKey,status:ex.event.status||'confirmed'
+        });
+      }
+    });
+    if(data){
+      data.orders=readAiOrders();
+      data.aiUpcoming=upcomingAi;
+      // Merge AI upcoming into loops upcoming display list (non-destructive)
+      if(upcomingAi.length){
+        const seen=new Set((data.upcoming||[]).map(e=>e.id));
+        data.upcoming=[...(data.upcoming||[]),...upcomingAi.filter(e=>!seen.has(e.id))];
+      }
+    }
+    return {orders,wallet,reminders,upcoming:upcomingAi.length};
   }
   function syncClassifiedTicketsToWallet(){
     const tickets=loopsData?.classified?.byCategory?.ticket||[];

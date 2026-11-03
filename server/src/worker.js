@@ -137,6 +137,86 @@ async function handle(req, env) {
     return json(env, req, { ok: true });
   }
 
+  // Gemini intelligence proxy — API key never leaves the Worker.
+  // Auth: same Bearer session as /api/google/token. Rate-limited per session.
+  if (url.pathname === '/api/gemini/analyse' && req.method === 'POST') {
+    const s = await sessionFrom(env, req);
+    if (!s) return json(env, req, { error: 'reauth' }, 401);
+    if (!env.GEMINI_API_KEY) return json(env, req, { error: 'gemini_not_configured' }, 503);
+
+    const model = String(env.GEMINI_MODEL || 'gemini-2.5-flash-lite').replace(/[^a-zA-Z0-9._-]/g, '');
+    const limitKey = 'gemini-rl:' + (await sha256(s.key));
+    const hourBucket = Math.floor(Date.now() / 3600000);
+    const rl = (await env.SESSIONS.get(limitKey, 'json')) || { hour: hourBucket, count: 0 };
+    if (rl.hour !== hourBucket) { rl.hour = hourBucket; rl.count = 0; }
+    const maxPerHour = Math.min(120, Math.max(10, Number(env.GEMINI_MAX_PER_HOUR) || 40));
+    if (rl.count >= maxPerHour) return json(env, req, { error: 'rate_limited', retry_after_sec: 3600 - Math.floor((Date.now() % 3600000) / 1000) }, 429);
+
+    let body;
+    try { body = await req.json(); } catch { return json(env, req, { error: 'invalid_json' }, 400); }
+    const prompt = String(body?.prompt || '').slice(0, 24000);
+    if (!prompt.trim()) return json(env, req, { error: 'empty_prompt' }, 400);
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
+    const payload = {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: body?.temperature == null ? 0.1 : Math.min(1, Math.max(0, Number(body.temperature) || 0)),
+        maxOutputTokens: Math.min(4096, Math.max(256, Number(body.maxOutputTokens) || 2048)),
+        responseMimeType: 'application/json',
+      },
+    };
+    if (body?.system) {
+      payload.systemInstruction = { parts: [{ text: String(body.system).slice(0, 12000) }] };
+    }
+
+    let geminiRes, geminiText = '', usage = null;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), Math.min(55000, Math.max(8000, Number(body?.timeoutMs) || 25000)));
+      geminiRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      const data = await geminiRes.json().catch(() => ({}));
+      if (!geminiRes.ok) {
+        const code = data?.error?.status || data?.error?.code || geminiRes.status;
+        if (geminiRes.status === 429) return json(env, req, { error: 'upstream_rate_limited', detail: String(code) }, 429);
+        return json(env, req, { error: 'gemini_upstream', detail: String(data?.error?.message || code) }, 502);
+      }
+      geminiText = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+      usage = data?.usageMetadata || null;
+    } catch (e) {
+      return json(env, req, { error: 'gemini_unreachable', detail: e.name === 'AbortError' ? 'timeout' : (e.message || 'fetch_failed') }, 502);
+    }
+
+    rl.count += 1;
+    await env.SESSIONS.put(limitKey, JSON.stringify(rl), { expirationTtl: 7200 });
+    await env.SESSIONS.put(s.key, JSON.stringify({ ...s.rec, used: Date.now() }), { expirationTtl: SESSION_TTL });
+
+    return json(env, req, {
+      ok: true,
+      model,
+      text: geminiText,
+      usage,
+      remaining: Math.max(0, maxPerHour - rl.count),
+    });
+  }
+
+  if (url.pathname === '/api/gemini/status' && req.method === 'GET') {
+    const s = await sessionFrom(env, req);
+    if (!s) return json(env, req, { error: 'reauth' }, 401);
+    return json(env, req, {
+      ok: true,
+      configured: !!env.GEMINI_API_KEY,
+      model: String(env.GEMINI_MODEL || 'gemini-2.5-flash-lite'),
+      max_per_hour: Math.min(120, Math.max(10, Number(env.GEMINI_MAX_PER_HOUR) || 40)),
+    });
+  }
+
   return new Response('Not found', { status: 404 });
 }
 
