@@ -91,7 +91,7 @@
   $('.task-list').innerHTML=connectHint('Connect Google Tasks to see your tasks.');
   $('.mail-list').innerHTML=connectHint('Connect Gmail to see recent inbox messages.');
   $('#headline-note').innerHTML='Connect your apps to see your day';
-  $('#connections')?.setAttribute('aria-label','Connect your apps');
+  $('#connections').setAttribute('aria-label','Connect your apps');
   document.addEventListener('click',e=>{if(e.target.closest('.js-open-connect')){e.preventDefault();connectDialog({setup:true,focusId:true})}});
   document.addEventListener('error',e=>{
     const img=e.target;if(!img||img.tagName!=='IMG'||!img.classList.contains('m-brand-img'))return;
@@ -232,7 +232,7 @@
     $('#client-id')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();startGoogle()}});
     if($('#google-disconnect'))$('#google-disconnect').onclick=disconnectGoogle;
     if($('#microsoft-connect'))$('#microsoft-connect').onclick=()=>{saveAdvanced();if(!$('#ms-client-id').value.trim()){$('#conn-advanced').open=true;err('Add your Microsoft application ID under Optional setup first.');return}authorizeMicrosoft()};
-    if($('#microsoft-disconnect'))$('#microsoft-disconnect').onclick=async()=>{try{await microsoftApp?.clearCache({account:microsoftAccount})}catch{}microsoftAccount=null;microsoftApp=null;providerData.microsoft={events:null,mails:null,tasks:null};renderAll();$('#connections')?.classList.toggle('active',Boolean(token));connectDialog();toast('Microsoft disconnected')};
+    if($('#microsoft-disconnect'))$('#microsoft-disconnect').onclick=async()=>{try{await microsoftApp?.clearCache({account:microsoftAccount})}catch{}microsoftAccount=null;microsoftApp=null;providerData.microsoft={events:null,mails:null,tasks:null};renderAll();$('#connections').classList.toggle('active',Boolean(token));connectDialog();toast('Microsoft disconnected')};
     if(opts.focusId)requestAnimationFrame(()=>$('#client-id')?.focus());
   }
   async function disconnectGoogle(){
@@ -246,7 +246,7 @@
       }else await Store?.clearProviderData?.();
     }catch{}
     $('#sync-status').textContent=microsoftAccount?'Google disconnected · Microsoft still connected':'Not connected';
-    $('#connections')?.classList.toggle('active',Boolean(microsoftAccount));
+    $('#connections').classList.toggle('active',Boolean(microsoftAccount));
     if($('#overlay').classList.contains('show'))connectDialog();toast('Google disconnected');
   }
   // ---- Profile photo + greeting ----
@@ -285,7 +285,7 @@
     await Store.setActiveAccount(acct.id);
     return acct;
   }
-  $('#connections')?.addEventListener('click',connectDialog);
+  $('#connections').onclick=connectDialog;
   $('#close')?.addEventListener('click',()=>$('#overlay').classList.remove('show'));
   $('#overlay').onclick=e=>{if(e.target.id==='overlay')$('#overlay').classList.remove('show')};
 
@@ -314,8 +314,8 @@
       token=response.access_token;
       rememberGoogleScopes(response.scope||scopes);
       if(!hasGmailReadonly()){errBox('Google did not grant gmail.readonly. On the consent screen, allow Daylight to read your mail (not metadata only), then try again.');return;}
-      $('#overlay').classList.remove('show');$('#connections')?.classList.add('active');$('#sync-status').textContent='Google connected · refreshing…';
-      setTimeout(()=>{token=null;$('#connections')?.classList.remove('active');$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));
+      $('#overlay').classList.remove('show');$('#connections').classList.add('active');$('#sync-status').textContent='Google connected · refreshing…';
+      setTimeout(()=>{token=null;$('#connections').classList.remove('active');$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));
       try{await refreshAll();toast(hasGmailSend()?'Google connected · full mail + replies':'Google connected · full mail reading enabled');}catch(e){toast('Connected, but some data failed to load');}
     },error_callback:e=>{errBox(googleAuthError(e?.type||e?.message||'popup_closed_by_user'))}});
     try{tokenClient.requestAccessToken({prompt:'consent'})}
@@ -364,10 +364,10 @@
       const accounts=microsoftApp.getAllAccounts();
       const response=accounts.length?await microsoftApp.acquireTokenSilent({scopes:microsoftScopes,account:accounts[0]}):await microsoftApp.loginPopup({scopes:microsoftScopes});
       microsoftAccount=response.account||accounts[0];
-      $('#overlay').classList.remove('show');$('#connections')?.classList.add('active');$('#sync-status').textContent='Microsoft connected · refreshing…';
+      $('#overlay').classList.remove('show');$('#connections').classList.add('active');$('#sync-status').textContent='Microsoft connected · refreshing…';
       await refreshAll();
     }catch(error){
-      if(error instanceof msal.InteractionRequiredAuthError){try{const response=await microsoftApp.acquireTokenPopup({scopes:microsoftScopes,account:microsoftAccount||undefined});microsoftAccount=response.account||microsoftAccount;$('#overlay').classList.remove('show');$('#connections')?.classList.add('active');await refreshAll();return}catch(popupError){error=popupError}}
+      if(error instanceof msal.InteractionRequiredAuthError){try{const response=await microsoftApp.acquireTokenPopup({scopes:microsoftScopes,account:microsoftAccount||undefined});microsoftAccount=response.account||microsoftAccount;$('#overlay').classList.remove('show');$('#connections').classList.add('active');await refreshAll();return}catch(popupError){error=popupError}}
       $('#connect-error').textContent='Microsoft authorization failed: '+(error.message||'Please check the app registration and try again.');
     }
   }
@@ -475,7 +475,7 @@
     else lastSyncOk=Date.now();
     mWeekCache={};mCalIds=null;
     if(typeof renderDrawerSync==='function')renderDrawerSync();
-    if(typeof renderAssistant==='function'&&(typeof inApp==='function'?inApp():true)&&mTab==='assistant'&&!mAssistAsk)renderAssistant();
+    if(typeof renderAssistant==='function'&&mq.matches&&mTab==='assistant'&&!mAssistAsk)renderAssistant();
   }
   $('#refresh').onclick=()=>{if(token||microsoftAccount||DEMO){refreshAll.force=true;refreshAll()}else toast('Connect an app first to refresh live data.')};
   $('#weather-connect').onclick=()=>{
@@ -676,7 +676,7 @@
     history.replaceState(null,'',location.pathname+location.search)})();
   function clearServerSession(statusMsg){
     serverSession='';setLS('daylight-session','');token=null;rememberGoogleScopes('');
-    $('#connections')?.classList.toggle('active',Boolean(microsoftAccount));
+    $('#connections').classList.toggle('active',Boolean(microsoftAccount));
     if(statusMsg)$('#sync-status').innerHTML=statusMsg;
   }
   function reconnectGoogleUpgrade(){
@@ -705,7 +705,7 @@
       }
       token=d.access_token;serverEmail=d.email||'';tokenExpiry=Date.now()+(Number(d.expires_in)||3600)*1000;
       if(d.scope)rememberGoogleScopes(d.scope);
-      $('#connections')?.classList.add('active');
+      $('#connections').classList.add('active');
       if(d.needs_gmail_upgrade||d.gmail_readonly===false||(d.scope&&!hasGmailReadonly())){
         $('#sync-status').innerHTML='Google connected · <button type="button" class="js-google-upgrade" style="all:unset;cursor:pointer;color:var(--accent-text);font-weight:700;text-decoration:underline">reconnect for full Gmail access</button>';
         if(!serverToken._upgradeHinted){serverToken._upgradeHinted=true;toast('Reconnect Google once for full mail access (gmail.readonly)',{type:'warn'})}
@@ -1791,11 +1791,11 @@
     meta.textContent=lastSyncOk?`Last successful sync ${new Date(lastSyncOk).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`:'Connected · waiting for the first successful sync.';
   }
   function markDrawerNav(){
-    const mobile=typeof inApp==='function'?inApp():true;
+    const mobile=typeof mq==='undefined'?matchMedia('(max-width:680px)').matches:mq.matches;
     const tab=typeof mTab==='undefined'?'home':mTab;
     let dest='overview';
     if(mobile){
-      if(tab==='inbox')dest='inbox';
+      if(tab==='inbox')dest=mInboxFilter==='subscriptions'?'subscriptions':(mInboxFilter==='tickets'?'travel':'inbox');
       else if(tab==='wallet')dest='wallet';
       else if(tab==='assistant')dest='calendar';
       else dest=document.body.classList.contains('m-widgets')?'overview':'overview';
@@ -1808,7 +1808,7 @@
     toast('Add this widget from Widgets & layout');return false;
   }
   function goWorkspace(dest){
-    const mobile=typeof inApp==='function'?inApp():true;
+    const mobile=typeof mq==='undefined'?matchMedia('(max-width:680px)').matches:mq.matches;
     document.body.classList.remove('m-widgets');
     if(dest==='overview'){if(mobile)setTab('home');else goWidget('summary')||goWidget('overview')}
     else if(dest==='inbox'){if(mobile){mInboxFilter='all';setLS('daylight-inbox-filter','all');setTab('inbox');if(typeof renderInbox==='function')renderInbox({animate:false})}else goWidget('mail')}
@@ -2060,7 +2060,7 @@
       else if(money.counts?.total)btns.push(`<button class="connect" type="button" data-open-inbox>Open Inbox</button>`);
       actions.innerHTML=btns.join('');
       actions.querySelector('[data-scroll-loops]')?.addEventListener('click',()=>cardOf('loops')?.scrollIntoView({behavior:'smooth',block:'center'}));
-      actions.querySelector('[data-open-inbox]')?.addEventListener('click',()=>{if(typeof inApp==='function'?inApp():true)setTab('inbox');else{const f=cardOf('finance');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});else toast('Add this widget from Customize')}});
+      actions.querySelector('[data-open-inbox]')?.addEventListener('click',()=>{if(mq.matches)setTab('inbox');else{const f=cardOf('finance');if(f)f.scrollIntoView({behavior:'smooth',block:'center'});else toast('Add the Subscriptions widget from Customize')}});
     }
   }
   { const o=renderLoops;renderLoops=function(){o();renderSmart()} }
@@ -2133,7 +2133,7 @@
     editing2=on??!editing2;grid.setStatic(!editing2);document.body.classList.toggle('editing',editing2);bar.hidden=!editing2;$('#customize')?.classList.toggle('active',editing2);
     if(editing2){$('#hours-start').value=DAY_START;$('#hours-end').value=DAY_END;bar.scrollIntoView({behavior:'smooth',block:'nearest'})}else closePanel();
   }
-  $('#customize')?.addEventListener('click',()=>toggleEdit());
+  $('#customize').onclick=()=>toggleEdit();
   $('#eb-done').onclick=()=>toggleEdit(false);
   $('#eb-preset').onchange=e=>{if(!e.target.value)return;loadItems(presetItems(e.target.value));toast(`Layout: ${e.target.value}`);e.target.value=''};
   $('#eb-reset').onclick=()=>{loadItems(presetItems('Default'));toast('Layout reset')};
@@ -2903,7 +2903,6 @@
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const inApp=()=>mq.matches;
   const ICON={
     home:'<path d="M12 3.1 2.8 10.6c-.35.28-.2.8.22.8H5.2V19a2 2 0 0 0 2 2h3.1v-5.4h3.4V21H16.8a2 2 0 0 0 2-2v-7.6h2.18c.42 0 .57-.52.22-.8L12 3.1Z"/>',
     inbox:'<path d="M4.2 7.1A2.6 2.6 0 0 1 6.8 4.5h10.4a2.6 2.6 0 0 1 2.6 2.6v2.2l-3.35.15a2.7 2.7 0 0 0-2.45 1.55l-.25.5a1.3 1.3 0 0 1-1.15.7h-1.7a1.3 1.3 0 0 1-1.15-.7l-.25-.5A2.7 2.7 0 0 0 7.55 9.45L4.2 9.3V7.1Zm0 3.7 3.2.14a4.2 4.2 0 0 1 3.8 2.4l.12.24h1.36l.12-.24a4.2 4.2 0 0 1 3.8-2.4l3.2-.14V17a2.6 2.6 0 0 1-2.6 2.6H6.8A2.6 2.6 0 0 1 4.2 17V10.8Z"/>',
@@ -3844,14 +3843,14 @@
     reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches},
     _bind(){window.DaylightNav=this;return this},
     scrollEl(){
-      if(inApp()){
+      if(mq.matches){
         const s=document.querySelector(`#mapp .m-screen.is-active`)||document.querySelector(`#mapp .m-screen[data-screen="${mTab}"]`);
         if(s)return s;
       }
       return document.scrollingElement||document.documentElement;
     },
-    saveTab(){if(!inApp())return;const el=this.scrollEl();this.tabY[mTab]=el?.scrollTop||0},
-    restoreTab(){if(!inApp())return;const y=this.tabY[mTab]||0;const el=this.scrollEl();if(!el)return;const apply=()=>{el.scrollTop=y};requestAnimationFrame(()=>requestAnimationFrame(apply))},
+    saveTab(){if(!mq.matches)return;const el=this.scrollEl();this.tabY[mTab]=el?.scrollTop||0},
+    restoreTab(){if(!mq.matches)return;const y=this.tabY[mTab]||0;const el=this.scrollEl();if(!el)return;const apply=()=>{el.scrollTop=y};requestAnimationFrame(()=>requestAnimationFrame(apply))},
     topView(){return this.stack.length?this.stack[this.stack.length-1].view:null},
     isOpen(view){
       if(view==='loop')return!!$('#loop-sheet')?.classList.contains('show');
@@ -4034,7 +4033,7 @@
     const from=mTab;
     const fromIdx=TAB_ORDER.indexOf(from),toIdx=TAB_ORDER.indexOf(t);
     const forward=toIdx>fromIdx;
-    const canSlide=inApp()&&!soft&&fromIdx>=0&&toIdx>=0&&fromIdx!==toIdx&&!Nav.reduced();
+    const canSlide=mq.matches&&!soft&&fromIdx>=0&&toIdx>=0&&fromIdx!==toIdx&&!Nav.reduced();
 
     if(!soft){Nav.saveTab();feel.select()}
     applyTabChrome(t);
@@ -5183,7 +5182,7 @@
     host.addEventListener('touchend',end,{passive:true});
     host.addEventListener('touchcancel',end,{passive:true});
   })();
-  addEventListener('resize',()=>{if(inApp()&&mTab==='inbox')syncInboxThumb(false);if(inApp()&&mTab==='wallet')syncWalletThumb(false)});
+  addEventListener('resize',()=>{if(mq.matches&&mTab==='inbox')syncInboxThumb(false);if(mq.matches&&mTab==='wallet')syncWalletThumb(false)});
   // Wallet — Apple-style stacked passes + document scan
   const WALLET_ORDER=['all','tickets','coupons','documents','others'];
   function syncWalletThumb(animate=true){
@@ -6089,13 +6088,13 @@
   $('#m-search').onclick=e=>{e.stopPropagation();openCmd(false)};
   document.addEventListener('click',e=>{if(document.body.classList.contains('cmd-open')&&!e.composedPath().includes($('#cmd')))document.body.classList.remove('cmd-open')});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('cmd-open')});
-  function renderMobile(){if(!inApp())return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(mTab==='wallet')renderWallet();else if(mTab==='calendar')renderCalendar2();else if(mTab==='assistant'){if(mAssistAsk){if(!mChat.length)chatHello();else renderChat()}else renderAssistant()}else if(mTab==='stats')renderStats()}
+  function renderMobile(){if(!mq.matches)return;renderMTop();if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(mTab==='wallet')renderWallet();else if(mTab==='calendar')renderCalendar2();else if(mTab==='assistant'){if(mAssistAsk){if(!mChat.length)chatHello();else renderChat()}else renderAssistant()}else if(mTab==='stats')renderStats()}
   { const o=renderLoops;renderLoops=function(){o();renderMobile()} }
-  { const o=renderTasks;renderTasks=function(){o();if(inApp()&&(mTab==='home'||mTab==='inbox'||mTab==='assistant')){if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(!mAssistAsk)renderAssistant()}} }
-  { const o=renderCategories;renderCategories=function(){o();if(inApp()&&mTab==='inbox')renderInbox()} }
+  { const o=renderTasks;renderTasks=function(){o();if(mq.matches&&(mTab==='home'||mTab==='inbox'||mTab==='assistant')){if(mTab==='home')renderHome();else if(mTab==='inbox')renderInbox();else if(!mAssistAsk)renderAssistant()}} }
+  { const o=renderCategories;renderCategories=function(){o();if(mq.matches&&mTab==='inbox')renderInbox()} }
   // notification panel and a 'Widgets' view on the phone
   const notif=$('#notif-panel'),notifHome=notif?.parentElement;
-  const placeNotif=()=>{if(!notif)return;if(inApp())document.body.append(notif);else notifHome?.append(notif)};
+  const placeNotif=()=>{if(!notif)return;if(mq.matches)document.body.append(notif);else notifHome?.append(notif)};
   mq.addEventListener?.('change',placeNotif);placeNotif();
   $('#customize')?.addEventListener('click',()=>{
     if(!mq.matches)return;
