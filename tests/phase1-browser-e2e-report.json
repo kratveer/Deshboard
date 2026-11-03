@@ -1,0 +1,1610 @@
+{
+  "generatedAt": "2026-11-03T19:59:13.668Z",
+  "phase1": {
+    "E1_healthy": {
+      "name": "E1_healthy",
+      "first": {
+        "status": "Connected to Google · updated 8:59 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 8:59 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": 1793735955871,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": true,
+          "runs": 1,
+          "records": {
+            "fetched": 92,
+            "cached": 2,
+            "stale": 0,
+            "failed": 0,
+            "deferred": 0,
+            "deleted": 0,
+            "bodyDeferred": 51,
+            "bodyFetched": 30
+          },
+          "sent": {
+            "checked": 12,
+            "fetched": 12,
+            "cached": 0,
+            "failed": 0,
+            "error": null
+          },
+          "queryErrors": 0,
+          "failures": [],
+          "units": 3561,
+          "requests": 112
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 72,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        },
+        "requests": 123,
+        "quotaUnits": 3766,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 6,
+        "seconds": 2.6
+      },
+      "after": {
+        "manualRefresh": {
+          "status": "Connected to Google · updated 8:59 PM",
+          "drawer": {
+            "title": "Google",
+            "meta": "Last successful sync 8:59 PM"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793735962030,
+            "lastPartialAt": null,
+            "lastError": null,
+            "mode": "unchanged",
+            "cursor": true,
+            "runs": 2,
+            "records": {
+              "fetched": 16,
+              "cached": 78,
+              "stale": 0,
+              "failed": 0,
+              "deferred": 0,
+              "deleted": 0,
+              "bodyDeferred": 35,
+              "bodyFetched": 16
+            },
+            "sent": {
+              "checked": 12,
+              "fetched": 0,
+              "cached": 12,
+              "failed": 0,
+              "error": null
+            },
+            "queryErrors": 0,
+            "failures": [
+              {
+                "id": "m186ea",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m186eb",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m186f2",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m186f3",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m186f6",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m186fe",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m18705",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m1870b",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m18710",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              },
+              {
+                "id": "m18713",
+                "status": "body-deferred",
+                "kind": "budget",
+                "http": 0,
+                "reason": "quota_budget",
+                "message": "Waiting for Gmail quota"
+              }
+            ],
+            "units": 1001,
+            "requests": 24
+          },
+          "hasSession": true,
+          "byKind": {
+            "list": 7,
+            "profile": 1,
+            "getFull": 16,
+            "threadsList": 1
+          },
+          "requests": 25,
+          "quotaUnits": 1006,
+          "quota403": 0
+        },
+        "reload": {
+          "drawerEarly": {
+            "title": "Google · syncing",
+            "meta": "Refreshing connected data…"
+          },
+          "status": "Connected to Google · updated 9:00 PM",
+          "drawer": {
+            "title": "Google",
+            "meta": "Last successful sync 9:00 PM"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793736024552,
+            "lastPartialAt": null,
+            "lastError": null,
+            "mode": "unchanged",
+            "cursor": true,
+            "runs": 3,
+            "records": {
+              "fetched": 92,
+              "cached": 2,
+              "stale": 0,
+              "failed": 0,
+              "deferred": 0,
+              "deleted": 0,
+              "bodyDeferred": 51,
+              "bodyFetched": 30
+            },
+            "sent": {
+              "checked": 12,
+              "fetched": 12,
+              "cached": 0,
+              "failed": 0,
+              "error": null
+            },
+            "queryErrors": 0,
+            "failures": [],
+            "units": 4801,
+            "requests": 134
+          },
+          "hasSession": true,
+          "requests": 145,
+          "quotaUnits": 3766
+        }
+      },
+      "consoleErrors": []
+    },
+    "E2_permanent_failures": {
+      "name": "E2_permanent_failures",
+      "first": {
+        "status": "Partial sync · Gmail partly synced · 3 failed; Mail: 3 of 10 inbox messages could not refresh · no full sync yet",
+        "drawer": {
+          "title": "Partial sync",
+          "meta": "Gmail partly synced · 3 failed; Mail: 3 of 10 inbox messages could not refresh · No full sync yet"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": null,
+          "lastPartialAt": 1793736032716,
+          "lastError": "Gmail partly synced · 3 failed",
+          "mode": "full",
+          "cursor": true,
+          "runs": 1,
+          "records": {
+            "fetched": 89,
+            "cached": 2,
+            "stale": 0,
+            "failed": 3,
+            "deferred": 0,
+            "deleted": 0,
+            "bodyDeferred": 51,
+            "bodyFetched": 27
+          },
+          "sent": {
+            "checked": 12,
+            "fetched": 12,
+            "cached": 0,
+            "failed": 0,
+            "error": null
+          },
+          "queryErrors": 0,
+          "failures": [
+            {
+              "id": "m186a2",
+              "status": "failed",
+              "kind": "server",
+              "http": 503,
+              "reason": "",
+              "message": "Service unavailable"
+            },
+            {
+              "id": "m186a3",
+              "status": "failed",
+              "kind": "server",
+              "http": 503,
+              "reason": "",
+              "message": "Service unavailable"
+            },
+            {
+              "id": "m186a4",
+              "status": "failed",
+              "kind": "server",
+              "http": 503,
+              "reason": "",
+              "message": "Service unavailable"
+            }
+          ],
+          "units": 4281,
+          "requests": 124
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 7,
+          "getMeta": 84,
+          "profile": 1,
+          "getFull": 42,
+          "threadsList": 1,
+          "threadGet": 12
+        },
+        "requests": 147,
+        "quotaUnits": 3526,
+        "quota403": 0,
+        "injected": 30,
+        "aborted": 0,
+        "peakConcurrent": 6,
+        "seconds": 8.1
+      },
+      "consoleErrors": []
+    },
+    "E3_429_storm": {
+      "name": "E3_429_storm",
+      "first": {
+        "status": "Connected to Google · updated 9:00 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 9:00 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": 1793736050267,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": true,
+          "runs": 1,
+          "records": {
+            "fetched": 94,
+            "cached": 0,
+            "stale": 0,
+            "failed": 0,
+            "deferred": 0,
+            "deleted": 0,
+            "bodyDeferred": 51,
+            "bodyFetched": 30
+          },
+          "sent": {
+            "checked": 12,
+            "fetched": 12,
+            "cached": 0,
+            "failed": 0,
+            "error": null
+          },
+          "queryErrors": 0,
+          "failures": [],
+          "units": 3562,
+          "requests": 113
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 8,
+          "profile": 2,
+          "getMeta": 72,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        },
+        "requests": 125,
+        "quotaUnits": 3766,
+        "quota403": 0,
+        "injected": 2,
+        "aborted": 0,
+        "peakConcurrent": 6,
+        "seconds": 17.5
+      },
+      "consoleErrors": []
+    },
+    "E4_network_drops": {
+      "name": "E4_network_drops",
+      "first": {
+        "status": "Connected to Google · updated 9:00 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 9:00 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": 1793736057381,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": true,
+          "runs": 1,
+          "records": {
+            "fetched": 92,
+            "cached": 2,
+            "stale": 0,
+            "failed": 0,
+            "deferred": 0,
+            "deleted": 0,
+            "bodyDeferred": 51,
+            "bodyFetched": 30
+          },
+          "sent": {
+            "checked": 12,
+            "fetched": 12,
+            "cached": 0,
+            "failed": 0,
+            "error": null
+          },
+          "queryErrors": 0,
+          "failures": [],
+          "units": 3561,
+          "requests": 141
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 72,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        },
+        "requests": 123,
+        "quotaUnits": 3766,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 33,
+        "peakConcurrent": 6,
+        "seconds": 7.1
+      },
+      "consoleErrors": []
+    },
+    "E5_quota_exhausted": {
+      "name": "E5_quota_exhausted",
+      "first": {
+        "status": "Connected to Google · updated 9:02 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 9:02 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": 1793736120149,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": true,
+          "runs": 1,
+          "records": {
+            "fetched": 86,
+            "cached": 8,
+            "stale": 0,
+            "failed": 0,
+            "deferred": 0,
+            "deleted": 0,
+            "bodyDeferred": 57,
+            "bodyFetched": 24
+          },
+          "sent": {
+            "checked": 12,
+            "fetched": 12,
+            "cached": 0,
+            "failed": 0,
+            "error": null
+          },
+          "queryErrors": 0,
+          "failures": [
+            {
+              "id": "m186a3",
+              "status": "body-deferred",
+              "kind": "budget",
+              "http": 0,
+              "reason": "quota_budget",
+              "message": "Waiting for Gmail quota"
+            },
+            {
+              "id": "m186a4",
+              "status": "body-deferred",
+              "kind": "budget",
+              "http": 0,
+              "reason": "quota_budget",
+              "message": "Waiting for Gmail quota"
+            },
+            {
+              "id": "m186a8",
+              "status": "body-deferred",
+              "kind": "budget",
+              "http": 0,
+              "reason": "quota_budget",
+              "message": "Waiting for Gmail quota"
+            },
+            {
+              "id": "m186aa",
+              "status": "body-deferred",
+              "kind": "budget",
+              "http": 0,
+              "reason": "quota_budget",
+              "message": "Waiting for Gmail quota"
+            },
+            {
+              "id": "m186ac",
+              "status": "body-deferred",
+              "kind": "budget",
+              "http": 0,
+              "reason": "quota_budget",
+              "message": "Waiting for Gmail quota"
+            },
+            {
+              "id": "m186ad",
+              "status": "body-deferred",
+              "kind": "budget",
+              "http": 0,
+              "reason": "quota_budget",
+              "message": "Waiting for Gmail quota"
+            }
+          ],
+          "units": 4521,
+          "requests": 128
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 72,
+          "getFull": 46,
+          "threadsList": 1,
+          "threadGet": 12
+        },
+        "requests": 139,
+        "quotaUnits": 3406,
+        "quota403": 22,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 6,
+        "seconds": 62.7
+      },
+      "consoleErrors": []
+    },
+    "E8_reload_partial_then_recover": {
+      "name": "E8_reload_partial_then_recover",
+      "first": {
+        "status": "Connected to Google · updated 9:02 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 9:02 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": 1793736122613,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": true,
+          "runs": 1,
+          "records": {
+            "fetched": 92,
+            "cached": 2,
+            "stale": 0,
+            "failed": 0,
+            "deferred": 0,
+            "deleted": 0,
+            "bodyDeferred": 51,
+            "bodyFetched": 30
+          },
+          "sent": {
+            "checked": 12,
+            "fetched": 12,
+            "cached": 0,
+            "failed": 0,
+            "error": null
+          },
+          "queryErrors": 0,
+          "failures": [],
+          "units": 3561,
+          "requests": 112
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 72,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        },
+        "requests": 123,
+        "quotaUnits": 3766,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 6,
+        "seconds": 2.4
+      },
+      "after": {
+        "afterReload": {
+          "status": "Partial sync · Gmail partly synced · 2 failed; Mail: 2 of 10 inbox messages could not refresh · last full sync 9:02 PM",
+          "drawer": {
+            "title": "Partial sync",
+            "meta": "Gmail partly synced · 2 failed; Mail: 2 of 10 inbox messages could not refresh · Last full sync Nov 3, 9:02 PM"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793736122613,
+            "lastPartialAt": 1793736185603,
+            "lastError": "Gmail partly synced · 2 failed",
+            "mode": "unchanged",
+            "cursor": true,
+            "runs": 2,
+            "records": {
+              "fetched": 91,
+              "cached": 1,
+              "stale": 0,
+              "failed": 2,
+              "deferred": 0,
+              "deleted": 0,
+              "bodyDeferred": 51,
+              "bodyFetched": 29
+            },
+            "sent": {
+              "checked": 12,
+              "fetched": 12,
+              "cached": 0,
+              "failed": 0,
+              "error": null
+            },
+            "queryErrors": 0,
+            "failures": [
+              {
+                "id": "m186a0",
+                "status": "failed",
+                "kind": "server",
+                "http": 503,
+                "reason": "",
+                "message": "Service unavailable"
+              },
+              {
+                "id": "m186a1",
+                "status": "failed",
+                "kind": "server",
+                "http": 503,
+                "reason": "",
+                "message": "Service unavailable"
+              }
+            ],
+            "units": 4041,
+            "requests": 128
+          },
+          "hasSession": true
+        },
+        "afterRecovery": {
+          "status": "Connected to Google · updated 9:03 PM",
+          "drawer": {
+            "title": "Google",
+            "meta": "Last successful sync 9:03 PM"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793736186890,
+            "lastPartialAt": null,
+            "lastError": null,
+            "mode": "unchanged",
+            "cursor": true,
+            "runs": 3,
+            "records": {
+              "fetched": 30,
+              "cached": 64,
+              "stale": 0,
+              "failed": 0,
+              "deferred": 0,
+              "deleted": 0,
+              "bodyDeferred": 22,
+              "bodyFetched": 30
+            },
+            "sent": {
+              "checked": 12,
+              "fetched": 0,
+              "cached": 12,
+              "failed": 0,
+              "error": null
+            },
+            "queryErrors": 0,
+            "failures": [],
+            "units": 1841,
+            "requests": 38
+          },
+          "hasSession": true
+        }
+      },
+      "consoleErrors": []
+    },
+    "E6_worker_401": {
+      "name": "E6_worker_401",
+      "first": {
+        "status": "Google sign-in expired · reconnect for full Gmail access",
+        "drawer": {
+          "title": "Not connected",
+          "meta": "Connect Google to sync mail, calendar and tasks."
+        },
+        "sync": {
+          "accountId": "acct:local:device",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": false
+      },
+      "firstStats": {
+        "byKind": {},
+        "requests": 0,
+        "quotaUnits": 0,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 0,
+        "seconds": 1
+      },
+      "consoleErrors": []
+    },
+    "E7_worker_502": {
+      "name": "E7_worker_502",
+      "first": {
+        "status": "Google session needs refresh · reconnect for full Gmail access",
+        "drawer": {
+          "title": "Not connected",
+          "meta": "Connect Google to sync mail, calendar and tasks."
+        },
+        "sync": {
+          "accountId": "acct:local:device",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": false
+      },
+      "firstStats": {
+        "byKind": {},
+        "requests": 0,
+        "quotaUnits": 0,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 0,
+        "seconds": 1
+      },
+      "consoleErrors": []
+    }
+  },
+  "baseline": {
+    "E1_healthy": {
+      "name": "E1_healthy",
+      "first": {
+        "status": "Connected to Google · updated 9:03 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 9:03 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 8,
+          "getMeta": 10,
+          "profile": 1,
+          "getFull": 152,
+          "threadGet": 12
+        },
+        "requests": 183,
+        "quotaUnits": 5981,
+        "quota403": 68,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 104,
+        "seconds": 1.9
+      },
+      "after": {
+        "manualRefresh": {
+          "status": "Some connected data could not load · Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com'",
+          "drawer": {
+            "title": "Sync needs attention",
+            "meta": "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com'"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793736197457,
+            "lastPartialAt": null,
+            "lastError": null,
+            "mode": "full",
+            "cursor": true,
+            "runs": 1,
+            "records": null,
+            "sent": null,
+            "queryErrors": null,
+            "failures": null,
+            "units": null,
+            "requests": null
+          },
+          "hasSession": true,
+          "byKind": {
+            "list": 10,
+            "profile": 1,
+            "getMeta": 10,
+            "getFull": 80
+          },
+          "requests": 101,
+          "quotaUnits": 16,
+          "quota403": 97
+        },
+        "reload": {
+          "drawerEarly": {
+            "title": "Sync needs attention",
+            "meta": "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com'"
+          },
+          "status": "Some connected data could not load · Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com'",
+          "drawer": {
+            "title": "Sync needs attention",
+            "meta": "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com'"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793736198507,
+            "lastPartialAt": null,
+            "lastError": null,
+            "mode": "full",
+            "cursor": true,
+            "runs": 2,
+            "records": null,
+            "sent": null,
+            "queryErrors": null,
+            "failures": null,
+            "units": null,
+            "requests": null
+          },
+          "hasSession": true,
+          "requests": 9,
+          "quotaUnits": 1
+        }
+      },
+      "consoleErrors": []
+    },
+    "E2_permanent_failures": {
+      "name": "E2_permanent_failures",
+      "first": {
+        "status": "Some connected data could not load · Service unavailable",
+        "drawer": {
+          "title": "Sync needs attention",
+          "meta": "Service unavailable"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 10,
+          "getMeta": 10,
+          "profile": 1,
+          "getFull": 177,
+          "threadGet": 12
+        },
+        "requests": 210,
+        "quotaUnits": 5991,
+        "quota403": 62,
+        "injected": 33,
+        "aborted": 0,
+        "peakConcurrent": 56,
+        "seconds": 3.1
+      },
+      "consoleErrors": []
+    },
+    "E3_429_storm": {
+      "name": "E3_429_storm",
+      "first": {
+        "status": "Some connected data could not load · Too many requests",
+        "drawer": {
+          "title": "Sync needs attention",
+          "meta": "Too many requests"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 12,
+          "profile": 3,
+          "getFull": 277,
+          "threadGet": 12
+        },
+        "requests": 304,
+        "quotaUnits": 5986,
+        "quota403": 79,
+        "injected": 116,
+        "aborted": 0,
+        "peakConcurrent": 102,
+        "seconds": 6.9
+      },
+      "consoleErrors": []
+    },
+    "E4_network_drops": {
+      "name": "E4_network_drops",
+      "first": {
+        "status": "Some connected data could not load · Failed to fetch",
+        "drawer": {
+          "title": "Sync needs attention",
+          "meta": "Failed to fetch"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 10,
+          "getMeta": 7,
+          "profile": 1,
+          "getFull": 130,
+          "threadGet": 12
+        },
+        "requests": 160,
+        "quotaUnits": 5996,
+        "quota403": 48,
+        "injected": 0,
+        "aborted": 58,
+        "peakConcurrent": 36,
+        "seconds": 3.1
+      },
+      "consoleErrors": []
+    },
+    "E5_quota_exhausted": {
+      "name": "E5_quota_exhausted",
+      "first": {
+        "status": "Connected to Google · updated 9:03 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 9:03 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 10,
+          "getMeta": 10,
+          "profile": 1,
+          "getFull": 230,
+          "threadGet": 12
+        },
+        "requests": 263,
+        "quotaUnits": 371,
+        "quota403": 240,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 62,
+        "seconds": 2.1
+      },
+      "consoleErrors": []
+    },
+    "E8_reload_partial_then_recover": {
+      "name": "E8_reload_partial_then_recover",
+      "first": {
+        "status": "Connected to Google · updated 9:03 PM",
+        "drawer": {
+          "title": "Google",
+          "meta": "Last successful sync 9:03 PM"
+        },
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": true
+      },
+      "firstStats": {
+        "byKind": {
+          "list": 8,
+          "profile": 1,
+          "getMeta": 10,
+          "getFull": 152,
+          "threadGet": 12
+        },
+        "requests": 183,
+        "quotaUnits": 5981,
+        "quota403": 68,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 73,
+        "seconds": 1.7
+      },
+      "after": {
+        "afterReload": {
+          "status": "Some connected data could not load · Service unavailable",
+          "drawer": {
+            "title": "Sync needs attention",
+            "meta": "Service unavailable"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793736218815,
+            "lastPartialAt": null,
+            "lastError": null,
+            "mode": "full",
+            "cursor": true,
+            "runs": 1,
+            "records": null,
+            "sent": null,
+            "queryErrors": null,
+            "failures": null,
+            "units": null,
+            "requests": null
+          },
+          "hasSession": true
+        },
+        "afterRecovery": {
+          "status": "Some connected data could not load · Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com'",
+          "drawer": {
+            "title": "Sync needs attention",
+            "meta": "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user' of service 'gmail.googleapis.com'"
+          },
+          "sync": {
+            "accountId": "acct:google:1234567890",
+            "lastSuccessAt": 1793736219696,
+            "lastPartialAt": null,
+            "lastError": null,
+            "mode": "full",
+            "cursor": true,
+            "runs": 2,
+            "records": null,
+            "sent": null,
+            "queryErrors": null,
+            "failures": null,
+            "units": null,
+            "requests": null
+          },
+          "hasSession": true
+        }
+      },
+      "consoleErrors": []
+    },
+    "E6_worker_401": {
+      "name": "E6_worker_401",
+      "first": {
+        "status": "Google sign-in expired · reconnect for full Gmail access",
+        "drawer": {
+          "title": "Not connected",
+          "meta": "Connect Google to sync mail, calendar and tasks."
+        },
+        "sync": {
+          "accountId": "acct:local:device",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": false
+      },
+      "firstStats": {
+        "byKind": {},
+        "requests": 0,
+        "quotaUnits": 0,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 0,
+        "seconds": 1
+      },
+      "consoleErrors": []
+    },
+    "E7_worker_502": {
+      "name": "E7_worker_502",
+      "first": {
+        "status": "Google session needs refresh · reconnect for full Gmail access",
+        "drawer": {
+          "title": "Not connected",
+          "meta": "Connect Google to sync mail, calendar and tasks."
+        },
+        "sync": {
+          "accountId": "acct:local:device",
+          "lastSuccessAt": null,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "full",
+          "cursor": false,
+          "runs": 0,
+          "records": null,
+          "sent": null,
+          "queryErrors": null,
+          "failures": null,
+          "units": null,
+          "requests": null
+        },
+        "hasSession": false
+      },
+      "firstStats": {
+        "byKind": {},
+        "requests": 0,
+        "quotaUnits": 0,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 0,
+        "seconds": 1
+      },
+      "consoleErrors": []
+    }
+  },
+  "knownIssues": [
+    {
+      "id": "E7",
+      "phase": 4,
+      "observed": "Google session needs refresh · reconnect for full Gmail access",
+      "sessionKept": false,
+      "note": "Worker 502 clears the stay-signed-in session (app.js serverToken). Out of Phase 1 scope; fix planned in Phase 4."
+    }
+  ],
+  "checks": [
+    {
+      "name": "E1 status says updated",
+      "ok": true,
+      "detail": "Connected to Google · updated 8:59 PM"
+    },
+    {
+      "name": "E1 zero quota 403s",
+      "ok": true,
+      "detail": {
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 72,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        },
+        "requests": 123,
+        "quotaUnits": 3766,
+        "quota403": 0,
+        "injected": 0,
+        "aborted": 0,
+        "peakConcurrent": 6,
+        "seconds": 2.6
+      }
+    },
+    {
+      "name": "E1 units < 6,000",
+      "ok": true,
+      "detail": 3766
+    },
+    {
+      "name": "E1 stored sync = success with records",
+      "ok": true,
+      "detail": {
+        "accountId": "acct:google:1234567890",
+        "lastSuccessAt": 1793735955871,
+        "lastPartialAt": null,
+        "lastError": null,
+        "mode": "full",
+        "cursor": true,
+        "runs": 1,
+        "records": {
+          "fetched": 92,
+          "cached": 2,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 51,
+          "bodyFetched": 30
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "queryErrors": 0,
+        "failures": [],
+        "units": 3561,
+        "requests": 112
+      }
+    },
+    {
+      "name": "E1 manual refresh re-fetches no unchanged mail (only queued bodies)",
+      "ok": true,
+      "detail": {
+        "list": 7,
+        "profile": 1,
+        "getFull": 16,
+        "threadsList": 1
+      }
+    },
+    {
+      "name": "E1 manual refresh status updated",
+      "ok": true,
+      "detail": "Connected to Google · updated 8:59 PM"
+    },
+    {
+      "name": "E1 reload: drawer shows last full sync before refresh ends",
+      "ok": true,
+      "detail": {
+        "title": "Google · syncing",
+        "meta": "Refreshing connected data…"
+      }
+    },
+    {
+      "name": "E2 status partial, not updated",
+      "ok": true,
+      "detail": "Partial sync · Gmail partly synced · 3 failed; Mail: 3 of 10 inbox messages could not refresh · no full sync yet"
+    },
+    {
+      "name": "E2 status names the failures",
+      "ok": true,
+      "detail": "Partial sync · Gmail partly synced · 3 failed; Mail: 3 of 10 inbox messages could not refresh · no full sync yet"
+    },
+    {
+      "name": "E2 stored: partial recorded, the 3 broken messages accounted for",
+      "ok": true,
+      "detail": {
+        "accountId": "acct:google:1234567890",
+        "lastSuccessAt": null,
+        "lastPartialAt": 1793736032716,
+        "lastError": "Gmail partly synced · 3 failed",
+        "mode": "full",
+        "cursor": true,
+        "runs": 1,
+        "records": {
+          "fetched": 89,
+          "cached": 2,
+          "stale": 0,
+          "failed": 3,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 51,
+          "bodyFetched": 27
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "queryErrors": 0,
+        "failures": [
+          {
+            "id": "m186a2",
+            "status": "failed",
+            "kind": "server",
+            "http": 503,
+            "reason": "",
+            "message": "Service unavailable"
+          },
+          {
+            "id": "m186a3",
+            "status": "failed",
+            "kind": "server",
+            "http": 503,
+            "reason": "",
+            "message": "Service unavailable"
+          },
+          {
+            "id": "m186a4",
+            "status": "failed",
+            "kind": "server",
+            "http": 503,
+            "reason": "",
+            "message": "Service unavailable"
+          }
+        ],
+        "units": 4281,
+        "requests": 124
+      }
+    },
+    {
+      "name": "E2 drawer: Partial sync + last full sync",
+      "ok": true,
+      "detail": {
+        "title": "Partial sync",
+        "meta": "Gmail partly synced · 3 failed; Mail: 3 of 10 inbox messages could not refresh · No full sync yet"
+      }
+    },
+    {
+      "name": "E3_429_storm status truthful (partial ⇔ incomplete records)",
+      "ok": true,
+      "detail": {
+        "status": "Connected to Google · updated 9:00 PM",
+        "rec": {
+          "fetched": 94,
+          "cached": 0,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 51,
+          "bodyFetched": 30
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "failures": []
+      }
+    },
+    {
+      "name": "E4_network_drops status truthful (partial ⇔ incomplete records)",
+      "ok": true,
+      "detail": {
+        "status": "Connected to Google · updated 9:00 PM",
+        "rec": {
+          "fetched": 92,
+          "cached": 2,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 51,
+          "bodyFetched": 30
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "failures": []
+      }
+    },
+    {
+      "name": "E5_quota_exhausted status truthful (partial ⇔ incomplete records)",
+      "ok": true,
+      "detail": {
+        "status": "Connected to Google · updated 9:02 PM",
+        "rec": {
+          "fetched": 86,
+          "cached": 8,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 57,
+          "bodyFetched": 24
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "failures": [
+          {
+            "id": "m186a3",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186a4",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186a8",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          }
+        ]
+      }
+    },
+    {
+      "name": "E8 after reload with failures: partial + last full sync time shown",
+      "ok": true,
+      "detail": "Partial sync · Gmail partly synced · 2 failed; Mail: 2 of 10 inbox messages could not refresh · last full sync 9:02 PM"
+    },
+    {
+      "name": "E8 stored lastSuccessAt preserved during partial",
+      "ok": true,
+      "detail": {
+        "accountId": "acct:google:1234567890",
+        "lastSuccessAt": 1793736122613,
+        "lastPartialAt": 1793736185603,
+        "lastError": "Gmail partly synced · 2 failed",
+        "mode": "unchanged",
+        "cursor": true,
+        "runs": 2,
+        "records": {
+          "fetched": 91,
+          "cached": 1,
+          "stale": 0,
+          "failed": 2,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 51,
+          "bodyFetched": 29
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "queryErrors": 0,
+        "failures": [
+          {
+            "id": "m186a0",
+            "status": "failed",
+            "kind": "server",
+            "http": 503,
+            "reason": "",
+            "message": "Service unavailable"
+          },
+          {
+            "id": "m186a1",
+            "status": "failed",
+            "kind": "server",
+            "http": 503,
+            "reason": "",
+            "message": "Service unavailable"
+          }
+        ],
+        "units": 4041,
+        "requests": 128
+      }
+    },
+    {
+      "name": "E8 recovery: back to updated, partial cleared",
+      "ok": true,
+      "detail": {
+        "s": "Connected to Google · updated 9:03 PM",
+        "sync": {
+          "accountId": "acct:google:1234567890",
+          "lastSuccessAt": 1793736186890,
+          "lastPartialAt": null,
+          "lastError": null,
+          "mode": "unchanged",
+          "cursor": true,
+          "runs": 3,
+          "records": {
+            "fetched": 30,
+            "cached": 64,
+            "stale": 0,
+            "failed": 0,
+            "deferred": 0,
+            "deleted": 0,
+            "bodyDeferred": 22,
+            "bodyFetched": 30
+          },
+          "sent": {
+            "checked": 12,
+            "fetched": 0,
+            "cached": 12,
+            "failed": 0,
+            "error": null
+          },
+          "queryErrors": 0,
+          "failures": [],
+          "units": 1841,
+          "requests": 38
+        }
+      }
+    },
+    {
+      "name": "E6 401 → reconnect prompt",
+      "ok": true,
+      "detail": "Google sign-in expired · reconnect for full Gmail access"
+    },
+    {
+      "name": "No page errors in any scenario",
+      "ok": true,
+      "detail": {
+        "E1_healthy": [],
+        "E2_permanent_failures": [],
+        "E3_429_storm": [],
+        "E4_network_drops": [],
+        "E5_quota_exhausted": [],
+        "E8_reload_partial_then_recover": [],
+        "E6_worker_401": [],
+        "E7_worker_502": []
+      }
+    }
+  ],
+  "passed": 19,
+  "total": 19
+}

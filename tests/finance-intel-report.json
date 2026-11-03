@@ -1,0 +1,1836 @@
+{
+  "generatedAt": "2026-11-03T21:00:19.499Z",
+  "cases": 58,
+  "negativeCases": 51,
+  "sequences": 13,
+  "singleCasePass": 58,
+  "categoryAccuracy": 1,
+  "macroF1": 1,
+  "perCategory": {
+    "unpaid_bill": {
+      "support": 11,
+      "tp": 11,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "paid_invoice": {
+      "support": 4,
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "payment_pending": {
+      "support": 2,
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "payment_successful": {
+      "support": 3,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "payment_failed": {
+      "support": 3,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "refund_received": {
+      "support": 2,
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "refund_pending": {
+      "support": 2,
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "incoming_money": {
+      "support": 4,
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "outgoing_payment": {
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "subscription_renewal": {
+      "support": 4,
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "purchase_receipt": {
+      "support": 4,
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "promotional_offer": {
+      "support": 7,
+      "tp": 7,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "bank_transaction": {
+      "support": 2,
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "financial_statement": {
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "not_financial": {
+      "support": 8,
+      "tp": 8,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    }
+  },
+  "confusionMatrix": {
+    "unpaid_bill": {
+      "unpaid_bill": 11
+    },
+    "paid_invoice": {
+      "paid_invoice": 4
+    },
+    "payment_pending": {
+      "payment_pending": 2
+    },
+    "payment_successful": {
+      "payment_successful": 3
+    },
+    "payment_failed": {
+      "payment_failed": 3
+    },
+    "refund_received": {
+      "refund_received": 2
+    },
+    "refund_pending": {
+      "refund_pending": 2
+    },
+    "incoming_money": {
+      "incoming_money": 4
+    },
+    "outgoing_payment": {
+      "outgoing_payment": 1
+    },
+    "subscription_renewal": {
+      "subscription_renewal": 4
+    },
+    "purchase_receipt": {
+      "purchase_receipt": 4
+    },
+    "promotional_offer": {
+      "promotional_offer": 7
+    },
+    "bank_transaction": {
+      "bank_transaction": 2
+    },
+    "financial_statement": {
+      "financial_statement": 1
+    },
+    "not_financial": {
+      "not_financial": 8
+    }
+  },
+  "acceptance": {
+    "zeroFabricatedTasksInNegativeSet": [],
+    "receiptsOrPaidAsOutstanding": [],
+    "refundsAsOwed": [],
+    "inventedDueDates": [],
+    "ambiguousFlagged": []
+  },
+  "acceptanceOk": true,
+  "holdout2_blind": {
+    "cases": 20,
+    "fullyCorrect": 20,
+    "accuracy": 1,
+    "perCategory": {
+      "unpaid_bill": {
+        "support": 5,
+        "tp": 5,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "paid_invoice": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "payment_pending": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "payment_failed": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "refund_received": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "refund_pending": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "incoming_money": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "outgoing_payment": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "subscription_renewal": {
+        "support": 2,
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "purchase_receipt": {
+        "support": 2,
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "promotional_offer": {
+        "support": 2,
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "bank_transaction": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "not_financial": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      }
+    },
+    "confusionMatrix": {
+      "unpaid_bill": {
+        "unpaid_bill": 5
+      },
+      "paid_invoice": {
+        "paid_invoice": 1
+      },
+      "payment_pending": {
+        "payment_pending": 1
+      },
+      "payment_failed": {
+        "payment_failed": 1
+      },
+      "refund_received": {
+        "refund_received": 1
+      },
+      "refund_pending": {
+        "refund_pending": 1
+      },
+      "incoming_money": {
+        "incoming_money": 1
+      },
+      "outgoing_payment": {
+        "outgoing_payment": 1
+      },
+      "subscription_renewal": {
+        "subscription_renewal": 2
+      },
+      "purchase_receipt": {
+        "purchase_receipt": 2
+      },
+      "promotional_offer": {
+        "promotional_offer": 2
+      },
+      "bank_transaction": {
+        "bank_transaction": 1
+      },
+      "not_financial": {
+        "not_financial": 1
+      }
+    },
+    "safety": {
+      "fabricatedSuggestionsInNegatives": [],
+      "missedRealObligations": []
+    },
+    "failures": []
+  },
+  "holdout": {
+    "cases": 30,
+    "fullyCorrect": 28,
+    "accuracy": 0.967,
+    "perCategory": {
+      "unpaid_bill": {
+        "support": 6,
+        "tp": 6,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "paid_invoice": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "payment_successful": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "payment_failed": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "refund_received": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "refund_pending": {
+        "support": 4,
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "incoming_money": {
+        "support": 3,
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "outgoing_payment": {
+        "support": 1,
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0,
+        "f1": 0
+      },
+      "subscription_renewal": {
+        "support": 2,
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "purchase_receipt": {
+        "support": 3,
+        "tp": 3,
+        "fp": 1,
+        "fn": 0,
+        "precision": 0.75,
+        "recall": 1,
+        "f1": 0.857
+      },
+      "promotional_offer": {
+        "support": 5,
+        "tp": 5,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "financial_statement": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "not_financial": {
+        "support": 1,
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      }
+    },
+    "confusionMatrix": {
+      "unpaid_bill": {
+        "unpaid_bill": 6
+      },
+      "paid_invoice": {
+        "paid_invoice": 1
+      },
+      "payment_successful": {
+        "payment_successful": 1
+      },
+      "payment_failed": {
+        "payment_failed": 1
+      },
+      "refund_received": {
+        "refund_received": 1
+      },
+      "refund_pending": {
+        "refund_pending": 4
+      },
+      "incoming_money": {
+        "incoming_money": 3
+      },
+      "outgoing_payment": {
+        "purchase_receipt": 1
+      },
+      "subscription_renewal": {
+        "subscription_renewal": 2
+      },
+      "purchase_receipt": {
+        "purchase_receipt": 3
+      },
+      "promotional_offer": {
+        "promotional_offer": 5
+      },
+      "financial_statement": {
+        "financial_statement": 1
+      },
+      "not_financial": {
+        "not_financial": 1
+      }
+    },
+    "safety": {
+      "fabricatedSuggestionsInNegatives": [],
+      "missedRealObligations": [
+        "h: unpaid with only day and month"
+      ]
+    },
+    "failures": [
+      {
+        "name": "h: paypal payment you sent to merchant",
+        "expected": "outgoing_payment",
+        "got": "purchase_receipt",
+        "ok": false,
+        "errors": [
+          "category purchase_receipt ≠ outgoing_payment"
+        ],
+        "neg": true,
+        "suggestion": false,
+        "obligation": null,
+        "bucket": "paid",
+        "dueDate": null,
+        "confidence": 0.8
+      },
+      {
+        "name": "h: unpaid with only day and month",
+        "expected": "unpaid_bill",
+        "got": "unpaid_bill",
+        "ok": false,
+        "errors": [
+          "suggestion false ≠ true"
+        ],
+        "neg": false,
+        "suggestion": false,
+        "obligation": "upcoming",
+        "bucket": "upcoming",
+        "dueDate": "2026-12-15",
+        "confidence": 0.75
+      }
+    ]
+  },
+  "sequenceChecks": [
+    {
+      "name": "A invoice + paid confirmation (same number) → one record",
+      "ok": true,
+      "detail": [
+        "inv:cez:2026104455"
+      ]
+    },
+    {
+      "name": "A record is paid, not outstanding, no reminder",
+      "ok": true,
+      "detail": {
+        "status": "paid",
+        "bucket": "paid"
+      }
+    },
+    {
+      "name": "B amount+merchant match only → \"possibly paid\", needs review (not merged, not confirmed)",
+      "ok": true,
+      "detail": {
+        "bucket": "review",
+        "status": "unpaid",
+        "link": {
+          "key": "mail:f110",
+          "by": "same sender and amount, paid after the invoice",
+          "strength": "probable"
+        }
+      }
+    },
+    {
+      "name": "C same amount, two candidate invoices → no automatic link",
+      "ok": true,
+      "detail": [
+        [
+          "inv:vodafone:9001",
+          "unpaid",
+          null
+        ],
+        [
+          "inv:vodafone:9002",
+          "unpaid",
+          null
+        ],
+        [
+          "mail:f113",
+          "paid",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "D duplicate invoice notices → one record",
+      "ok": true,
+      "detail": [
+        "inv:cez:2026104455"
+      ]
+    },
+    {
+      "name": "D at most one reminder suggestion",
+      "ok": true
+    },
+    {
+      "name": "E repeated sync → identical record set",
+      "ok": true
+    },
+    {
+      "name": "E records outside the window are kept from history, not duplicated",
+      "ok": true,
+      "detail": [
+        49,
+        49
+      ]
+    },
+    {
+      "name": "F refund linked to original purchase (order number)",
+      "ok": true,
+      "detail": [
+        {
+          "to": "ord:alza:445566778",
+          "kind": "refund_of",
+          "strength": "confirmed"
+        }
+      ]
+    },
+    {
+      "name": "F refund is incoming, never owed",
+      "ok": true
+    },
+    {
+      "name": "G subscription notices grouped into one record",
+      "ok": true,
+      "detail": [
+        "sub:spotify"
+      ]
+    },
+    {
+      "name": "H correction to \"paid invoice\" applied",
+      "ok": true
+    },
+    {
+      "name": "H dismissed record shows no suggestion",
+      "ok": true
+    }
+  ],
+  "failures": [],
+  "results": [
+    {
+      "name": "promo: referral offer with large amount",
+      "mailId": "f001",
+      "expected": "promotional_offer",
+      "got": "promotional_offer",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.97,
+      "needsReview": false,
+      "bucket": "promotion",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "promo: flight sale with price",
+      "mailId": "f002",
+      "expected": "promotional_offer",
+      "got": "promotional_offer",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.97,
+      "needsReview": false,
+      "bucket": "promotion",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "promo: premium membership discount",
+      "mailId": "f003",
+      "expected": "promotional_offer",
+      "got": "promotional_offer",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.97,
+      "needsReview": false,
+      "bucket": "promotion",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "promo: credit card offer",
+      "mailId": "f004",
+      "expected": "promotional_offer",
+      "got": "promotional_offer",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.97,
+      "needsReview": false,
+      "bucket": "promotion",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "promo: invoice templates newsletter",
+      "mailId": "f005",
+      "expected": "promotional_offer",
+      "got": "promotional_offer",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.97,
+      "needsReview": false,
+      "bucket": "promotion",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "promo: price drop subscription ad (no label)",
+      "mailId": "f006",
+      "expected": "promotional_offer",
+      "got": "promotional_offer",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.9,
+      "needsReview": false,
+      "bucket": "promotion",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "promo: refund policy marketing",
+      "mailId": "f007",
+      "expected": "promotional_offer",
+      "got": "promotional_offer",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.97,
+      "needsReview": false,
+      "bucket": "promotion",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "cz: unpaid electricity invoice with due date",
+      "mailId": "f008",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": "upcoming",
+      "suggestion": true,
+      "dueDate": "2026-11-25",
+      "amount": {
+        "value": 1240,
+        "currency": "CZK",
+        "raw": "1 240 Kč"
+      },
+      "neg": false,
+      "conflicts": []
+    },
+    {
+      "name": "en: unpaid gas bill with explicit due date",
+      "mailId": "f009",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": "upcoming",
+      "suggestion": true,
+      "dueDate": "2026-11-28",
+      "amount": {
+        "value": 84.2,
+        "currency": "GBP",
+        "raw": "£84.20"
+      },
+      "neg": false,
+      "conflicts": []
+    },
+    {
+      "name": "de: Rechnung fällig",
+      "mailId": "f010",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": "upcoming",
+      "suggestion": true,
+      "dueDate": "2026-11-30",
+      "amount": {
+        "value": 59.9,
+        "currency": "EUR",
+        "raw": "59,90 €"
+      },
+      "neg": false,
+      "conflicts": []
+    },
+    {
+      "name": "en: overdue reminder with \"if already paid\" disclaimer",
+      "mailId": "f011",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "outstanding",
+      "obligation": "outstanding",
+      "suggestion": true,
+      "dueDate": "2026-11-01",
+      "amount": {
+        "value": 350,
+        "currency": "EUR",
+        "raw": "€350.00"
+      },
+      "neg": false,
+      "conflicts": []
+    },
+    {
+      "name": "cz: insurance premium k úhradě do",
+      "mailId": "f012",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": "upcoming",
+      "suggestion": true,
+      "dueDate": "2026-12-31",
+      "amount": {
+        "value": 4820,
+        "currency": "CZK",
+        "raw": "4 820 Kč"
+      },
+      "neg": false,
+      "conflicts": []
+    },
+    {
+      "name": "en: tuition installment please pay by",
+      "mailId": "f013",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": "upcoming",
+      "suggestion": true,
+      "dueDate": "2027-01-15",
+      "amount": {
+        "value": 32000,
+        "currency": "CZK",
+        "raw": "32 000 Kč"
+      },
+      "neg": false,
+      "conflicts": []
+    },
+    {
+      "name": "en: credit card statement with payment due",
+      "mailId": "f014",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": "upcoming",
+      "suggestion": true,
+      "dueDate": "2026-12-15",
+      "amount": {
+        "value": 35,
+        "currency": "EUR",
+        "raw": "€35.00"
+      },
+      "neg": false,
+      "conflicts": []
+    },
+    {
+      "name": "bill without any due date",
+      "mailId": "f015",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.4,
+      "needsReview": true,
+      "bucket": "review",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 499,
+        "currency": "CZK",
+        "raw": "499 Kč"
+      },
+      "neg": true,
+      "conflicts": [
+        "invoice without due or paid wording"
+      ]
+    },
+    {
+      "name": "invoice with relative payment terms only",
+      "mailId": "f016",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.4,
+      "needsReview": true,
+      "bucket": "review",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 1200,
+        "currency": "EUR",
+        "raw": "€1,200.00"
+      },
+      "neg": true,
+      "conflicts": [
+        "invoice without due or paid wording"
+      ]
+    },
+    {
+      "name": "invoice with ambiguous numeric due date",
+      "mailId": "f017",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": true,
+      "bucket": "review",
+      "obligation": "review",
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 80,
+        "currency": "USD",
+        "raw": "$80.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "bill paid automatically by direct debit",
+      "mailId": "f018",
+      "expected": "unpaid_bill",
+      "got": "unpaid_bill",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": "upcoming",
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 649,
+        "currency": "CZK",
+        "raw": "649 Kč"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "cz: invoice paid confirmation",
+      "mailId": "f019",
+      "expected": "paid_invoice",
+      "got": "paid_invoice",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.82,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 1240,
+        "currency": "CZK",
+        "raw": "1 240 Kč"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "en: electricity bill paid",
+      "mailId": "f020",
+      "expected": "paid_invoice",
+      "got": "paid_invoice",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.88,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 61.3,
+        "currency": "GBP",
+        "raw": "£61.30"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "en: invoice paid with payment date",
+      "mailId": "f021",
+      "expected": "paid_invoice",
+      "got": "paid_invoice",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.88,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 29,
+        "currency": "EUR",
+        "raw": "€29.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "usd invoice has been paid",
+      "mailId": "f022",
+      "expected": "paid_invoice",
+      "got": "paid_invoice",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.88,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 1250,
+        "currency": "USD",
+        "raw": "USD 1,250.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "stripe receipt for SaaS",
+      "mailId": "f023",
+      "expected": "purchase_receipt",
+      "got": "purchase_receipt",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.86,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 20,
+        "currency": "USD",
+        "raw": "$20.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "apple app store receipt",
+      "mailId": "f024",
+      "expected": "purchase_receipt",
+      "got": "purchase_receipt",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 15.99,
+        "currency": "USD",
+        "raw": "$15.99"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "order confirmation",
+      "mailId": "f025",
+      "expected": "purchase_receipt",
+      "got": "purchase_receipt",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 68,
+        "currency": "EUR",
+        "raw": "68,00 €"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "receipt that Gmail put in Promotions",
+      "mailId": "f026",
+      "expected": "purchase_receipt",
+      "got": "purchase_receipt",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.58,
+      "needsReview": true,
+      "bucket": "review",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 245,
+        "currency": "CZK",
+        "raw": "245 Kč"
+      },
+      "neg": true,
+      "conflicts": [
+        "Gmail filed this under Promotions"
+      ]
+    },
+    {
+      "name": "de: payment received",
+      "mailId": "f027",
+      "expected": "payment_successful",
+      "got": "payment_successful",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.82,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 59.9,
+        "currency": "EUR",
+        "raw": "59,90 €"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "multi-currency: you paid for hotel",
+      "mailId": "f028",
+      "expected": "payment_successful",
+      "got": "payment_successful",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.82,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 12450,
+        "currency": "INR",
+        "raw": "₹12,450.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "cz: platba proběhla úspěšně",
+      "mailId": "f029",
+      "expected": "payment_successful",
+      "got": "payment_successful",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.82,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 1132.5,
+        "currency": "CZK",
+        "raw": "1 132,50 Kč"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "failed card payment",
+      "mailId": "f030",
+      "expected": "payment_failed",
+      "got": "payment_failed",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.9,
+      "needsReview": false,
+      "bucket": "review",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 12,
+        "currency": "USD",
+        "raw": "$12.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "broker: funds not enough",
+      "mailId": "f031",
+      "expected": "payment_failed",
+      "got": "payment_failed",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.82,
+      "needsReview": false,
+      "bucket": "review",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "failed direct debit for invoice",
+      "mailId": "f032",
+      "expected": "payment_failed",
+      "got": "payment_failed",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.9,
+      "needsReview": false,
+      "bucket": "review",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 49,
+        "currency": "EUR",
+        "raw": "€49.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "pending bank transfer",
+      "mailId": "f033",
+      "expected": "payment_pending",
+      "got": "payment_pending",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.78,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 250,
+        "currency": "EUR",
+        "raw": "€250.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "cz salary credited",
+      "mailId": "f034",
+      "expected": "incoming_money",
+      "got": "incoming_money",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.88,
+      "needsReview": false,
+      "bucket": "incoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 42500,
+        "currency": "CZK",
+        "raw": "42 500 Kč"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "en salary received",
+      "mailId": "f035",
+      "expected": "incoming_money",
+      "got": "incoming_money",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.88,
+      "needsReview": false,
+      "bucket": "incoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 2450,
+        "currency": "GBP",
+        "raw": "£2,450.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "paypal money sent to you",
+      "mailId": "f036",
+      "expected": "incoming_money",
+      "got": "incoming_money",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.88,
+      "needsReview": false,
+      "bucket": "incoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 25,
+        "currency": "EUR",
+        "raw": "€25.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "cz fio příchozí platba",
+      "mailId": "f037",
+      "expected": "incoming_money",
+      "got": "incoming_money",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.88,
+      "needsReview": false,
+      "bucket": "incoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 3500,
+        "currency": "CZK",
+        "raw": "3 500,00 CZK"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "refund issued",
+      "mailId": "f038",
+      "expected": "refund_received",
+      "got": "refund_received",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.9,
+      "needsReview": false,
+      "bucket": "refunded",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 18.4,
+        "currency": "EUR",
+        "raw": "€18.40"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "refund pending within days",
+      "mailId": "f039",
+      "expected": "refund_pending",
+      "got": "refund_pending",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": "refunded",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 42.1,
+        "currency": "USD",
+        "raw": "$42.10"
+      },
+      "neg": true,
+      "conflicts": [
+        "refund described as both issued and still processing"
+      ]
+    },
+    {
+      "name": "return received, refund processing",
+      "mailId": "f040",
+      "expected": "refund_pending",
+      "got": "refund_pending",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.77,
+      "needsReview": false,
+      "bucket": "refunded",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "cz: peníze vráceny",
+      "mailId": "f041",
+      "expected": "refund_received",
+      "got": "refund_received",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.9,
+      "needsReview": false,
+      "bucket": "refunded",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 1999,
+        "currency": "CZK",
+        "raw": "1 999 Kč"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "renewal notice with date",
+      "mailId": "f042",
+      "expected": "subscription_renewal",
+      "got": "subscription_renewal",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.85,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 12.99,
+        "currency": "EUR",
+        "raw": "€12.99"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "subscription renewed receipt",
+      "mailId": "f043",
+      "expected": "subscription_renewal",
+      "got": "subscription_renewal",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.8,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 10.99,
+        "currency": "EUR",
+        "raw": "€10.99"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "trial ends and will be charged",
+      "mailId": "f044",
+      "expected": "subscription_renewal",
+      "got": "subscription_renewal",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.85,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 15.99,
+        "currency": "USD",
+        "raw": "$15.99"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "cz předplatné se obnoví",
+      "mailId": "f045",
+      "expected": "subscription_renewal",
+      "got": "subscription_renewal",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.85,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 99,
+        "currency": "CZK",
+        "raw": "99 Kč"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "activity statement available",
+      "mailId": "f046",
+      "expected": "financial_statement",
+      "got": "financial_statement",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.85,
+      "needsReview": false,
+      "bucket": "info",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "card transaction alert",
+      "mailId": "f047",
+      "expected": "bank_transaction",
+      "got": "bank_transaction",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.85,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 249,
+        "currency": "CZK",
+        "raw": "249,00 CZK"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "atm withdrawal",
+      "mailId": "f048",
+      "expected": "bank_transaction",
+      "got": "bank_transaction",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.85,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 2000,
+        "currency": "CZK",
+        "raw": "2 000 Kč"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "transfer you sent",
+      "mailId": "f049",
+      "expected": "outgoing_payment",
+      "got": "outgoing_payment",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.85,
+      "needsReview": false,
+      "bucket": "paid",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 50,
+        "currency": "EUR",
+        "raw": "€50.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "friend asks for money (personal)",
+      "mailId": "f050",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "vague \"regarding your payment\"",
+      "mailId": "f051",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "github build notification",
+      "mailId": "f052",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "scam-like urgent \"pay now\"",
+      "mailId": "f053",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "subscription cancelled",
+      "mailId": "f054",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.7,
+      "needsReview": false,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "real-mail regression: work thread with \"Order Settlement\" subject",
+      "mailId": "f055",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "real-mail regression: social invitation \"You have 1 new invitation\"",
+      "mailId": "f056",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "real-mail regression: broker withdrawal being processed",
+      "mailId": "f057",
+      "expected": "payment_pending",
+      "got": "payment_pending",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.78,
+      "needsReview": false,
+      "bucket": "upcoming",
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": {
+        "value": 250,
+        "currency": "CZK",
+        "raw": "CZK 250.00"
+      },
+      "neg": true,
+      "conflicts": []
+    },
+    {
+      "name": "real-mail regression: image-board marketing in Promotions (no offer)",
+      "mailId": "f058",
+      "expected": "not_financial",
+      "got": "not_financial",
+      "ok": true,
+      "errors": [],
+      "confidence": 0.5,
+      "needsReview": true,
+      "bucket": null,
+      "obligation": null,
+      "suggestion": false,
+      "dueDate": null,
+      "amount": null,
+      "neg": true,
+      "conflicts": []
+    }
+  ],
+  "note": "Hand-written synthetic fixtures written by the developer of the rules; real-mail accuracy is measured separately and will be lower."
+}

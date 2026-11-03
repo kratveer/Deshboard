@@ -1,0 +1,1559 @@
+{
+  "generatedAt": "2026-11-03T19:59:07.083Z",
+  "scenarios": {
+    "S1_realistic": {
+      "legacy": {
+        "requests": 183,
+        "acceptedRequests": 115,
+        "quotaUnits": 5981,
+        "quota403": 68,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 183,
+        "peakConcurrent": 153,
+        "messageGets": 162,
+        "duplicateGets": 58,
+        "bodyUpgrades": 10,
+        "nonBodyUnits": 5981,
+        "expectedRecords": 94,
+        "recordsReturned": 61,
+        "recordsLost": 33,
+        "durationMs": 320,
+        "byKind": {
+          "list": 8,
+          "profile": 1,
+          "getMeta": 10,
+          "getFull": 152,
+          "threadGet": 12
+        }
+      },
+      "engineCold": {
+        "requests": 123,
+        "acceptedRequests": 123,
+        "quotaUnits": 3766,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 78,
+        "peakConcurrent": 6,
+        "messageGets": 102,
+        "duplicateGets": 0,
+        "bodyUpgrades": 8,
+        "nonBodyUnits": 3766,
+        "expectedRecords": 94,
+        "recordsReturned": 94,
+        "recordsLost": 0,
+        "durationMs": 1760,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 72,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        }
+      },
+      "engineCold_report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 94 messages (92 fetched, 2 unchanged, 51 full texts queued)",
+        "requestCount": 112,
+        "units": 3561,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 92,
+          "cached": 2,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 51,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 94,
+        "duplicatesAvoided": 58,
+        "queryErrors": [],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 1760,
+        "failures": []
+      },
+      "engineWarm30s": {
+        "requests": 25,
+        "acceptedRequests": 25,
+        "quotaUnits": 1006,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 25,
+        "peakConcurrent": 6,
+        "messageGets": 16,
+        "duplicateGets": 0,
+        "bodyUpgrades": 0,
+        "nonBodyUnits": 1006,
+        "expectedRecords": 94,
+        "recordsReturned": 94,
+        "recordsLost": 0,
+        "durationMs": 400,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getFull": 16,
+          "threadsList": 1
+        }
+      },
+      "engineWarm_report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 94 messages (16 fetched, 78 unchanged, 35 full texts queued)",
+        "requestCount": 24,
+        "units": 1001,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 16,
+          "cached": 78,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 35,
+          "bodyFetched": 16
+        },
+        "uniqueIds": 94,
+        "duplicatesAvoided": 58,
+        "queryErrors": [],
+        "history": {
+          "mode": "unchanged",
+          "ok": true
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 0,
+          "cached": 12,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 400,
+        "failures": [
+          {
+            "id": "m186ea",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186eb",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186f2",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186f3",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186f6",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          }
+        ]
+      },
+      "engineWarm3min": {
+        "requests": 39,
+        "acceptedRequests": 39,
+        "quotaUnits": 1846,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 39,
+        "peakConcurrent": 6,
+        "messageGets": 30,
+        "duplicateGets": 0,
+        "bodyUpgrades": 0,
+        "nonBodyUnits": 1846,
+        "expectedRecords": 94,
+        "recordsReturned": 94,
+        "recordsLost": 0,
+        "durationMs": 640,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getFull": 30,
+          "threadsList": 1
+        }
+      },
+      "engineWarm6min": {
+        "requests": 14,
+        "acceptedRequests": 14,
+        "quotaUnits": 346,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 14,
+        "peakConcurrent": 6,
+        "messageGets": 5,
+        "duplicateGets": 0,
+        "bodyUpgrades": 0,
+        "nonBodyUnits": 346,
+        "expectedRecords": 94,
+        "recordsReturned": 94,
+        "recordsLost": 0,
+        "durationMs": 240,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getFull": 5,
+          "threadsList": 1
+        }
+      }
+    },
+    "S2_large_inbox": {
+      "legacy": {
+        "requests": 183,
+        "acceptedRequests": 115,
+        "quotaUnits": 5981,
+        "quota403": 68,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 183,
+        "peakConcurrent": 153,
+        "messageGets": 162,
+        "duplicateGets": 63,
+        "bodyUpgrades": 10,
+        "nonBodyUnits": 5981,
+        "expectedRecords": 89,
+        "recordsReturned": 58,
+        "recordsLost": 31,
+        "durationMs": 320,
+        "byKind": {
+          "list": 8,
+          "profile": 1,
+          "getMeta": 10,
+          "getFull": 152,
+          "threadGet": 12
+        }
+      },
+      "engine": {
+        "requests": 118,
+        "acceptedRequests": 118,
+        "quotaUnits": 3666,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 78,
+        "peakConcurrent": 6,
+        "messageGets": 97,
+        "duplicateGets": 0,
+        "bodyUpgrades": 8,
+        "nonBodyUnits": 3666,
+        "expectedRecords": 89,
+        "recordsReturned": 89,
+        "recordsLost": 0,
+        "durationMs": 1680,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 67,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        }
+      },
+      "report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 89 messages (87 fetched, 2 unchanged, 46 full texts queued)",
+        "requestCount": 107,
+        "units": 3461,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 87,
+          "cached": 2,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 46,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 89,
+        "duplicatesAvoided": 63,
+        "queryErrors": [],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 1680,
+        "failures": []
+      }
+    },
+    "S3_quota_exhaustion": {
+      "legacy": {
+        "requests": 261,
+        "acceptedRequests": 25,
+        "quotaUnits": 491,
+        "quota403": 236,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 261,
+        "peakConcurrent": 153,
+        "messageGets": 238,
+        "duplicateGets": 98,
+        "bodyUpgrades": 10,
+        "nonBodyUnits": 491,
+        "expectedRecords": 86,
+        "recordsReturned": 4,
+        "recordsLost": 82,
+        "durationMs": 480,
+        "byKind": {
+          "list": 10,
+          "profile": 1,
+          "getMeta": 10,
+          "getFull": 228,
+          "threadGet": 12
+        },
+        "reported": "success (always)"
+      },
+      "engine": {
+        "requests": 134,
+        "acceptedRequests": 111,
+        "quotaUnits": 3406,
+        "quota403": 23,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 76,
+        "peakConcurrent": 6,
+        "messageGets": 113,
+        "duplicateGets": 20,
+        "bodyUpgrades": 7,
+        "nonBodyUnits": 3406,
+        "expectedRecords": 86,
+        "recordsReturned": 86,
+        "recordsLost": 0,
+        "durationMs": 61920,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 63,
+          "getFull": 50,
+          "threadsList": 1,
+          "threadGet": 12
+        }
+      },
+      "report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 86 messages (80 fetched, 6 unchanged, 45 full texts queued)",
+        "requestCount": 123,
+        "units": 4581,
+        "retries": 23,
+        "quotaErrors": 23,
+        "records": {
+          "fetched": 80,
+          "cached": 6,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 45,
+          "bodyFetched": 27
+        },
+        "uniqueIds": 86,
+        "duplicatesAvoided": 66,
+        "queryErrors": [],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 61920,
+        "failures": [
+          {
+            "id": "m186a9",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186aa",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          },
+          {
+            "id": "m186ac",
+            "status": "body-deferred",
+            "kind": "budget",
+            "http": 0,
+            "reason": "quota_budget",
+            "message": "Waiting for Gmail quota"
+          }
+        ]
+      }
+    },
+    "S3_recovery": {
+      "engine": {
+        "requests": 39,
+        "acceptedRequests": 39,
+        "quotaUnits": 1846,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 39,
+        "peakConcurrent": 6,
+        "messageGets": 30,
+        "duplicateGets": 0,
+        "bodyUpgrades": 0,
+        "nonBodyUnits": 1846,
+        "expectedRecords": 86,
+        "recordsReturned": 86,
+        "recordsLost": 0,
+        "durationMs": 640,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getFull": 30,
+          "threadsList": 1
+        }
+      },
+      "report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 86 messages (30 fetched, 56 unchanged, 15 full texts queued)",
+        "requestCount": 38,
+        "units": 1841,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 30,
+          "cached": 56,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 15,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 86,
+        "duplicatesAvoided": 66,
+        "queryErrors": [],
+        "history": {
+          "mode": "unchanged",
+          "ok": true
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 0,
+          "cached": 12,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 640,
+        "failures": []
+      }
+    },
+    "S4_429_storm": {
+      "legacy": {
+        "requests": 284,
+        "acceptedRequests": 108,
+        "quotaUnits": 5981,
+        "quota403": 66,
+        "injectedFaults": 110,
+        "peakRequestsPerSecond": 188,
+        "peakConcurrent": 128,
+        "messageGets": 246,
+        "duplicateGets": 155,
+        "bodyUpgrades": 0,
+        "nonBodyUnits": 5981,
+        "expectedRecords": 88,
+        "recordsReturned": 48,
+        "recordsLost": 40,
+        "durationMs": 4605.815185546875,
+        "byKind": {
+          "list": 14,
+          "profile": 1,
+          "getFull": 246,
+          "threadGet": 23
+        },
+        "reported": "success (always)"
+      },
+      "engine": {
+        "requests": 141,
+        "acceptedRequests": 115,
+        "quotaUnits": 3606,
+        "quota403": 0,
+        "injectedFaults": 26,
+        "peakRequestsPerSecond": 74,
+        "peakConcurrent": 6,
+        "messageGets": 118,
+        "duplicateGets": 24,
+        "bodyUpgrades": 6,
+        "nonBodyUnits": 3606,
+        "expectedRecords": 88,
+        "recordsReturned": 88,
+        "recordsLost": 0,
+        "durationMs": 22080,
+        "byKind": {
+          "list": 9,
+          "profile": 1,
+          "getMeta": 79,
+          "getFull": 39,
+          "threadsList": 1,
+          "threadGet": 12
+        }
+      },
+      "report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 88 messages (85 fetched, 3 unchanged, 40 full texts queued)",
+        "requestCount": 118,
+        "units": 4026,
+        "retries": 14,
+        "quotaErrors": 14,
+        "records": {
+          "fetched": 85,
+          "cached": 3,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 40,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 88,
+        "duplicatesAvoided": 64,
+        "queryErrors": [],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 22080,
+        "failures": []
+      }
+    },
+    "S5_403_rate": {
+      "legacy": {
+        "requests": 141,
+        "acceptedRequests": 98,
+        "quotaUnits": 5091,
+        "quota403": 0,
+        "injectedFaults": 43,
+        "peakRequestsPerSecond": 141,
+        "peakConcurrent": 108,
+        "messageGets": 131,
+        "duplicateGets": 37,
+        "bodyUpgrades": 10,
+        "nonBodyUnits": 5091,
+        "expectedRecords": 88,
+        "recordsReturned": 61,
+        "recordsLost": 33,
+        "durationMs": 400,
+        "byKind": {
+          "list": 9,
+          "profile": 1,
+          "getMeta": 10,
+          "getFull": 121
+        },
+        "reported": "success (always)"
+      },
+      "engine": {
+        "requests": 118,
+        "acceptedRequests": 115,
+        "quotaUnits": 3606,
+        "quota403": 0,
+        "injectedFaults": 3,
+        "peakRequestsPerSecond": 78,
+        "peakConcurrent": 6,
+        "messageGets": 94,
+        "duplicateGets": 0,
+        "bodyUpgrades": 6,
+        "nonBodyUnits": 3606,
+        "expectedRecords": 88,
+        "recordsReturned": 88,
+        "recordsLost": 0,
+        "durationMs": 31840,
+        "byKind": {
+          "list": 10,
+          "profile": 1,
+          "getMeta": 64,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        }
+      },
+      "report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 88 messages (84 fetched, 4 unchanged, 40 full texts queued)",
+        "requestCount": 107,
+        "units": 3416,
+        "retries": 3,
+        "quotaErrors": 3,
+        "records": {
+          "fetched": 84,
+          "cached": 4,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 40,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 88,
+        "duplicatesAvoided": 64,
+        "queryErrors": [],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 31840,
+        "failures": []
+      }
+    },
+    "S6_5xx": {
+      "legacy": {
+        "requests": 274,
+        "acceptedRequests": 116,
+        "quotaUnits": 5986,
+        "quota403": 96,
+        "injectedFaults": 62,
+        "peakRequestsPerSecond": 203,
+        "peakConcurrent": 108,
+        "messageGets": 242,
+        "duplicateGets": 127,
+        "bodyUpgrades": 10,
+        "nonBodyUnits": 5986,
+        "expectedRecords": 88,
+        "recordsReturned": 42,
+        "recordsLost": 46,
+        "durationMs": 5104.617431640625,
+        "byKind": {
+          "list": 15,
+          "profile": 1,
+          "getMeta": 10,
+          "getFull": 232,
+          "threadGet": 16
+        },
+        "reported": "success (always)"
+      },
+      "engine": {
+        "requests": 150,
+        "acceptedRequests": 115,
+        "quotaUnits": 3606,
+        "quota403": 0,
+        "injectedFaults": 35,
+        "peakRequestsPerSecond": 42,
+        "peakConcurrent": 6,
+        "messageGets": 123,
+        "duplicateGets": 29,
+        "bodyUpgrades": 6,
+        "nonBodyUnits": 3606,
+        "expectedRecords": 88,
+        "recordsReturned": 88,
+        "recordsLost": 0,
+        "durationMs": 6059,
+        "byKind": {
+          "list": 10,
+          "profile": 1,
+          "getMeta": 85,
+          "getFull": 38,
+          "threadsList": 1,
+          "threadGet": 15
+        }
+      },
+      "report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 88 messages (84 fetched, 4 unchanged, 40 full texts queued)",
+        "requestCount": 139,
+        "units": 4436,
+        "retries": 35,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 84,
+          "cached": 4,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 40,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 88,
+        "duplicatesAvoided": 64,
+        "queryErrors": [],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 6059,
+        "failures": []
+      }
+    },
+    "S7_network": {
+      "legacy": {
+        "requests": 263,
+        "acceptedRequests": 117,
+        "quotaUnits": 5991,
+        "quota403": 99,
+        "injectedFaults": 47,
+        "peakRequestsPerSecond": 195,
+        "peakConcurrent": 108,
+        "messageGets": 235,
+        "duplicateGets": 118,
+        "bodyUpgrades": 10,
+        "nonBodyUnits": 5991,
+        "expectedRecords": 88,
+        "recordsReturned": 65,
+        "recordsLost": 23,
+        "durationMs": 3745.025390625,
+        "byKind": {
+          "list": 12,
+          "profile": 1,
+          "getMeta": 10,
+          "getFull": 225,
+          "threadGet": 15
+        },
+        "reported": "success (always)"
+      },
+      "engine": {
+        "requests": 142,
+        "acceptedRequests": 115,
+        "quotaUnits": 3606,
+        "quota403": 0,
+        "injectedFaults": 27,
+        "peakRequestsPerSecond": 44,
+        "peakConcurrent": 6,
+        "messageGets": 116,
+        "duplicateGets": 22,
+        "bodyUpgrades": 6,
+        "nonBodyUnits": 3606,
+        "expectedRecords": 88,
+        "recordsReturned": 88,
+        "recordsLost": 0,
+        "durationMs": 5640,
+        "byKind": {
+          "list": 9,
+          "profile": 1,
+          "getMeta": 78,
+          "getFull": 38,
+          "threadsList": 1,
+          "threadGet": 15
+        }
+      },
+      "report": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 88 messages (84 fetched, 4 unchanged, 40 full texts queued)",
+        "requestCount": 131,
+        "units": 3401,
+        "retries": 27,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 84,
+          "cached": 4,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 40,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 88,
+        "duplicatesAvoided": 64,
+        "queryErrors": [],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 5640,
+        "failures": []
+      }
+    },
+    "S8_expired_token": {
+      "refreshOk": {
+        "requests": 118,
+        "acceptedRequests": 117,
+        "quotaUnits": 3646,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 78,
+        "peakConcurrent": 6,
+        "messageGets": 96,
+        "duplicateGets": 0,
+        "bodyUpgrades": 8,
+        "nonBodyUnits": 3646,
+        "expectedRecords": 88,
+        "recordsReturned": 88,
+        "recordsLost": 0,
+        "durationMs": 1680,
+        "byKind": {
+          "list": 8,
+          "profile": 1,
+          "getMeta": 66,
+          "getFull": 30,
+          "threadsList": 1,
+          "threadGet": 12
+        }
+      },
+      "refreshFails": {
+        "requests": 2,
+        "acceptedRequests": 0,
+        "quotaUnits": 0,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 2,
+        "peakConcurrent": 2,
+        "messageGets": 0,
+        "duplicateGets": 0,
+        "bodyUpgrades": 0,
+        "nonBodyUnits": 0,
+        "expectedRecords": 88,
+        "recordsReturned": 0,
+        "recordsLost": 88,
+        "durationMs": 80,
+        "byKind": {
+          "list": 1,
+          "profile": 1
+        }
+      },
+      "refreshFailsReport": {
+        "ok": false,
+        "partial": true,
+        "summary": "Gmail sync stopped: Google sign-in expired",
+        "requestCount": 1,
+        "units": 1,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 0,
+          "cached": 0,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 0,
+          "bodyFetched": 0
+        },
+        "uniqueIds": 0,
+        "duplicatesAvoided": 0,
+        "queryErrors": [
+          {
+            "key": "inbox",
+            "kind": "auth",
+            "status": 401,
+            "reason": "UNAUTHENTICATED",
+            "message": "skipped after auth error",
+            "deferred": false
+          },
+          {
+            "key": "moneyA",
+            "kind": "auth",
+            "status": 401,
+            "reason": "UNAUTHENTICATED",
+            "message": "skipped after auth error",
+            "deferred": false
+          },
+          {
+            "key": "moneyB",
+            "kind": "auth",
+            "status": 401,
+            "reason": "UNAUTHENTICATED",
+            "message": "skipped after auth error",
+            "deferred": false
+          },
+          {
+            "key": "moneyC",
+            "kind": "auth",
+            "status": 401,
+            "reason": "UNAUTHENTICATED",
+            "message": "skipped after auth error",
+            "deferred": false
+          },
+          {
+            "key": "travel",
+            "kind": "auth",
+            "status": 401,
+            "reason": "UNAUTHENTICATED",
+            "message": "skipped after auth error",
+            "deferred": false
+          },
+          {
+            "key": "docs",
+            "kind": "auth",
+            "status": 401,
+            "reason": "UNAUTHENTICATED",
+            "message": "skipped after auth error",
+            "deferred": false
+          }
+        ],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 0,
+          "fetched": 0,
+          "cached": 0,
+          "failed": 0,
+          "error": {
+            "kind": "auth",
+            "status": 401,
+            "message": "skipped after auth error",
+            "deferred": false
+          }
+        },
+        "durationMs": 80,
+        "failures": []
+      }
+    },
+    "S9_partial_responses": {
+      "report": {
+        "ok": false,
+        "partial": true,
+        "summary": "Gmail partly synced · 1 failed, 1 search failed",
+        "requestCount": 153,
+        "units": 4416,
+        "retries": 4,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 127,
+          "cached": 0,
+          "stale": 0,
+          "failed": 1,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 54,
+          "bodyFetched": 29
+        },
+        "uniqueIds": 128,
+        "duplicatesAvoided": 74,
+        "queryErrors": [
+          {
+            "key": "inbox",
+            "kind": "server",
+            "status": 500,
+            "reason": "backendError",
+            "message": "Backend Error",
+            "deferred": false
+          }
+        ],
+        "history": {
+          "mode": "none"
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 3644,
+        "failures": [
+          {
+            "id": "m186a4",
+            "status": "failed",
+            "kind": "server",
+            "http": 503,
+            "reason": "",
+            "message": "Service unavailable"
+          }
+        ]
+      }
+    },
+    "S10_repeated": {
+      "unitsPerRefresh": [
+        3666,
+        1846,
+        766,
+        46
+      ]
+    },
+    "S11_incremental": {
+      "second": {
+        "requests": 42,
+        "acceptedRequests": 42,
+        "quotaUnits": 1888,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 42,
+        "peakConcurrent": 6,
+        "messageGets": 32,
+        "duplicateGets": 0,
+        "bodyUpgrades": 0,
+        "nonBodyUnits": 1888,
+        "expectedRecords": 89,
+        "recordsReturned": 89,
+        "recordsLost": 0,
+        "durationMs": 720,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "getMeta": 2,
+          "history": 1,
+          "getFull": 30,
+          "threadsList": 1
+        }
+      },
+      "secondReport": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 89 messages (31 fetched, 58 unchanged, 12 full texts queued)",
+        "requestCount": 40,
+        "units": 1863,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 31,
+          "cached": 58,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 12,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 89,
+        "duplicatesAvoided": 63,
+        "queryErrors": [],
+        "history": {
+          "mode": "incremental",
+          "ok": true,
+          "added": 1,
+          "deleted": 1,
+          "labelChanges": 2,
+          "pages": 1
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 0,
+          "cached": 12,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 720,
+        "failures": []
+      },
+      "recovery": {
+        "requests": 112,
+        "acceptedRequests": 112,
+        "quotaUnits": 2808,
+        "quota403": 0,
+        "injectedFaults": 0,
+        "peakRequestsPerSecond": 78,
+        "peakConcurrent": 6,
+        "messageGets": 90,
+        "duplicateGets": 0,
+        "bodyUpgrades": 1,
+        "nonBodyUnits": 2808,
+        "expectedRecords": 89,
+        "recordsReturned": 89,
+        "recordsLost": 0,
+        "durationMs": 1680,
+        "byKind": {
+          "list": 7,
+          "profile": 1,
+          "history": 1,
+          "getMeta": 78,
+          "getFull": 12,
+          "threadsList": 1,
+          "threadGet": 12
+        }
+      },
+      "recoveryReport": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 89 messages (89 fetched, 0 unchanged)",
+        "requestCount": 111,
+        "units": 2803,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 89,
+          "cached": 0,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 0,
+          "bodyFetched": 12
+        },
+        "uniqueIds": 89,
+        "duplicatesAvoided": 63,
+        "queryErrors": [],
+        "history": {
+          "mode": "expired-cursor-recovery",
+          "ok": false,
+          "error": {
+            "kind": "notFound",
+            "status": 404,
+            "message": "Requested entity was not found."
+          }
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 1680,
+        "failures": []
+      }
+    },
+    "S12_recovery": {
+      "failedRun": {
+        "ok": false,
+        "partial": true,
+        "summary": "Gmail partly synced · 87 not refreshed, sent mail check incomplete",
+        "requestCount": 150,
+        "units": 4793,
+        "retries": 74,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 0,
+          "cached": 0,
+          "stale": 87,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 10,
+          "bodyFetched": 0
+        },
+        "uniqueIds": 87,
+        "duplicatesAvoided": 65,
+        "queryErrors": [],
+        "history": {
+          "mode": "expired-cursor-recovery",
+          "ok": false,
+          "error": {
+            "kind": "notFound",
+            "status": 404,
+            "message": "Requested entity was not found."
+          }
+        },
+        "sent": {
+          "checked": 0,
+          "fetched": 0,
+          "cached": 0,
+          "failed": 0,
+          "error": {
+            "kind": "budget",
+            "status": 0,
+            "message": "Waiting for Gmail quota",
+            "deferred": true
+          }
+        },
+        "durationMs": 6923,
+        "failures": [
+          {
+            "id": "m186a0",
+            "status": "stale",
+            "kind": "server",
+            "http": 500,
+            "reason": "backendError",
+            "message": "Backend Error"
+          },
+          {
+            "id": "m186a3",
+            "status": "stale",
+            "kind": "server",
+            "http": 500,
+            "reason": "backendError",
+            "message": "Backend Error"
+          },
+          {
+            "id": "m186a4",
+            "status": "stale",
+            "kind": "server",
+            "http": 500,
+            "reason": "backendError",
+            "message": "Backend Error"
+          },
+          {
+            "id": "m186a5",
+            "status": "stale",
+            "kind": "server",
+            "http": 500,
+            "reason": "backendError",
+            "message": "Backend Error"
+          },
+          {
+            "id": "m186a7",
+            "status": "stale",
+            "kind": "server",
+            "http": 500,
+            "reason": "backendError",
+            "message": "Backend Error"
+          }
+        ]
+      },
+      "nextRun": {
+        "ok": true,
+        "partial": false,
+        "summary": "Gmail synced · 87 messages (77 fetched, 10 unchanged, 11 full texts queued)",
+        "requestCount": 97,
+        "units": 3261,
+        "retries": 0,
+        "quotaErrors": 0,
+        "records": {
+          "fetched": 77,
+          "cached": 10,
+          "stale": 0,
+          "failed": 0,
+          "deferred": 0,
+          "deleted": 0,
+          "bodyDeferred": 11,
+          "bodyFetched": 30
+        },
+        "uniqueIds": 87,
+        "duplicatesAvoided": 65,
+        "queryErrors": [],
+        "history": {
+          "mode": "unchanged",
+          "ok": true
+        },
+        "sent": {
+          "checked": 12,
+          "fetched": 12,
+          "cached": 0,
+          "failed": 0,
+          "error": null
+        },
+        "durationMs": 1520,
+        "failures": []
+      }
+    }
+  },
+  "passed": 67,
+  "total": 67,
+  "failed": [],
+  "checks": [
+    {
+      "name": "S1 cold: quota units under 6,000/min",
+      "ok": true
+    },
+    {
+      "name": "S1 cold: zero quota 403s",
+      "ok": true
+    },
+    {
+      "name": "S1 cold: no duplicate message GETs",
+      "ok": true
+    },
+    {
+      "name": "S1 cold: no records lost",
+      "ok": true
+    },
+    {
+      "name": "S1 cold: ≤ 6 in flight",
+      "ok": true
+    },
+    {
+      "name": "S1 cold: report ok (not partial)",
+      "ok": true
+    },
+    {
+      "name": "S1 warm: no metadata re-fetch of unchanged mail",
+      "ok": true
+    },
+    {
+      "name": "S1 warm: only queued bodies fetched",
+      "ok": true
+    },
+    {
+      "name": "S1 warm: report ok",
+      "ok": true
+    },
+    {
+      "name": "S1 bodies converge: refresh 4 costs ≤ 10% of cold",
+      "ok": true
+    },
+    {
+      "name": "S1 warm: no records lost",
+      "ok": true
+    },
+    {
+      "name": "S1 legacy reproduces baseline problem (duplicates or quota)",
+      "ok": true
+    },
+    {
+      "name": "S2 large: units < 6,000",
+      "ok": true
+    },
+    {
+      "name": "S2 large: no lost records",
+      "ok": true
+    },
+    {
+      "name": "S2 large: duplicatesAvoided reported",
+      "ok": true
+    },
+    {
+      "name": "S3 legacy loses records silently",
+      "ok": true
+    },
+    {
+      "name": "S3 engine: no silent loss (lost == failed + deferred)",
+      "ok": true
+    },
+    {
+      "name": "S3 engine: never reports success when incomplete",
+      "ok": true
+    },
+    {
+      "name": "S3 recovery: all records present after next sync",
+      "ok": true
+    },
+    {
+      "name": "S3 recovery: report ok",
+      "ok": true
+    },
+    {
+      "name": "S4_429_storm: engine accounts for every missing record",
+      "ok": true
+    },
+    {
+      "name": "S4_429_storm: engine status truthful",
+      "ok": true
+    },
+    {
+      "name": "S4_429_storm: engine retried",
+      "ok": true
+    },
+    {
+      "name": "S4_429_storm: engine loses fewer records than legacy",
+      "ok": true
+    },
+    {
+      "name": "S5_403_rate: engine accounts for every missing record",
+      "ok": true
+    },
+    {
+      "name": "S5_403_rate: engine status truthful",
+      "ok": true
+    },
+    {
+      "name": "S5_403_rate: engine retried",
+      "ok": true
+    },
+    {
+      "name": "S5_403_rate: engine loses fewer records than legacy",
+      "ok": true
+    },
+    {
+      "name": "S6_5xx: engine accounts for every missing record",
+      "ok": true
+    },
+    {
+      "name": "S6_5xx: engine status truthful",
+      "ok": true
+    },
+    {
+      "name": "S6_5xx: engine retried",
+      "ok": true
+    },
+    {
+      "name": "S6_5xx: engine loses fewer records than legacy",
+      "ok": true
+    },
+    {
+      "name": "S7_network: engine accounts for every missing record",
+      "ok": true
+    },
+    {
+      "name": "S7_network: engine status truthful",
+      "ok": true
+    },
+    {
+      "name": "S7_network: engine retried",
+      "ok": true
+    },
+    {
+      "name": "S7_network: engine loses fewer records than legacy",
+      "ok": true
+    },
+    {
+      "name": "S8a expired token + refresh: complete",
+      "ok": true
+    },
+    {
+      "name": "S8b refresh fails: reported as stopped/partial",
+      "ok": true
+    },
+    {
+      "name": "S8b refresh fails: few wasted requests (≤ 12)",
+      "ok": true
+    },
+    {
+      "name": "S8b refresh fails: cursor not advanced",
+      "ok": true
+    },
+    {
+      "name": "S9 page-2 failure keeps page-1 results",
+      "ok": true
+    },
+    {
+      "name": "S9 failed message listed in failures",
+      "ok": true
+    },
+    {
+      "name": "S9 reported partial",
+      "ok": true
+    },
+    {
+      "name": "S10 no duplicates inside any pool",
+      "ok": true
+    },
+    {
+      "name": "S10 refreshes 2-3 only fill queued bodies (≤ 60%), 4 ≤ 10%",
+      "ok": true
+    },
+    {
+      "name": "S11 new message appears",
+      "ok": true
+    },
+    {
+      "name": "S11 deleted message gone",
+      "ok": true
+    },
+    {
+      "name": "S11 read label applied from history",
+      "ok": true
+    },
+    {
+      "name": "S11 archived message leaves inbox pool",
+      "ok": true
+    },
+    {
+      "name": "S11 history mode incremental",
+      "ok": true
+    },
+    {
+      "name": "S11 incremental: metadata fetched only for mail entering the window",
+      "ok": true
+    },
+    {
+      "name": "S11 expired cursor → recovery mode",
+      "ok": true
+    },
+    {
+      "name": "S11 recovery: labels correct for every inbox message",
+      "ok": true
+    },
+    {
+      "name": "S11 recovery report ok",
+      "ok": true
+    },
+    {
+      "name": "S12 failed refresh keeps previous copies (stale, not lost)",
+      "ok": true
+    },
+    {
+      "name": "S12 failed refresh reported partial",
+      "ok": true
+    },
+    {
+      "name": "S12 next sync recovers fully",
+      "ok": true
+    },
+    {
+      "name": "S13 only the changed thread re-fetched",
+      "ok": true
+    },
+    {
+      "name": "U classify 429 → quota retry",
+      "ok": true
+    },
+    {
+      "name": "U classify 403 rateLimitExceeded → retry",
+      "ok": true
+    },
+    {
+      "name": "U classify 403 per-minute message → retry",
+      "ok": true
+    },
+    {
+      "name": "U classify 403 insufficientPermissions → no retry",
+      "ok": true
+    },
+    {
+      "name": "U classify 403 dailyLimitExceeded → no retry",
+      "ok": true
+    },
+    {
+      "name": "U classify network → retry",
+      "ok": true
+    },
+    {
+      "name": "U classify 401 → auth",
+      "ok": true
+    },
+    {
+      "name": "U backoff grows and caps at 16 s",
+      "ok": true
+    },
+    {
+      "name": "U backoff honours Retry-After",
+      "ok": true
+    }
+  ]
+}

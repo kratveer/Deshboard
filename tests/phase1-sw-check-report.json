@@ -1,0 +1,17 @@
+{
+  "online": {
+    "keys": [
+      "daylight-v89"
+    ],
+    "hasModule": true,
+    "shellCount": 15,
+    "sw": true
+  },
+  "offlineReload": {
+    "module": true,
+    "store": true,
+    "status": "Not connected · connect Google"
+  },
+  "pageErrors": [],
+  "ok": true
+}

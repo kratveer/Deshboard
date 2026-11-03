@@ -119,6 +119,8 @@
   /** Map classify / AI categories onto Phase 13 Inbox filters (no second engine). */
   function inboxBucket(item) {
     if (!item) return 'important';
+    // Phase 2: the financial ledger decides the bucket for money mail (receipts are never "payments to make").
+    if (item.financeBucket) return item.financeBucket;
     if (isPromotionalMail(item)) return 'promotions';
     const cat = String(item.category || item.kind || item.payload?.category || '').toLowerCase();
     const intent = String(item.intent || item.payload?.intent || '').toLowerCase();

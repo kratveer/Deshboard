@@ -1,0 +1,242 @@
+{
+  "note": "Hold-out set #1 first run before any tuning on it (finance-intel v1 rules)",
+  "fullyCorrect": 21,
+  "cases": 30,
+  "accuracy": 0.733,
+  "safety": {
+    "fabricatedSuggestionsInNegatives": [],
+    "missedRealObligations": [
+      "h: rent reminder from landlord",
+      "h: parking fine with due date",
+      "h: unpaid with only day and month"
+    ]
+  },
+  "perCategory": {
+    "unpaid_bill": {
+      "support": 6,
+      "tp": 2,
+      "fp": 0,
+      "fn": 4,
+      "precision": 1,
+      "recall": 0.333,
+      "f1": 0.5
+    },
+    "paid_invoice": {
+      "support": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0
+    },
+    "payment_successful": {
+      "support": 1,
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.5,
+      "recall": 1,
+      "f1": 0.667
+    },
+    "payment_failed": {
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "refund_received": {
+      "support": 1,
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "recall": 0,
+      "f1": 0
+    },
+    "refund_pending": {
+      "support": 4,
+      "tp": 3,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1,
+      "recall": 0.75,
+      "f1": 0.857
+    },
+    "incoming_money": {
+      "support": 3,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "outgoing_payment": {
+      "support": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0
+    },
+    "subscription_renewal": {
+      "support": 2,
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "purchase_receipt": {
+      "support": 3,
+      "tp": 3,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0.75,
+      "recall": 1,
+      "f1": 0.857
+    },
+    "promotional_offer": {
+      "support": 5,
+      "tp": 5,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "financial_statement": {
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "not_financial": {
+      "support": 1,
+      "tp": 1,
+      "fp": 4,
+      "fn": 0,
+      "precision": 0.2,
+      "recall": 1,
+      "f1": 0.333
+    }
+  },
+  "confusionMatrix": {
+    "unpaid_bill": {
+      "unpaid_bill": 2,
+      "paid_invoice": 1,
+      "outgoing_payment": 1,
+      "not_financial": 2
+    },
+    "paid_invoice": {
+      "payment_successful": 1
+    },
+    "payment_successful": {
+      "payment_successful": 1
+    },
+    "payment_failed": {
+      "payment_failed": 1
+    },
+    "refund_received": {
+      "not_financial": 1
+    },
+    "refund_pending": {
+      "refund_pending": 3,
+      "not_financial": 1
+    },
+    "incoming_money": {
+      "incoming_money": 3
+    },
+    "outgoing_payment": {
+      "purchase_receipt": 1
+    },
+    "subscription_renewal": {
+      "subscription_renewal": 2
+    },
+    "purchase_receipt": {
+      "purchase_receipt": 3
+    },
+    "promotional_offer": {
+      "promotional_offer": 5
+    },
+    "financial_statement": {
+      "financial_statement": 1
+    },
+    "not_financial": {
+      "not_financial": 1
+    }
+  },
+  "failures": [
+    {
+      "name": "h: rent reminder from landlord",
+      "errors": [
+        "suggestion false \u2260 true"
+      ]
+    },
+    {
+      "name": "h: paypal payment you sent to merchant",
+      "errors": [
+        "category purchase_receipt \u2260 outgoing_payment"
+      ]
+    },
+    {
+      "name": "h: tax refund received",
+      "errors": [
+        "category not_financial \u2260 refund_received",
+        "amount null \u2260 [6540,\"CZK\"]"
+      ]
+    },
+    {
+      "name": "h: invoice issued, already paid by card",
+      "errors": [
+        "category payment_successful \u2260 paid_invoice"
+      ]
+    },
+    {
+      "name": "h: phone bill with direct debit EN",
+      "errors": [
+        "category outgoing_payment \u2260 unpaid_bill"
+      ]
+    },
+    {
+      "name": "h: parking fine with due date",
+      "errors": [
+        "category not_financial \u2260 unpaid_bill",
+        "amount null \u2260 [500,\"CZK\"]",
+        "due null \u2260 2026-11-20",
+        "suggestion false \u2260 true"
+      ]
+    },
+    {
+      "name": "h: colleague expense reimbursement",
+      "errors": [
+        "category not_financial \u2260 refund_pending",
+        "amount null \u2260 [140,\"EUR\"]"
+      ]
+    },
+    {
+      "name": "h: unpaid with only day and month",
+      "errors": [
+        "category not_financial \u2260 unpaid_bill",
+        "amount null \u2260 [1500,\"CZK\"]",
+        "due null \u2260 2026-12-15",
+        "suggestion false \u2260 true"
+      ]
+    },
+    {
+      "name": "h: \"your invoice is ready\" Stripe (unclear status)",
+      "errors": [
+        "category paid_invoice \u2260 unpaid_bill"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+{
+  "note": "Hold-out set #2 FIRST run, written after all tuning, before any tuning on it",
+  "fullyCorrect": 11,
+  "cases": 20,
+  "accuracy": 0.55,
+  "safety": {
+    "fabricatedSuggestionsInNegatives": [],
+    "missedRealObligations": [
+      "b: student loan statement with due",
+      "b: final notice debt collection"
+    ]
+  },
+  "perCategory": {
+    "unpaid_bill": {
+      "support": 5,
+      "tp": 3,
+      "fp": 0,
+      "fn": 2,
+      "precision": 1,
+      "recall": 0.6,
+      "f1": 0.75
+    },
+    "paid_invoice": {
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "payment_pending": {
+      "support": 1,
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "recall": 0,
+      "f1": 0
+    },
+    "payment_failed": {
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "refund_received": {
+      "support": 1,
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "recall": 0,
+      "f1": 0
+    },
+    "refund_pending": {
+      "support": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0
+    },
+    "incoming_money": {
+      "support": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0
+    },
+    "outgoing_payment": {
+      "support": 1,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "subscription_renewal": {
+      "support": 2,
+      "tp": 1,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1,
+      "recall": 0.5,
+      "f1": 0.667
+    },
+    "purchase_receipt": {
+      "support": 2,
+      "tp": 1,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1,
+      "recall": 0.5,
+      "f1": 0.667
+    },
+    "promotional_offer": {
+      "support": 2,
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1
+    },
+    "bank_transaction": {
+      "support": 1,
+      "tp": 0,
+      "fp": 0,
+      "fn": 1,
+      "precision": null,
+      "recall": 0,
+      "f1": 0
+    },
+    "financial_statement": {
+      "support": 0,
+      "tp": 0,
+      "fp": 1,
+      "fn": 0,
+      "precision": 0,
+      "recall": null,
+      "f1": 0
+    },
+    "not_financial": {
+      "support": 1,
+      "tp": 1,
+      "fp": 6,
+      "fn": 0,
+      "precision": 0.143,
+      "recall": 1,
+      "f1": 0.25
+    }
+  },
+  "confusionMatrix": {
+    "unpaid_bill": {
+      "unpaid_bill": 3,
+      "financial_statement": 1,
+      "not_financial": 1
+    },
+    "paid_invoice": {
+      "paid_invoice": 1
+    },
+    "payment_pending": {
+      "not_financial": 1
+    },
+    "payment_failed": {
+      "payment_failed": 1
+    },
+    "refund_received": {
+      "refund_pending": 1
+    },
+    "refund_pending": {
+      "incoming_money": 1
+    },
+    "incoming_money": {
+      "not_financial": 1
+    },
+    "outgoing_payment": {
+      "outgoing_payment": 1
+    },
+    "subscription_renewal": {
+      "subscription_renewal": 1,
+      "not_financial": 1
+    },
+    "purchase_receipt": {
+      "purchase_receipt": 1,
+      "not_financial": 1
+    },
+    "promotional_offer": {
+      "promotional_offer": 2
+    },
+    "bank_transaction": {
+      "not_financial": 1
+    },
+    "not_financial": {
+      "not_financial": 1
+    }
+  },
+  "failures": [
+    {
+      "name": "b: wise money arrived",
+      "errors": [
+        "category not_financial \u2260 incoming_money",
+        "amount null \u2260 [1000,\"EUR\"]"
+      ]
+    },
+    {
+      "name": "b: refund to card completed",
+      "errors": [
+        "category refund_pending \u2260 refund_received"
+      ]
+    },
+    {
+      "name": "b: annual subscription renewal warning DE",
+      "errors": [
+        "category not_financial \u2260 subscription_renewal",
+        "amount null \u2260 [119.99,\"EUR\"]"
+      ]
+    },
+    {
+      "name": "b: student loan statement with due",
+      "errors": [
+        "category financial_statement \u2260 unpaid_bill",
+        "suggestion false \u2260 true"
+      ]
+    },
+    {
+      "name": "b: marketplace payout pending",
+      "errors": [
+        "category not_financial \u2260 payment_pending",
+        "amount null \u2260 [450,\"CZK\"]"
+      ]
+    },
+    {
+      "name": "b: airline booking paid",
+      "errors": [
+        "category not_financial \u2260 purchase_receipt",
+        "amount null \u2260 [87.98,\"EUR\"]"
+      ]
+    },
+    {
+      "name": "b: expense report approved (work)",
+      "errors": [
+        "category incoming_money \u2260 refund_pending"
+      ]
+    },
+    {
+      "name": "b: securities trade confirmation",
+      "errors": [
+        "category not_financial \u2260 bank_transaction"
+      ]
+    },
+    {
+      "name": "b: final notice debt collection",
+      "errors": [
+        "category not_financial \u2260 unpaid_bill",
+        "amount null \u2260 [3980,\"CZK\"]",
+        "due null \u2260 2026-11-12",
+        "suggestion false \u2260 true"
+      ]
+    }
+  ]
+}

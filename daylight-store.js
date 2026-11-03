@@ -813,6 +813,29 @@
       deleted: stats.deleted || 0,
       cursor: stats.cursor !== undefined ? stats.cursor : (prev[provider]?.cursor || null),
       mode: stats.mode || 'full',
+      lastPartialAt: null,
+      details: stats.details || null,
+      runs: (prev[provider]?.runs || 0) + 1
+    }, acct);
+  }
+
+  /**
+   * A sync that finished but not completely (some records failed, waited for quota or kept a stale copy).
+   * Keeps lastSuccessAt untouched so the UI can show the last *complete* sync honestly.
+   */
+  async function recordSyncPartial(provider, stats, accountId) {
+    const acct = accountId || await getActiveAccountId();
+    const prev = await getSyncState(acct);
+    const s = stats || {};
+    return patchSyncState(provider, {
+      lastPartialAt: now(),
+      lastError: String(s.summary || 'Partial sync').slice(0, 300),
+      lastDurationMs: s.durationMs || 0,
+      retries: s.retries || 0,
+      fetched: s.fetched || 0,
+      cursor: s.cursor !== undefined ? s.cursor : (prev[provider]?.cursor || null),
+      mode: s.mode || 'partial',
+      details: s.details || null,
       runs: (prev[provider]?.runs || 0) + 1
     }, acct);
   }
@@ -923,6 +946,7 @@
     getSyncState,
     patchSyncState,
     recordSyncSuccess,
+    recordSyncPartial,
     recordSyncFailure,
     emptySyncProvider,
     stats,
