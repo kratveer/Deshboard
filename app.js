@@ -155,7 +155,10 @@
           <button class="connect ghost" type="button" id="sync-diag-reload">Reload panel</button>
         </div>
       </details></div>`;
-    $('#overlay').classList.add('show');
+    const ov=$('#overlay');
+    const overlayWasOpen=ov.classList.contains('show');
+    if(!overlayWasOpen)requestAnimationFrame(()=>ov.classList.add('show'));
+    else ov.classList.add('show');
     const err=m=>{const el=$('#connect-error');if(!el)return;if(!m){el.hidden=true;el.textContent='';return}el.hidden=false;el.textContent=m};
     const fmtWhen=ms=>!ms?'—':new Date(ms).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
     const renderSyncDiag=async()=>{
@@ -454,8 +457,10 @@
     const lists=await graph('/me/todo/lists?$top=5');const groups=await Promise.all((lists.value||[]).slice(0,3).map(l=>graph(`/me/todo/lists/${encodeURIComponent(l.id)}/tasks?$top=20&$select=title,status,dueDateTime`)));
     providerData.microsoft.tasks=groups.flatMap((g,i)=>(g.value||[]).filter(t=>t.status!=='completed').map(t=>({title:t.title,due:t.dueDateTime?.dateTime?new Date(t.dueDateTime.dateTime).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'',dueDate:t.dueDateTime?.dateTime||'',listName:lists.value[i].displayName,source:'Microsoft To Do'}))).slice(0,8);renderTasks();return providerData.microsoft.tasks.length;
   }
+  let lastSyncOk=0,lastSyncErr='',syncBusy=false;
   async function refreshAll(){
-    if(!token&&!microsoftAccount){if(DEMO){await loadLoops(true);renderCategories();renderSmart()}return}
+    if(!token&&!microsoftAccount){if(DEMO){syncBusy=true;lastSyncErr='';if(typeof renderDrawerSync==='function')renderDrawerSync();await loadLoops(true);renderCategories();renderSmart();syncBusy=false;lastSyncOk=Date.now();if(typeof renderDrawerSync==='function')renderDrawerSync()}return}
+    syncBusy=true;lastSyncErr='';if(typeof renderDrawerSync==='function')renderDrawerSync();
     $('#sync-status').textContent=`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · refreshing…`;
     const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays(),loadLoops(refreshAll.force));refreshAll.force=false;loadProfile();if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
     const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();renderCategories();
@@ -464,9 +469,12 @@
     const money=cats.money||computeMoney();
     $('#headline-note').innerHTML=`Today: <b>${eventCount} events</b> · <b>${cats.pending.length} pending</b> · <b>${money.counts.total} money</b> · <b>${loopsData?computeLoops().length:0} loops</b>`;
     $('#sync-status').textContent=failed.length?`Some connected data could not load · ${failed.map(x=>x.reason.message).join('; ')}`:`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`;
-    if(failed.length)toast('Some services need permission or API setup; check the status line.');
+    syncBusy=false;
+    if(failed.length){lastSyncErr=failed.map(x=>x.reason.message).join('; ');toast('Some services need permission or API setup; check the status line.')}
+    else lastSyncOk=Date.now();
+    if(typeof renderDrawerSync==='function')renderDrawerSync();
   }
-  $('#refresh').onclick=()=>{if(token||microsoftAccount){refreshAll.force=true;refreshAll()}else toast('Connect an app first to refresh live data.')};
+  $('#refresh').onclick=()=>{if(token||microsoftAccount||DEMO){refreshAll.force=true;refreshAll()}else toast('Connect an app first to refresh live data.')};
   $('#weather-connect').onclick=()=>{
     if(!navigator.geolocation){$('#weather-content').textContent='Location is unavailable in this browser.';return}
     $('#weather-content').textContent='Waiting for location permission…';navigator.geolocation.getCurrentPosition(async pos=>{try{const {latitude,longitude}=pos.coords;const u=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;const w=await(await fetch(u)).json();const names={0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',71:'Snow',80:'Showers',95:'Thunderstorm'};$('#weather-content').innerHTML=`<div class="weather-temp">${Math.round(w.current.temperature_2m)}°</div><div class="weather-label">${esc(names[w.current.weather_code]||'Current conditions')}</div><div class="weather-range">Feels like ${Math.round(w.current.apparent_temperature)}° · H ${Math.round(w.daily.temperature_2m_max[0])}° / L ${Math.round(w.daily.temperature_2m_min[0])}°</div>`;$('#weather-connect').textContent='Refresh';}catch(e){$('#weather-content').textContent='Weather could not be loaded. Try again.'}},()=>{$('#weather-content').textContent='Location permission was not granted. You can allow it in browser settings.'},{enableHighAccuracy:false,timeout:10000});
@@ -1708,20 +1716,171 @@
     $('#focus-minus').onclick=()=>step(-5);$('#focus-plus').onclick=()=>step(5)} }
   // ---- Menu (hamburger) ----
   const drawer=$('#drawer'),scrim=$('#drawer-scrim');
-  const openMenu=o=>{if(!drawer)return;drawer.hidden=!o;scrim.hidden=!o;document.body.classList.toggle('menu-open',o);$('#menu-btn').setAttribute('aria-expanded',String(o));if(o){renderDrawerAccount();drawer.querySelector('.menu-item')?.focus()}};
-  $('#menu-btn')?.addEventListener('click',()=>openMenu(drawer.hidden));
+  let menuTimer=0;
+  const openMenu=o=>{
+    if(!drawer)return;
+    clearTimeout(menuTimer);
+    const want=!!o;
+    $('#menu-btn').setAttribute('aria-expanded',String(want));
+    if(want){
+      drawer.hidden=false;if(scrim)scrim.hidden=false;
+      setAccountMenu(false);
+      const tc=$('#theme-choices');if(tc){tc.hidden=true;tc.classList.remove('show')}$('#theme')?.setAttribute('aria-expanded','false');
+      renderDrawerAccount();
+      requestAnimationFrame(()=>{
+        document.body.classList.add('menu-open');
+        (drawer.querySelector('.menu-item.active')||drawer.querySelector('.menu-item'))?.focus();
+      });
+    }else{
+      document.body.classList.remove('menu-open');
+      const hide=()=>{drawer.hidden=true;if(scrim)scrim.hidden=true};
+      if(window.DaylightNav?.reduced?.())hide();
+      else menuTimer=setTimeout(hide,300);
+    }
+  };
+  $('#menu-btn')?.addEventListener('click',()=>openMenu(!document.body.classList.contains('menu-open')));
   $('#drawer-close')?.addEventListener('click',()=>openMenu(false));scrim?.addEventListener('click',()=>openMenu(false));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(window.DaylightNav?.anyOpen()){window.DaylightNav.back();return}openMenu(false);$('#overlay').classList.remove('show')}});
-  ['#connections','#refresh','#customize'].forEach(s=>$(s)?.addEventListener('click',()=>openMenu(false)));
-  function renderDrawerAccount(){const p=readProfile(),el=$('#drawer-account');if(!el)return;
-    el.innerHTML=p.name||p.email?`<div class="da-avatar">${p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:esc((p.name||'?')[0])}</div><div><b>${esc(p.name||'')}</b><span>${esc(p.email||'')}</span></div>`:'<div><b>Not connected</b><span>Open Connections to sign in</span></div>';
-    $('#conn-state').textContent=token||microsoftAccount?'Connected':'';}
+  ['#connections','#customize'].forEach(s=>$(s)?.addEventListener('click',()=>openMenu(false)));
+  function currentPlan(){
+    const stored=(getLS('daylight-plan')||'').toLowerCase();
+    if(stored==='premium'||stored==='free')return stored;
+    return 'free';
+  }
+  function connectedCount(){return [token,microsoftAccount].filter(Boolean).length}
+  function liveAccount(){return Boolean(token||microsoftAccount)}
+  function isDemoSession(){return DEMO&&!liveAccount()}
+  function setAccountMenu(open){
+    const btn=$('#drawer-account'),menu=$('#da-menu');if(!btn||!menu)return;
+    btn.setAttribute('aria-expanded',String(!!open));
+    menu.hidden=!open;menu.classList.toggle('show',!!open);
+  }
+  function renderDrawerAccount(){
+    const el=$('#drawer-account');if(!el)return;
+    const demo=isDemoSession(),p=(demo||!liveAccount())?{}:readProfile(),plan=currentPlan();
+    const name=demo?'Demo preview':(p.name||p.email||'Not connected');
+    const mail=demo?'Sample data · not a live account':(p.email||(liveAccount()?'Connected':'Open Connections to sign in'));
+    const ini=esc(((p.name||p.email||'?')[0]||'?').toUpperCase());
+    el.innerHTML=`<div class="da-avatar">${!demo&&p.picture?`<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">`:ini}</div><div class="da-copy"><b>${esc(name)}</b><span class="da-mail">${esc(mail)}</span><div class="da-meta">${demo?`<span class="da-badge is-demo">Demo</span>`:`<span class="da-plan">${plan==='premium'?'Premium':'Free plan'}</span>`}</div></div><span class="da-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m7 10 5 5 5-5"/></svg></span>`;
+    const n=connectedCount(),note=$('#conn-state');
+    if(note)note.textContent=demo?'Demo':n?`${n} active`:'';
+    $('#connections')?.setAttribute('aria-label','Connections');
+    const badge=$('#drawer-inbox-count');
+    if(badge){
+      let count=0;
+      try{count=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length}catch{}
+      badge.hidden=!count;badge.textContent=count>99?'99+':String(count);
+    }
+    renderDrawerSync();markDrawerNav();
+  }
+  function renderDrawerSync(){
+    const box=$('#drawer-sync'),title=$('#drawer-sync-title'),meta=$('#drawer-sync-meta'),retry=$('#refresh');
+    if(!box||!title||!meta)return;
+    const providers=[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean);
+    const demo=isDemoSession();
+    box.classList.toggle('is-err',Boolean(lastSyncErr)&&!syncBusy);
+    if(retry)retry.hidden=!(liveAccount()||demo||lastSyncErr);
+    if(syncBusy){title.textContent=providers.length?`${providers.join(' + ')} · syncing`:(demo?'Demo · updating':'Syncing');meta.textContent='Refreshing connected data…';return}
+    if(lastSyncErr){title.textContent='Sync needs attention';meta.textContent=lastSyncErr;return}
+    if(demo){title.textContent='Demo sample';meta.textContent=lastSyncOk?`Last updated ${new Date(lastSyncOk).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`:'Preview data on this device · not a live account.';return}
+    if(!providers.length){title.textContent='Not connected';meta.textContent='Connect Google to sync mail, calendar and tasks.';return}
+    title.textContent=providers.join(' + ');
+    meta.textContent=lastSyncOk?`Last successful sync ${new Date(lastSyncOk).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`:'Connected · waiting for the first successful sync.';
+  }
+  function markDrawerNav(){
+    const mobile=typeof mq==='undefined'?matchMedia('(max-width:680px)').matches:mq.matches;
+    const tab=typeof mTab==='undefined'?'home':mTab;
+    let dest='overview';
+    if(mobile){
+      if(tab==='inbox')dest=mInboxFilter==='subscriptions'?'subscriptions':(mInboxFilter==='tickets'?'travel':'inbox');
+      else if(tab==='wallet')dest='wallet';
+      else if(tab==='assistant')dest='calendar';
+      else dest=document.body.classList.contains('m-widgets')?'overview':'overview';
+    }
+    $$('#drawer-workspace [data-ws]').forEach(b=>b.classList.toggle('active',b.dataset.ws===dest));
+  }
+  function goWidget(id){
+    const el=typeof cardOf==='function'?cardOf(id):document.querySelector(`.card[data-widget="${id}"]`);
+    if(el){el.scrollIntoView({behavior:'smooth',block:'center'});return true}
+    toast('Add this widget from Widgets & layout');return false;
+  }
+  function goWorkspace(dest){
+    const mobile=typeof mq==='undefined'?matchMedia('(max-width:680px)').matches:mq.matches;
+    document.body.classList.remove('m-widgets');
+    if(dest==='overview'){if(mobile)setTab('home');else goWidget('summary')||goWidget('overview')}
+    else if(dest==='inbox'){if(mobile){mInboxFilter='all';setLS('daylight-inbox-filter','all');setTab('inbox');if(typeof renderInbox==='function')renderInbox({animate:false})}else goWidget('mail')}
+    else if(dest==='calendar'){if(mobile)setTab('assistant');else goWidget('calendar')}
+    else if(dest==='tasks'){if(mobile){document.body.classList.add('m-widgets');setTimeout(()=>dispatchEvent(new Event('resize')),60);goWidget('tasks')}else goWidget('tasks')}
+    else if(dest==='loops'){if(mobile&&typeof openLoopsPop==='function')openLoopsPop();else goWidget('loops')}
+    else if(dest==='travel'){if(mobile){mInboxFilter='tickets';setLS('daylight-inbox-filter','tickets');setTab('inbox');if(typeof renderInbox==='function')renderInbox({animate:false})}else goWidget('travel')}
+    else if(dest==='wallet'){if(mobile)setTab('wallet');else goWidget('travel')}
+    else if(dest==='subscriptions'){if(mobile){mInboxFilter='subscriptions';setLS('daylight-inbox-filter','subscriptions');setTab('inbox');if(typeof renderInbox==='function')renderInbox({animate:false})}else goWidget('finance')}
+    markDrawerNav();openMenu(false);
+  }
+  function openPlanInfo(){
+    const plan=currentPlan(),demo=isDemoSession();
+    $('#overlay').innerHTML=`<div class="modal connections-modal" role="dialog" aria-label="Daylight plan"><div class="modal-top"><h3>Daylight plan</h3><button class="modal-x" id="close-modal" aria-label="Close">×</button></div>
+      <p>${demo?'You are in demo preview.':plan==='premium'?'This device is marked Premium.':'You are on the Free plan.'}</p>
+      <p>Premium will unlock more integrations and advanced personal intelligence. Checkout and prices are not available yet.</p>
+      <p class="hint">Gmail is the primary connection on Free. Other providers in Connections show their real availability.</p>
+      <div class="modalfoot"><button class="close" id="close-plan" type="button">Got it</button></div></div>`;
+    requestAnimationFrame(()=>$('#overlay').classList.add('show'));
+    const close=()=>$('#overlay').classList.remove('show');
+    $('#close-modal')?.addEventListener('click',close);$('#close-plan')?.addEventListener('click',close);
+  }
+  $('#drawer-account')?.addEventListener('click',()=>setAccountMenu($('#drawer-account')?.getAttribute('aria-expanded')!=='true'));
+  $('#da-menu')?.addEventListener('click',e=>{
+    const act=e.target.closest('[data-da]')?.dataset.da;if(!act)return;
+    setAccountMenu(false);
+    if(act==='details'){
+      const demo=isDemoSession(),p=demo?{}:readProfile();
+      toast(demo?'Demo preview · not a live account':(p.name||p.email)?`${p.name||''}${p.email?' · '+p.email:''}`:'Not connected');
+    }
+    else if(act==='accounts'){openMenu(false);connectDialog()}
+    else if(act==='plan'){openMenu(false);openPlanInfo()}
+    else if(act==='signout'){
+      openMenu(false);
+      if(!liveAccount()){toast(isDemoSession()?'Demo has no account to sign out of':'Connect an app first');return}
+      if(token)disconnectGoogle();
+      if(microsoftAccount){(async()=>{try{await microsoftApp?.clearCache({account:microsoftAccount})}catch{}microsoftAccount=null;microsoftApp=null;providerData.microsoft={events:null,mails:null,tasks:null};renderAll();renderDrawerAccount();toast('Signed out')})()}
+    }
+  });
+  $('#drawer-workspace')?.addEventListener('click',e=>{const b=e.target.closest('[data-ws]');if(b)goWorkspace(b.dataset.ws)});
+  $('#explore-premium')?.addEventListener('click',()=>{openMenu(false);openPlanInfo()});
+  $('#drawer-settings')?.addEventListener('click',()=>{
+    const p=$('#drawer-settings-panel');if(!p)return;const on=p.hidden;p.hidden=!on;p.classList.toggle('show',on);
+  });
+  $('#drawer-settings-conn')?.addEventListener('click',()=>{openMenu(false);connectDialog()});
   // ---- Theme: follow the system unless you choose ----
   const darkMq=matchMedia('(prefers-color-scheme: dark)');
-  const syncTheme=()=>{const dark=document.body.classList.contains('dark');$('#theme-label')&&($('#theme-label').textContent=dark?'Light mode':'Dark mode');document.querySelector('meta[name=theme-color]')?.setAttribute('content',dark?'#151a25':'#eef2f7')};
+  const themePref=()=>getLS('daylight-theme')||'system';
+  const applyThemePref=pref=>{
+    const mode=pref||themePref();
+    if(mode==='light'||mode==='dark')setLS('daylight-theme',mode);
+    else setLS('daylight-theme','');
+    const dark=mode==='dark'||(mode!=='light'&&darkMq.matches);
+    document.body.classList.toggle('dark',dark);
+    syncTheme();
+  };
+  const syncTheme=()=>{
+    const pref=themePref();
+    const dark=document.body.classList.contains('dark');
+    const label=$('#theme-label');
+    if(label)label.textContent=pref==='system'?'Appearance · System':pref==='dark'?'Appearance · Dark':'Appearance · Light';
+    $$('#theme-choices [data-theme-pref]').forEach(b=>b.classList.toggle('on',b.dataset.themePref===pref));
+    document.querySelector('meta[name=theme-color]')?.setAttribute('content',dark?'#0d0e12':'#F3F5F9');
+  };
   if(!getLS('daylight-theme'))document.body.classList.toggle('dark',darkMq.matches);
   darkMq.addEventListener?.('change',e=>{if(!getLS('daylight-theme')){document.body.classList.toggle('dark',e.matches);syncTheme()}});
-  $('#theme')?.addEventListener('click',syncTheme);syncTheme();
+  $('#theme')?.addEventListener('click',()=>{
+    const box=$('#theme-choices');if(!box)return;
+    const on=box.hidden;box.hidden=!on;box.classList.toggle('show',on);$('#theme').setAttribute('aria-expanded',String(on));
+  });
+  $('#theme-choices')?.addEventListener('click',e=>{
+    const pref=e.target.closest('[data-theme-pref]')?.dataset.themePref;if(!pref)return;
+    applyThemePref(pref);
+  });
+  syncTheme();
   // ---- Notification bell (slide-in from right + source logos) ----
   const bellIcon={meeting:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M16 3v4M8 3v4M3 10h18"/>'};
   let notifClosing=false;
@@ -2711,7 +2870,7 @@
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,18)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,18)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
    <div class="m-stage" id="m-stage">
    <section class="m-screen is-active" data-screen="home"><div class="m-date" id="m-date"></div><h2 class="m-hello" id="m-hello"></h2>
-     <button class="m-brief" id="m-brief" type="button"></button>
+     <section class="m-brief" id="m-brief" aria-label="Daily brief"></section>
      <div class="m-stat-grid" id="m-home-stats" hidden></div>
      <section class="m-schedule" id="m-schedule" aria-label="Today’s schedule">
        <div class="m-schedule-head"><h3>Today’s Schedule</h3><button type="button" class="m-schedule-link" id="m-schedule-cal">View Calendar ${svg(ICON.chevron,14)}</button></div>
@@ -3618,9 +3777,15 @@
       if(view==='loop')return!!$('#loop-sheet')?.classList.contains('show');
       if(view==='pass')return!!$('#pass-sheet')?.classList.contains('show');
       if(view==='scan')return!!(scanUI&&!scanUI.hidden&&scanUI.classList.contains('show'));
+      if(view==='health')return!!$('#hx-detail')?.classList.contains('show');
+      if(view==='notif')return!!$('#notif-panel')?.classList.contains('show');
+      if(view==='brief')return!!$('#brief-pop')?.classList.contains('show');
+      if(view==='loops')return!!$('#loops-pop')?.classList.contains('show');
+      if(view==='overlay')return!!$('#overlay')?.classList.contains('show');
+      if(view==='menu')return document.body.classList.contains('menu-open');
       return false;
     },
-    anyOpen(){return this.isOpen('scan')||this.isOpen('pass')||this.isOpen('loop')},
+    anyOpen(){return ['scan','pass','loop','health','notif','brief','loops','overlay','menu'].some(v=>this.isOpen(v))},
     push(view,id){
       this.saveTab();
       this.stack.push({view,id:id||null});
@@ -3669,16 +3834,34 @@
       if(this.isOpen('scan'))this.dismissView('scan');
       else if(this.isOpen('pass'))this.dismissView('pass');
       else if(this.isOpen('loop'))this.dismissView('loop');
+      else if(this.isOpen('health'))this.dismissView('health');
+      else if(this.isOpen('notif'))this.dismissView('notif');
+      else if(this.isOpen('brief'))this.dismissView('brief');
+      else if(this.isOpen('loops'))this.dismissView('loops');
+      else if(this.isOpen('overlay'))this.dismissView('overlay');
+      else if(this.isOpen('menu'))this.dismissView('menu');
     },
     dismissView(view){
       if(view==='loop')dismissLoopSheet();
       else if(view==='pass')dismissPassSheet();
       else if(view==='scan')dismissScan();
+      else if(view==='health')dismissHealthDetail();
+      else if(view==='notif')closeNotifPanel();
+      else if(view==='brief')closeBriefPop();
+      else if(view==='loops')closeLoopsPop();
+      else if(view==='overlay')$('#overlay')?.classList.remove('show');
+      else if(view==='menu')openMenu(false);
     },
     dismissInstant(view){
       if(view==='loop')dismissLoopSheet(true);
       else if(view==='pass')dismissPassSheet(true);
       else if(view==='scan')dismissScan(true);
+      else if(view==='health')dismissHealthDetail(true);
+      else if(view==='notif')closeNotifPanel(true);
+      else if(view==='brief')closeBriefPop(true);
+      else if(view==='loops')closeLoopsPop(true);
+      else if(view==='overlay')$('#overlay')?.classList.remove('show');
+      else if(view==='menu')openMenu(false);
     },
     drop(view){
       while(this.stack.length&&this.stack[this.stack.length-1].view===view)this.stack.pop();
@@ -3687,6 +3870,10 @@
       if(view==='loop')return $('#loop-sheet')?.querySelector('.loop-sheet-card')||$('#loop-sheet');
       if(view==='pass')return $('#pass-sheet');
       if(view==='scan')return scanUI;
+      if(view==='health')return $('#hx-detail');
+      if(view==='notif')return $('#notif-panel')?.querySelector('.notif-sheet')||$('#notif-panel');
+      if(view==='brief')return $('#brief-pop')?.querySelector('.brief-pop-card')||$('#brief-pop');
+      if(view==='loops')return $('#loops-pop')?.querySelector('.brief-pop-card')||$('#loops-pop');
       return null;
     }
   };
@@ -3698,7 +3885,8 @@
     document.body.classList.toggle('tabs-hide',!!hide);
   }
   const TAB_ORDER=['home','inbox','wallet','assistant','stats'];
-  let tabAnimating=false,tabAnimTimer=0;
+  let tabAnimating=false,tabAnimTimer=0,pendingTab=null;
+  const screenMs=()=>{const n=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--screen-ms'));return Number.isFinite(n)?n:320};
   function screenEl(name){return $(`#mapp .m-screen[data-screen="${name}"]`)}
   function clearTabAnimClasses(el){
     if(!el)return;
@@ -3717,10 +3905,13 @@
     if(stage){stage.style.minHeight='';stage.classList.remove('is-sliding')}
     tabAnimating=false;
     Nav.restoreTab();
+    if(pendingTab&&pendingTab!==to){const next=pendingTab;pendingTab=null;setTab(next);return}
+    pendingTab=null;
   }
   function applyTabChrome(t){
     mTab=t;setLS('daylight-mtab',t);
     $$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+    if(typeof markDrawerNav==='function')markDrawerNav();
     mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];
     const fab=$('#m-wallet-fab');if(fab)fab.hidden=t!=='wallet';
     const top=$('#mapp .m-top');if(top)top.hidden=t==='assistant';
@@ -3736,7 +3927,7 @@
       renderMobile();
       return;
     }
-    if(tabAnimating&&!soft)return;
+    if(tabAnimating&&!soft){pendingTab=t;return}
     const from=mTab;
     const fromIdx=TAB_ORDER.indexOf(from),toIdx=TAB_ORDER.indexOf(t);
     const forward=toIdx>fromIdx;
@@ -3787,12 +3978,12 @@
         inn.classList.add('slide-run','is-active','go-center');
       });
     });
-    const ms=Nav.reduced()?0:380;
+    const ms=Nav.reduced()?0:screenMs();
     tabAnimTimer=setTimeout(()=>finishTabSwitch(from,t),ms+40);
   }
   function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab,{soft:true});else dispatchEvent(new Event('resize'))}
   mq.addEventListener?.('change',applyMode);
-  $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>{if(tabAnimating)return;setTab(b.dataset.tab)});
+  $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
   window.addEventListener('popstate',()=>Nav.onPop());
   document.addEventListener('backbutton',e=>{if(Nav.back()){feel.tap();e.preventDefault?.();e.stopPropagation?.()}},true);
   try{
@@ -4227,22 +4418,35 @@
     rail.innerHTML=(rows||'')+dayBits;
   }
   let briefTab='todo';
+  function briefMiniRow(item){
+    const time=item.whenMs?hm(new Date(item.whenMs)):(item.meta||'');
+    const kind=item.kind||'action';
+    return `<button type="button" class="m-brief-row" data-brief-kind="${esc(kind)}" data-brief-id="${esc(item.id||'')}" ${item.href?`data-brief-href="${esc(item.href)}"`:''} ${item.mailId?`data-brief-mail="${esc(item.mailId)}"`:''} ${item.walletId?`data-brief-wallet="${esc(item.walletId)}"`:''}>
+      <span class="m-brief-row-copy"><b>${esc(item.title)}</b><small>${esc(item.meta||time||'')}</small></span>
+      <span class="m-brief-row-time">${esc(item.amount||time)}</span>
+    </button>`;
+  }
   function renderHome(){
     const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
     $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
-    $('#m-hello').textContent=`${part}${first?', '+first:''}`;
+    $('#m-hello').innerHTML=first
+      ?`<span class="m-hello-part">${esc(part)}</span><span class="m-hello-name">${esc(first)}</span>`
+      :`<span class="m-hello-part">${esc(part)}</span>`;
     const day=collectHomeDayBuckets();
-    const {todo,waiting,payments,events}=day.counts;
-    $('#m-brief').innerHTML=`<span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span><span class="m-brief-copy"><b>Daily Brief</b><small>${esc(day.summary)}</small></span><span class="m-row-chev" aria-hidden="true">${svg(ICON.chevron,16)}</span>`;
-    const stats=$('#m-home-stats');
-    if(stats){
-      stats.hidden=false;
-      stats.innerHTML=`
-        <button type="button" class="m-stat-pill" data-home-jump="todo"><b>${todo}</b><span>To Do</span></button>
-        <button type="button" class="m-stat-pill" data-home-jump="waiting"><b>${waiting}</b><span>Waiting</span></button>
-        <button type="button" class="m-stat-pill" data-home-jump="payments"><b>${payments}</b><span>Payments</span></button>
-        <button type="button" class="m-stat-pill" data-home-jump="events"><b>${events}</b><span>Events</span></button>`;
+    const pending=[...day.todo,...day.payments].sort((a,b)=>(a.whenMs||0)-(b.whenMs||0)).slice(0,3);
+    const upcoming=day.events.slice(0,3);
+    const brief=$('#m-brief');
+    if(brief){
+      const pendingHtml=pending.length?pending.map(briefMiniRow).join(''):`<p class="m-brief-empty">No pending tasks for today.</p>`;
+      const eventsHtml=upcoming.length?upcoming.map(briefMiniRow).join(''):`<p class="m-brief-empty">No events for today.</p>`;
+      brief.innerHTML=`<div class="m-brief-head"><span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span><div class="m-brief-copy"><b>Daily Brief</b><small>${esc(day.summary)}</small></div></div>
+        <div class="m-brief-cols">
+          <div class="m-brief-col"><span class="m-brief-col-h">Pending</span>${pendingHtml}</div>
+          <div class="m-brief-col"><span class="m-brief-col-h">Events</span>${eventsHtml}</div>
+        </div>`;
     }
+    const stats=$('#m-home-stats');
+    if(stats)stats.hidden=true;
     renderHomeSchedule();
     const grid=$('#m-loop-grid'),total=$('#m-loop-total'),see=$('#m-loops-see');
     if(!grid)return;
@@ -4274,10 +4478,10 @@
       const sleep=today?.sleepMin??h?.sleepAvgMin??0;
       const score=h?.score??'—';
       strip.innerHTML=`
-        <div class="m-health-chip"><b>${esc(fmtSteps(steps))}</b><span>Steps</span></div>
-        <div class="m-health-chip"><b>${esc(fmtSteps(cal))}</b><span>kcal</span></div>
-        <div class="m-health-chip"><b>${esc(fmtSleep(sleep))}</b><span>Sleep</span></div>
-        <div class="m-health-chip"><b>${esc(String(score))}</b><span>Score</span></div>`;
+        <div class="m-health-chip is-steps"><b>${esc(fmtSteps(steps))}</b><span>Steps</span></div>
+        <div class="m-health-chip is-cal"><b>${esc(fmtSteps(cal))}</b><span>kcal</span></div>
+        <div class="m-health-chip is-sleep"><b>${esc(fmtSleep(sleep))}</b><span>Sleep</span></div>
+        <div class="m-health-chip is-score"><b>${esc(String(score))}</b><span>Score</span></div>`;
     }catch{
       strip.innerHTML=`<div class="m-health-empty" style="grid-column:1/-1">Health data unavailable right now.</div>`;
     }
@@ -4340,7 +4544,26 @@
   $('#m-home-stats')?.addEventListener('click',e=>{
     const b=e.target.closest('[data-home-jump]');if(!b)return;feel.select();
     const j=b.dataset.homeJump;
-    if(j==='todo'||j==='waiting'||j==='payments'||j==='events'){briefTab=j;openBriefPop();return}
+    if(j==='payments'){setTab('inbox');mInboxFilter='payments';setLS('daylight-inbox-filter','payments');renderInbox({animate:false});return}
+    if(j==='events'){setTab('assistant');return}
+    if(j==='todo'||j==='waiting'){openLoopsPop();return}
+  });
+  $('#m-brief')?.addEventListener('click',e=>{
+    const row=e.target.closest('[data-brief-kind]');if(!row)return;
+    const kind=row.dataset.briefKind,id=row.dataset.briefId,href=row.dataset.briefHref;
+    feel.select();
+    if(kind==='action'&&id){openLoopSheet(id);return}
+    if(kind==='pay'){
+      if(row.dataset.briefMail){const loops=computeLoops();const hit=loops.find(l=>l.mailId===row.dataset.briefMail);if(hit){openLoopSheet(hit.id);return}}
+      setTab('inbox');mInboxFilter='payments';setLS('daylight-inbox-filter','payments');renderInbox({animate:false});return;
+    }
+    if(kind==='cal'){
+      if(row.dataset.briefWallet){openTravelRecord({walletId:row.dataset.briefWallet});return}
+      if(id?.startsWith('travel:')){openTravelRecord({walletId:id.slice(7)});return}
+      setTab('assistant');return;
+    }
+    if(kind==='task'&&row.dataset.briefMail){const loops=computeLoops();const hit=loops.find(l=>l.mailId===row.dataset.briefMail);if(hit)openLoopSheet(hit.id);else setTab('inbox');return}
+    if(href)window.open(href,'_blank','noopener');
   });
   $('#m-loop-grid')?.addEventListener('click',onLoopListClick);
   $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
@@ -4495,7 +4718,6 @@
     if(view==='brief')return $('#brief-pop')?.querySelector('.brief-pop-card')||$('#brief-pop');
     return _navSheet(view);
   };
-  $('#m-brief')?.addEventListener('click',()=>{openBriefPop()});
   $('#m-schedule-cal')?.addEventListener('click',()=>{feel.select();setTab('assistant')});
   // Drag the notification sheet right to dismiss (slide over)
   (function bindNotifSlide(){
@@ -5418,9 +5640,9 @@
     return h?`${h}h ${String(r).padStart(2,'0')}m`:`${r}m`;
   }
   function fmtSteps(n){return Math.round(n||0).toLocaleString()}
-  function sparkHTML(values,color){
+  function sparkHTML(values){
     const vals=(values||[]).slice(-7),max=Math.max(1,...vals);
-    return `<span class="hx-spark" style="color:${color}" aria-hidden="true">${vals.map(v=>`<i style="height:${Math.max(12,Math.round((v/max)*100))}%"></i>`).join('')}</span>`;
+    return `<span class="hx-spark" aria-hidden="true">${vals.map((v,i)=>`<i class="${i===vals.length-1?'is-now':''}" style="height:${Math.max(8,Math.round((v/max)*100))}%"></i>`).join('')}</span>`;
   }
   function healthSourceLabel(h){
     if(h?.source==='apple-health')return 'From Apple Health';
@@ -5469,7 +5691,7 @@
       const showConnect=!live;
       el.innerHTML=`
       <div class="hx-head">
-        <div><h2>Health</h2><p>Your wellbeing, at a glance.</p></div>
+        <p>Your wellbeing, at a glance.</p>
         <button type="button" class="hx-range" id="hx-range" aria-label="Change health range">${esc(healthRangeLabel(days))} ${svg(ICON.chevDown,14)}</button>
       </div>
       ${showConnect?`<div class="hx-connect"><b>${h?.needsScope?'Allow Google Fit access':'Connect your health app'}</b>
@@ -5484,31 +5706,32 @@
         <p class="hx-score-note">${esc(note)}</p>
       </button>
       <div class="hx-metrics" role="list">
-        <button type="button" class="hx-metric" role="listitem" data-hx-detail="calories"><span class="hx-metric-ico is-cal">${svg(ICON.flame,16)}</span><b>${esc(fmtSteps(h?.caloriesAvg))} kcal</b><small>avg / day</small>${sparkHTML(series.map(d=>d.calories),'#ff9f0a')}</button>
-        <button type="button" class="hx-metric" role="listitem" data-hx-detail="steps"><span class="hx-metric-ico is-steps">${svg(ICON.shoe,16)}</span><b>${esc(fmtSteps(h?.stepsAvg))}</b><small>steps / day</small>${sparkHTML(series.map(d=>d.steps),'#30d158')}</button>
-        <button type="button" class="hx-metric" role="listitem" data-hx-detail="sleep"><span class="hx-metric-ico is-sleep">${svg(ICON.bed,16)}</span><b>${esc(fmtSleep(h?.sleepAvgMin))}</b><small>sleep / night</small>${sparkHTML(series.map(d=>d.sleepMin),'#5e5ce6')}</button>
-        <button type="button" class="hx-metric" role="listitem" data-hx-detail="hr"><span class="hx-metric-ico is-hr">${svg(ICON.heart,16)}</span><b>${esc(String(h?.restingHr||'—'))} bpm</b><small>resting HR</small>${sparkHTML(series.map(d=>d.heartRate||60),'#bf5af2')}</button>
+        <button type="button" class="hx-metric is-cal" role="listitem" data-hx-detail="calories"><span class="hx-metric-ico">${svg(ICON.flame,16)}</span><b>${esc(fmtSteps(h?.caloriesAvg))} kcal</b><small>avg / day</small>${sparkHTML(series.map(d=>d.calories))}</button>
+        <button type="button" class="hx-metric is-steps" role="listitem" data-hx-detail="steps"><span class="hx-metric-ico">${svg(ICON.shoe,16)}</span><b>${esc(fmtSteps(h?.stepsAvg))}</b><small>steps / day</small>${sparkHTML(series.map(d=>d.steps))}</button>
+        <button type="button" class="hx-metric is-sleep" role="listitem" data-hx-detail="sleep"><span class="hx-metric-ico">${svg(ICON.bed,16)}</span><b>${esc(fmtSleep(h?.sleepAvgMin))}</b><small>sleep / night</small>${sparkHTML(series.map(d=>d.sleepMin))}</button>
+        <button type="button" class="hx-metric is-hr" role="listitem" data-hx-detail="hr"><span class="hx-metric-ico">${svg(ICON.heart,16)}</span><b>${esc(String(h?.restingHr||'—'))} bpm</b><small>resting HR</small>${sparkHTML(series.map(d=>d.heartRate||60))}</button>
       </div>
       <button type="button" class="hx-chart" data-hx-detail="steps">
         <div class="hx-chart-h"><div><b>Steps</b><small>${esc(fmtSteps(h?.stepsAvg))} avg/day</small></div><span class="hx-delta">${esc(stepsDeltaTxt)}</span></div>
         <div class="hx-bars">
           <div class="hx-yaxis" aria-hidden="true">${yTicks.map(t=>`<span>${yLabel(t)}</span>`).join('')}</div>
-          <div class="hx-bargrid">${series.slice(-7).map(d=>{
-            const ht=Math.max(6,Math.round(((d.steps||0)/stepMax)*100));
+          <div class="hx-bargrid">${series.slice(-7).map((d,i,arr)=>{
+            const ht=Math.max(8,Math.round(((d.steps||0)/stepMax)*100));
             const label=new Date(d.date+'T12:00:00').toLocaleDateString(undefined,{weekday:'short'}).slice(0,2);
-            return `<div class="hx-barcol"><i style="height:${ht}%"></i><span>${esc(label)}</span></div>`;
+            const now=i===arr.length-1?' is-now':'';
+            return `<div class="hx-barcol${now}"><span class="hx-bar-track"><i style="--h:${ht}%"></i></span><span>${esc(label)}</span></div>`;
           }).join('')}</div>
         </div>
       </button>
       <div class="hx-split">
-        <button type="button" class="hx-tile" data-hx-detail="sleep">
-          <div class="hx-tile-h"><span class="is-sleep">${svg(ICON.bed,15)}</span><b>Sleep</b></div>
+        <button type="button" class="hx-tile is-sleep" data-hx-detail="sleep">
+          <div class="hx-tile-h"><span>${svg(ICON.bed,15)}</span><b>Sleep</b></div>
           <strong>${esc(fmtSleep(h?.sleepAvgMin))} / night</strong>
           <small>${esc(sleepDeltaTxt)}</small>
-          <div class="hx-stages" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          ${sparkHTML(series.map(d=>d.sleepMin))}
         </button>
-        <button type="button" class="hx-tile" data-hx-detail="activity">
-          <div class="hx-tile-h"><span class="is-act">${svg(ICON.run,15)}</span><b>Activity</b></div>
+        <button type="button" class="hx-tile is-act" data-hx-detail="activity">
+          <div class="hx-tile-h"><span>${svg(ICON.run,15)}</span><b>Activity</b></div>
           <div class="hx-act-row">
             <div><strong>${esc(String(h?.activeMinWeek||0))} min</strong><small>/ week moderate</small></div>
             <div class="hx-mini-ring" style="--p:${esc(String(h?.activityPct||0))}"><b>${esc(String(h?.activityPct||0))}%</b></div>
@@ -5657,9 +5880,13 @@
   const notif=$('#notif-panel'),notifHome=notif?.parentElement;
   const placeNotif=()=>{if(!notif)return;if(mq.matches)document.body.append(notif);else notifHome?.append(notif)};
   mq.addEventListener?.('change',placeNotif);placeNotif();
-  { const b=document.createElement('button');b.className='menu-item m-only';b.type='button';b.id='m-widgets';b.innerHTML='<span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg></span>All widgets';
-    $('.menu-list')?.prepend(b);b.onclick=()=>{document.body.classList.add('m-widgets');$$('.m-tabs [data-tab]').forEach(x=>x.classList.remove('on'));$('#menu-btn').click();scrollTo(0,0);setTimeout(()=>dispatchEvent(new Event('resize')),60)};
-    $$('.m-tabs [data-tab]').forEach(x=>x.addEventListener('click',()=>document.body.classList.remove('m-widgets'))) }
+  $('#customize')?.addEventListener('click',()=>{
+    if(!mq.matches)return;
+    document.body.classList.add('m-widgets');
+    $$('.m-tabs [data-tab]').forEach(x=>x.classList.remove('on'));
+    scrollTo(0,0);setTimeout(()=>dispatchEvent(new Event('resize')),60);
+  });
+  $$('.m-tabs [data-tab]').forEach(x=>x.addEventListener('click',()=>document.body.classList.remove('m-widgets')));
   setInterval(renderMobile,60000);
   applyMode();
 })();
