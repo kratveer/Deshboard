@@ -25,6 +25,11 @@
     let stored='';try{stored=localStorage.getItem('daylight-google-scopes')||''}catch{}
     return /gmail\.send|gmail\.compose|gmail\.modify|mail\.google\.com/.test(googleGrantedScope||stored);
   };
+  const hasGmailReadonly=()=>{
+    let stored='';try{stored=localStorage.getItem('daylight-google-scopes')||''}catch{}
+    return /(?:^|\s)https:\/\/www\.googleapis\.com\/auth\/gmail\.readonly(?:\s|$)|(?:^|\s)gmail\.readonly(?:\s|$)/.test(googleGrantedScope||stored);
+  };
+  const needsGmailUpgrade=()=>Boolean((token||serverSession)&&!hasGmailReadonly());
   const FITNESS_SCOPES=(window.DaylightHealth?.FITNESS_SCOPES||[
     'https://www.googleapis.com/auth/fitness.activity.read',
     'https://www.googleapis.com/auth/fitness.heart_rate.read',
@@ -134,7 +139,8 @@
         <div class="hint" id="ai-status-line" style="margin-top:8px">${esc((window.DaylightAI?.getStatus?.()?.message)||'Idle')}</div>
         <div class="server-actions" style="margin-top:8px"><button class="connect" type="button" id="ai-save">Save AI settings</button></div>
       </details>
-      ${g&&!hasGmailSend()?`<div class="error" role="status" style="margin-top:10px">Reply needs a one-time reconnect so Google can grant <b>gmail.send</b>. Disconnect and Connect again, then approve sending.</div>`:''}
+      ${g&&needsGmailUpgrade()?`<div class="error" role="status" style="margin-top:10px">Full Gmail reading needs a one-time reconnect so Google can grant <b>gmail.readonly</b> (your current grant is metadata-only). Daylight data on this device is kept.</div><div class="server-actions" style="margin-top:8px"><button class="connect primary" type="button" id="google-upgrade-readonly">Reconnect for full Gmail access</button></div>`:''}
+      ${g&&!needsGmailUpgrade()&&!hasGmailSend()?`<div class="error" role="status" style="margin-top:10px">Reply needs a one-time reconnect so Google can grant <b>gmail.send</b>. Use Reconnect below — Daylight data on this device is kept.</div><div class="server-actions" style="margin-top:8px"><button class="connect" type="button" id="google-upgrade-readonly">Reconnect Google permissions</button></div>`:''}
       <details class="conn-more" id="conn-advanced"><summary>Optional: stay signed in / Microsoft</summary>
         <p class="hint" style="margin:8px 0 0">Only if you deployed the Daylight server. Never paste a Google <b>Client Secret</b> here — that belongs in Cloudflare secrets only.</p>
         <label class="client-label" for="server-url">Daylight server URL</label><input class="client-input" id="server-url" type="url" autocomplete="off" spellcheck="false" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
@@ -204,14 +210,21 @@
       toast(consent&&AI.isEnabled()?'Email Intelligence enabled':'Email Intelligence off');
       connectDialog();
     });
-    const startGoogle=()=>{if(!saveAdvanced())return;
+    const startGoogle=(opts={})=>{if(!saveAdvanced())return;
       localStorage.removeItem('daylight-demo');
-      if(serverUrl){location.href=serverUrl+'/auth/google/start?return='+encodeURIComponent(location.origin+location.pathname);return}
+      // Server path: upgrade=1 forces a clean consent that includes gmail.readonly (does not wipe IndexedDB / wallet).
+      if(serverUrl){
+        const q=new URLSearchParams({return:location.origin+location.pathname});
+        if(opts.upgrade||needsGmailUpgrade())q.set('upgrade','1');
+        location.href=serverUrl+'/auth/google/start?'+q.toString();
+        return;
+      }
       const id=readClientId();
       if(!id){err('Paste your Google Client ID first (ends with .apps.googleusercontent.com).');($('#client-id')||$('#client-id-adv'))?.focus();return}
       if(!id.endsWith('.apps.googleusercontent.com')){err('That doesn’t look like a Client ID. It should end with .apps.googleusercontent.com');return}
-      authorize(id)};
-    $$('#google-connect').forEach(b=>b.onclick=startGoogle);
+      authorize(id,{upgrade:!!(opts.upgrade||needsGmailUpgrade())})};
+    $$('#google-connect').forEach(b=>b.onclick=()=>startGoogle({}));
+    $('#google-upgrade-readonly')?.addEventListener('click',()=>startGoogle({upgrade:true}));
     $('#client-id')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();startGoogle()}});
     if($('#google-disconnect'))$('#google-disconnect').onclick=disconnectGoogle;
     if($('#microsoft-connect'))$('#microsoft-connect').onclick=()=>{saveAdvanced();if(!$('#ms-client-id').value.trim()){$('#conn-advanced').open=true;err('Add your Microsoft application ID under Optional setup first.');return}authorizeMicrosoft()};
@@ -283,30 +296,37 @@
     };
     return map[code]||('Google authorization failed: '+(code||'unknown error'));
   }
-  function authorize(clientId) {
+  function authorize(clientId,opts={}) {
     clientId=(clientId||$('#client-id')?.value||localStorage.getItem('daylight-client-id')||'').trim().replace(/\s+/g,'');
     const errBox=m=>{const el=$('#connect-error');if(el){el.hidden=!m;el.textContent=m||''}else if(m)toast(m)};
     if(!clientId.endsWith('.apps.googleusercontent.com')) { errBox('Enter your Google Client ID first (ends with .apps.googleusercontent.com).'); return; }
     localStorage.setItem('daylight-client-id',clientId);
     if(!window.google?.accounts?.oauth2) { errBox('Google sign-in is still loading. Try again in a moment.'); return; }
     errBox('');
-    tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:scopes,include_granted_scopes:true,callback:async response=>{
+    const mergePrior=!opts.upgrade;
+    tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:scopes,include_granted_scopes:mergePrior,callback:async response=>{
       if(response.error){errBox(googleAuthError(response.error));return;}
       if(!response.access_token){errBox('Google did not return access. Try Connect again.');return;}
       token=response.access_token;
       rememberGoogleScopes(response.scope||scopes);
+      if(!hasGmailReadonly()){errBox('Google did not grant gmail.readonly. On the consent screen, allow Daylight to read your mail (not metadata only), then try again.');return;}
       $('#overlay').classList.remove('show');$('#connections').classList.add('active');$('#sync-status').textContent='Google connected · refreshing…';
       setTimeout(()=>{token=null;$('#connections').classList.remove('active');$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));
-      try{await refreshAll();toast(hasGmailSend()?'Google connected · replies enabled':'Google connected · reconnect later to enable sending');}catch(e){toast('Connected, but some data failed to load');}
+      try{await refreshAll();toast(hasGmailSend()?'Google connected · full mail + replies':'Google connected · full mail reading enabled');}catch(e){toast('Connected, but some data failed to load');}
     },error_callback:e=>{errBox(googleAuthError(e?.type||e?.message||'popup_closed_by_user'))}});
     try{tokenClient.requestAccessToken({prompt:'consent'})}
     catch(e){errBox(googleAuthError(e?.message||'invalid_request'))}
   }
   function requestGmailSendAccess(){
     const clientId=(localStorage.getItem('daylight-client-id')||'').trim();
-    if(serverUrl&&serverSession){toast('Reconnect Google from Connections to grant send access',{type:'warn'});connectDialog({setup:false});return}
+    if(serverUrl){
+      toast('Reconnect Google to refresh mail permissions',{type:'warn'});
+      const q=new URLSearchParams({return:location.origin+location.pathname,upgrade:'1'});
+      location.href=serverUrl+'/auth/google/start?'+q.toString();
+      return;
+    }
     if(!clientId){toast('Connect Google first',{type:'warn'});connectDialog({setup:true,focusId:true});return}
-    authorize(clientId);
+    authorize(clientId,{upgrade:true});
   }
   function requestFitnessAccess(){
     const clientId=(localStorage.getItem('daylight-client-id')||'').trim();
@@ -631,13 +651,17 @@
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;let b=$('#install-app');if(!b){b=document.createElement('button');b.id='install-app';b.className='menu-item';b.type='button';b.innerHTML='<span class="mi-icon">⤓</span>Install as app';($('#drawer-install')||$('.actions')).append(b);b.onclick=async()=>{if(!installEvt)return;installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;b.remove();if(r.outcome==='accepted')toast('Daylight installed')}}});
   window.addEventListener('appinstalled',()=>{$('#install-app')?.remove()});
   // ---- Daylight server: stay signed in to Google ----
-  const SERVER_ERRORS={account_not_allowed:'That Google account is not allowed on your Daylight server. Add it to ALLOWED_EMAILS.',access_denied:'Google sign-in was cancelled.',no_refresh_token:'Google did not grant offline access. Try “Stay signed in” again.',token_exchange_failed:'Google sign-in could not be completed. Check the server’s client ID, secret and redirect URI.'};
+  const SERVER_ERRORS={account_not_allowed:'That Google account is not allowed on your Daylight server. Add it to ALLOWED_EMAILS.',access_denied:'Google sign-in was cancelled.',no_refresh_token:'Google did not grant offline access. Try “Stay signed in” again.',token_exchange_failed:'Google sign-in could not be completed. Check the server’s client ID, secret and redirect URI.',gmail_readonly_required:'Google did not grant gmail.readonly. Open Connections → Reconnect for full Gmail access, and allow mail reading (not metadata only).'};
   const getLS=k=>{try{return localStorage.getItem(k)||''}catch{return''}},setLS=(k,v)=>{try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch{}};
   let serverUrl=(getLS('daylight-api')||(location.hostname==='kratveer.github.io'?'https://daylight-api.kratveer050.workers.dev':'')).replace(/\/+$/,''),serverSession=getLS('daylight-session'),serverEmail='',serverRenew=null,serverTokenPromise=null;
   // Pick up the session (or an error) the server hands back after Google sign-in.
   (()=>{if(!location.hash.includes('daylight_'))return;const h=new URLSearchParams(location.hash.slice(1));
-    if(h.get('daylight_session')){serverSession=h.get('daylight_session');setLS('daylight-session',serverSession);toast('Signed in · Daylight will keep you connected')}
-    if(h.get('daylight_error'))setTimeout(()=>{$('#sync-status').textContent=SERVER_ERRORS[h.get('daylight_error')]||'Server sign-in failed: '+h.get('daylight_error');toast('Google sign-in did not finish')},0);
+    if(h.get('daylight_session')){
+      serverSession=h.get('daylight_session');setLS('daylight-session',serverSession);
+      if(h.get('daylight_gmail_readonly')==='1')toast('Signed in · full Gmail reading granted');
+      else toast('Signed in · Daylight will keep you connected');
+    }
+    if(h.get('daylight_error'))setTimeout(()=>{const msg=SERVER_ERRORS[h.get('daylight_error')]||'Server sign-in failed: '+h.get('daylight_error');$('#sync-status').textContent=msg;toast(msg,{type:'warn'});if(h.get('daylight_error')==='gmail_readonly_required')connectDialog({setup:false})},0);
     history.replaceState(null,'',location.pathname+location.search)})();
   async function serverToken(){
     if(!serverUrl||!serverSession)return false;
@@ -648,7 +672,12 @@
       if(!r.ok)throw new Error('server '+r.status);
       const d=await r.json();token=d.access_token;serverEmail=d.email||'';tokenExpiry=Date.now()+(Number(d.expires_in)||3600)*1000;
       if(d.scope)rememberGoogleScopes(d.scope);
-      $('#connections').classList.add('active');clearTimeout(serverRenew);serverRenew=setTimeout(serverToken,Math.max(60,(Number(d.expires_in)||3600)-180)*1000);return true;
+      $('#connections').classList.add('active');
+      if(d.needs_gmail_upgrade||d.gmail_readonly===false||(d.scope&&!hasGmailReadonly())){
+        $('#sync-status').textContent='Google connected · reconnect required for full Gmail reading';
+        if(!serverToken._upgradeHinted){serverToken._upgradeHinted=true;toast('Reconnect Google once for full mail access (gmail.readonly)',{type:'warn'})}
+      }
+      clearTimeout(serverRenew);serverRenew=setTimeout(serverToken,Math.max(60,(Number(d.expires_in)||3600)-180)*1000);return true;
     }catch(e){$('#sync-status').textContent='Could not reach your Daylight server · retrying soon';clearTimeout(serverRenew);serverRenew=setTimeout(serverToken,120000);return false}
     finally{serverTokenPromise=null}})();
     return serverTokenPromise;

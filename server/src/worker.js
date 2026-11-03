@@ -9,6 +9,8 @@
 //   POST /auth/logout        (Authorization: Bearer <session>) → revokes and deletes
 //   GET  /health
 
+// gmail.readonly is required for messages.get?format=full (Email Intelligence + inbox bodies).
+// gmail.send is required for in-app replies (existing feature). Do not add unused scopes.
 const GOOGLE_SCOPES = [
   'openid', 'email', 'profile',
   'https://www.googleapis.com/auth/calendar.events.readonly',
@@ -20,6 +22,11 @@ const GOOGLE_SCOPES = [
 ].join(' ');
 const SESSION_TTL = 60 * 60 * 24 * 180; // sessions idle for 180 days are forgotten
 const enc = new TextEncoder(), dec = new TextDecoder();
+const scopeBlob = (s) => String(s || '');
+const hasGmailReadonly = (s) => /(?:^|\s)https:\/\/www\.googleapis\.com\/auth\/gmail\.readonly(?:\s|$)/.test(scopeBlob(s));
+const hasGmailSend = (s) => /(?:^|\s)https:\/\/www\.googleapis\.com\/auth\/gmail\.send(?:\s|$)/.test(scopeBlob(s));
+// Older Daylight grants used gmail.metadata only — that cannot call format=full.
+const hasGmailMetadataOnly = (s) => /gmail\.metadata/.test(scopeBlob(s)) && !hasGmailReadonly(s);
 
 const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const fromB64 = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
@@ -91,17 +98,34 @@ async function handle(req, env) {
     const ret = allowedReturn(env, url.searchParams.get('return'));
     if (!ret) return new Response('This return address is not allowed.', { status: 400 });
     const state = randomId(24);
-    await env.SESSIONS.put('state:' + state, ret, { expirationTtl: 600 });
+    // upgrade=1 (or legacy metadata reconnect): do not merge prior grants so Google shows gmail.readonly clearly.
+    const upgrade = url.searchParams.get('upgrade') === '1' || url.searchParams.get('upgrade') === 'gmail';
+    await env.SESSIONS.put('state:' + state, JSON.stringify({ ret, upgrade }), { expirationTtl: 600 });
     const g = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-    Object.entries({ client_id: env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri, response_type: 'code', scope: GOOGLE_SCOPES, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state }).forEach(([k, v]) => g.searchParams.set(k, v));
+    Object.entries({
+      client_id: env.GOOGLE_CLIENT_ID,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: GOOGLE_SCOPES,
+      access_type: 'offline',
+      prompt: 'consent',
+      // false on upgrade so an old gmail.metadata grant cannot mask a missing readonly approval
+      include_granted_scopes: upgrade ? 'false' : 'true',
+      state
+    }).forEach(([k, v]) => g.searchParams.set(k, v));
     return Response.redirect(g.toString(), 302);
   }
 
   if (url.pathname === '/auth/google/callback' && req.method === 'GET') {
     const state = url.searchParams.get('state') || '';
-    const ret = state && await env.SESSIONS.get('state:' + state);
-    if (!ret) return new Response('Sign-in link expired. Go back to Daylight and try again.', { status: 400 });
+    const raw = state && await env.SESSIONS.get('state:' + state);
+    if (!raw) return new Response('Sign-in link expired. Go back to Daylight and try again.', { status: 400 });
     await env.SESSIONS.delete('state:' + state);
+    let ret = raw, upgrade = false;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && parsed.ret) { ret = parsed.ret; upgrade = !!parsed.upgrade; }
+    } catch { /* legacy state stored plain return URL */ }
     if (url.searchParams.get('error')) return back(ret, { daylight_error: url.searchParams.get('error') });
     let tok;
     try { tok = await googleToken({ code: url.searchParams.get('code') || '', client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, redirect_uri: redirectUri, grant_type: 'authorization_code' }); }
@@ -110,9 +134,20 @@ async function handle(req, env) {
     const allowed = list(env.ALLOWED_EMAILS).map((e) => e.toLowerCase());
     if (!email || (allowed.length && !allowed.includes(email))) return back(ret, { daylight_error: 'account_not_allowed' });
     if (!tok.refresh_token) return back(ret, { daylight_error: 'no_refresh_token' });
+    const granted = scopeBlob(tok.scope);
+    // Refuse sessions that cannot read message bodies (blocks silent gmail.metadata-only grants).
+    if (!hasGmailReadonly(granted)) {
+      return back(ret, { daylight_error: 'gmail_readonly_required' });
+    }
     const session = randomId(32);
-    await env.SESSIONS.put('sess:' + await sha256(session), JSON.stringify({ email, rt: await seal(env, tok.refresh_token), created: Date.now() }), { expirationTtl: SESSION_TTL });
-    return back(ret, { daylight_session: session });
+    await env.SESSIONS.put('sess:' + await sha256(session), JSON.stringify({
+      email,
+      rt: await seal(env, tok.refresh_token),
+      scopes: granted,
+      created: Date.now(),
+      upgradedAt: upgrade ? Date.now() : undefined
+    }), { expirationTtl: SESSION_TTL });
+    return back(ret, { daylight_session: session, daylight_gmail_readonly: '1' });
   }
 
   if (url.pathname === '/api/google/token' && req.method === 'POST') {
@@ -120,8 +155,17 @@ async function handle(req, env) {
     if (!s) return json(env, req, { error: 'reauth' }, 401);
     try {
       const tok = await googleToken({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, refresh_token: await open(env, s.rec.rt), grant_type: 'refresh_token' });
-      await env.SESSIONS.put(s.key, JSON.stringify({ ...s.rec, used: Date.now() }), { expirationTtl: SESSION_TTL }); // keep active sessions alive
-      return json(env, req, { access_token: tok.access_token, expires_in: tok.expires_in || 3600, scope: tok.scope || '', email: s.rec.email });
+      const scope = scopeBlob(tok.scope || s.rec.scopes || '');
+      await env.SESSIONS.put(s.key, JSON.stringify({ ...s.rec, scopes: scope || s.rec.scopes, used: Date.now() }), { expirationTtl: SESSION_TTL }); // keep active sessions alive
+      return json(env, req, {
+        access_token: tok.access_token,
+        expires_in: tok.expires_in || 3600,
+        scope,
+        email: s.rec.email,
+        gmail_readonly: hasGmailReadonly(scope),
+        gmail_send: hasGmailSend(scope),
+        needs_gmail_upgrade: !hasGmailReadonly(scope)
+      });
     } catch (e) {
       if (e.code === 'invalid_grant') { await env.SESSIONS.delete(s.key); return json(env, req, { error: 'reauth' }, 401); }
       return json(env, req, { error: 'google_unavailable' }, 502);

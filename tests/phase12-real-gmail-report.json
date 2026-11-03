@@ -1,0 +1,214 @@
+{
+  "generatedAt": "2026-11-03T08:58:00.000Z",
+  "phase": 12,
+  "productionReadyClaim": false,
+  "productionReadyReason": "Real Gmail body extraction blocked: live Worker session token has gmail.metadata only (not gmail.readonly). Email Intelligence consent is off. Signed-in mailbox is the primary account, not a dedicated test mailbox. Intelligence, lifecycle, and full persistence E2E remain unverified on real mail.",
+  "deployment": {
+    "commit": "3038c14caabd4a10881ab58e5afd5e606349cad8",
+    "frontendUrl": "https://kratveer.github.io/Deshboard/",
+    "pagesStatus": "live",
+    "verifiedAssets": {
+      "daylight-ai.js": "v=4",
+      "app.js": "v=58",
+      "serviceWorkerCache": "daylight-v40"
+    },
+    "workerDeployedThisPhase": false,
+    "wranglerTomlCommitted": false
+  },
+  "accountContext": {
+    "signedInEmailObserved": "kratveer050@gmail.com",
+    "dedicatedTestMailbox": false,
+    "emailIntelligenceConsent": false,
+    "emailIntelligenceEnabled": false,
+    "financialOptIn": false,
+    "note": "Phase 12 requires a dedicated test Gmail with explicit AI consent. Primary mailbox was not used for Gemini analysis."
+  },
+  "syntheticTests": {
+    "source": "Phase 11 / Phase 10 carry-forward",
+    "status": "passed_prior",
+    "results": {
+      "phase11HeuristicE2E": "13/13",
+      "phase11GeminiE2E": "13/13",
+      "aiEmailSuite": "33/33",
+      "liveGeminiFixtures": "13/13",
+      "lifecycleSandbox": true,
+      "consentGatesSynthetic": true
+    }
+  },
+  "realGmailTests": {
+    "status": "partial",
+    "workerSessionAuth": {
+      "passed": true,
+      "serverUrl": "https://daylight-api.kratveer050.workers.dev",
+      "tokenHttpStatus": 200,
+      "tokenOk": true,
+      "expiresInObserved": 3599,
+      "emailMatchesUi": true
+    },
+    "gmailProfile": {
+      "passed": true,
+      "messagesTotalObserved": 76960,
+      "threadsTotalObserved": 71113,
+      "historyIdPresent": true
+    },
+    "gmailPagination": {
+      "passed": true,
+      "page1Count": 5,
+      "page2Count": 5,
+      "nextPageTokenPresent": true
+    },
+    "messagesGetMetadata": {
+      "passed": true,
+      "format": "metadata",
+      "headersPresent": ["From", "Subject"],
+      "note": "Metadata format succeeds with current scopes."
+    },
+    "messagesGetFull": {
+      "passed": false,
+      "format": "full",
+      "httpStatus": 403,
+      "errorStatus": "PERMISSION_DENIED",
+      "blocker": "Live access token scopes include https://www.googleapis.com/auth/gmail.metadata but not gmail.readonly or gmail.send. App code requests format=full for body extraction."
+    },
+    "fullBodyExtraction": {
+      "passed": false,
+      "blockedBy": "messagesGetFull"
+    },
+    "attachmentMetadata": {
+      "passed": false,
+      "blockedBy": "messagesGetFull",
+      "note": "Could not inspect MIME parts without format=full."
+    },
+    "historyList": {
+      "passed": true,
+      "httpStatus": 200,
+      "storedCursorPresent": true,
+      "storedCursorEqualsProfile": true,
+      "note": "history.list reachable; prior cursor matched profile historyId at probe time (empty incremental delta)."
+    },
+    "incrementalSyncRecovery": {
+      "passed": null,
+      "reason": "Not exercised with an intentionally stale cursor (would risk user sync disruption)."
+    }
+  },
+  "oauthSessionTests": {
+    "status": "partial",
+    "sessionPresentInLocalStorage": true,
+    "workerTokenExchange": true,
+    "logoutLoginCycle": {
+      "passed": null,
+      "reason": "Not run — would sign the user out of the live dashboard during this session."
+    },
+    "oauthSessionRestore": {
+      "passed": true,
+      "evidence": "Existing daylight-session exchanged for Google access token after Pages deploy; UI showed signed-in account."
+    },
+    "liveTokenScopesObserved": [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/calendar.events.readonly",
+      "https://www.googleapis.com/auth/contacts.readonly",
+      "https://www.googleapis.com/auth/drive.metadata.readonly",
+      "https://www.googleapis.com/auth/gmail.metadata",
+      "https://www.googleapis.com/auth/tasks.readonly",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ],
+    "workerSourceScopesExpected": [
+      "gmail.readonly",
+      "gmail.send"
+    ],
+    "scopeMismatch": true,
+    "scopeMismatchAction": "User must reconnect Google (consent) so the refresh token is re-issued with gmail.readonly (+ gmail.send if replies needed). Do not change Cloudflare secrets/KV to fix this."
+  },
+  "workerIntegrationTests": {
+    "status": "partial",
+    "geminiStatusEndpoint": {
+      "passed": true,
+      "httpStatus": 200,
+      "configured": true,
+      "keysObserved": ["ok", "configured", "model", "max_per_hour"]
+    },
+    "geminiAnalyseOnRealMail": {
+      "passed": null,
+      "reason": "Skipped: consent off, primary mailbox guard, and format=full unavailable."
+    },
+    "healthAuthStart": {
+      "note": "Unauthenticated /api/gemini/status returns reauth as expected without Bearer session."
+    }
+  },
+  "browserPersistenceTests": {
+    "status": "partial",
+    "indexedDbAccountPresent": true,
+    "syncStateGmailCursorPresent": true,
+    "walletLocalStorageBytes": 6330,
+    "aiExtractionsEmpty": true,
+    "serviceWorkerCache": "daylight-v40",
+    "refreshPersistence": {
+      "passed": true,
+      "evidence": "Session + wallet + sync cursor present after Pages asset update without re-login."
+    },
+    "browserRestartPersistence": {
+      "passed": null,
+      "reason": "Full browser restart not performed in this run."
+    },
+    "repeatedSyncDedupe": {
+      "passed": null,
+      "reason": "Requires successful full-message enrich + distribute cycle."
+    },
+    "dataDeleted": false
+  },
+  "realEmailIntelligence": {
+    "status": "not_run",
+    "reason": "Blocked by missing gmail.readonly, consent=false, and primary-mailbox policy.",
+    "scenarios": {
+      "shoppingOrders": "blocked",
+      "deliveryUpdates": "blocked",
+      "flights": "blocked",
+      "hotels": "blocked",
+      "invoices": "blocked",
+      "subscriptionRenewals": "blocked",
+      "promotions": "blocked",
+      "personalEmails": "blocked"
+    }
+  },
+  "lifecycleVerification": {
+    "status": "not_run",
+    "syntheticLifecycleStillPassing": true,
+    "realOrderEntityStability": null,
+    "realFlightRescheduleStability": null,
+    "cancellationReminderDisable": null,
+    "duplicateWalletPrevention": null
+  },
+  "privacy": {
+    "apiKeysLogged": false,
+    "oauthTokensLogged": false,
+    "realEmailBodiesLogged": false,
+    "reportContainsOnlyStructuralSignals": true
+  },
+  "verified": [
+    "GitHub Pages serves Phase 12 frontend (daylight-ai.js?v=4, app.js?v=58, SW daylight-v40)",
+    "Worker session Bearer → /api/google/token succeeds",
+    "Worker /api/gemini/status reports configured under session auth",
+    "Gmail profile + inbox list pagination work",
+    "Gmail messages.get format=metadata works",
+    "Gmail history endpoint reachable; IndexedDB gmail cursor present",
+    "Email Intelligence consent remains off (not forced on)",
+    "Synthetic Phase 11 intelligence suite still green from prior run"
+  ],
+  "failedOrBlocked": [
+    "messages.get format=full → 403 PERMISSION_DENIED (gmail.metadata only)",
+    "Full body extraction / attachment MIME walk",
+    "Real Gemini analyse on mailbox messages",
+    "Real module distribution + lifecycle on live threads",
+    "Logout/login cycle and interrupted-sync recovery drills"
+  ],
+  "nextActionsRequiredFromUser": [
+    "Use a dedicated test Gmail (not primary), or explicitly approve primary-mailbox testing in writing",
+    "Reconnect Google via Daylight Stay signed in so scopes upgrade from gmail.metadata → gmail.readonly (and gmail.send if needed)",
+    "Enable Email Intelligence consent (and financial opt-in only if invoice/sub tests are intended)",
+    "Seed or forward controlled test emails (order, delivery, flight, hotel, invoice, sub, promo, personal)",
+    "Re-run Phase 12B–E after the above"
+  ]
+}
