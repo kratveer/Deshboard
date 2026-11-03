@@ -1,6 +1,9 @@
 .env
 .env.*
 !.env.example
+.dev.vars
+server/.dev.vars
+server/.env
 node_modules/
 .wrangler/
 dist/

@@ -1,8 +1,14 @@
 {
-  "generatedAt": "2026-11-03T07:00:01.094Z",
-  "commitTarget": "8dfa25b+",
+  "generatedAt": "2026-11-03T07:52:30.729Z",
+  "phase": 10,
   "productionReady": false,
-  "productionReadyReason": "Worker /api/gemini/* returns 404 — redeploy worker + set GEMINI_API_KEY secret",
+  "productionReadyReason": "GEMINI_API_KEY missing",
+  "rootCauseFixed": [
+    "Live harness now uses production SYSTEM + buildPrompt (previously omitted intent enum → informational)",
+    "normalizeIntent aliases; no silent coerce of unknown intents to informational before structure inference",
+    "delivery category with order_id normalized to shopping",
+    "Stronger extraction schema for order/travel/financial dates"
+  ],
   "sections": {
     "A": {
       "name": "A_local_heuristic",
@@ -11,14 +17,35 @@
         "invoice",
         "sub-renewal"
       ],
-      "total": 10,
-      "passed": 10,
+      "total": 11,
+      "passed": 11,
       "failed": [],
       "rows": [
         {
           "id": "amazon-confirm",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": "shopping",
+            "intent": "order_confirmed"
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "order_confirmed",
+            "requires_confirmation": true,
+            "confidence": 0.86,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": null,
+              "status": "ordered",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.86
         },
@@ -26,6 +53,33 @@
           "id": "amazon-delivery",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "delivery"
+            ],
+            "intent": [
+              "delivery_scheduled",
+              "order_shipped"
+            ]
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_scheduled",
+            "requires_confirmation": true,
+            "confidence": 0.86,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": "2026-11-04",
+              "status": "out_for_delivery",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.86
         },
@@ -33,6 +87,61 @@
           "id": "amazon-delay",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "delivery"
+            ],
+            "intent": "delivery_delayed"
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_delayed",
+            "requires_confirmation": false,
+            "confidence": 0.86,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": "2026-11-06",
+              "status": "delayed",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "local-heuristic",
+          "confidence": 0.86
+        },
+        {
+          "id": "amazon-delivered",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "delivery"
+            ],
+            "intent": "delivery_delivered"
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_delivered",
+            "requires_confirmation": true,
+            "confidence": 0.86,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": "2026-11-03",
+              "status": "delivered",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.86
         },
@@ -40,6 +149,29 @@
           "id": "flight-booking",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_confirmed"
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_confirmed",
+            "requires_confirmation": false,
+            "confidence": 0.88,
+            "organisation": "Lufthansa",
+            "order": null,
+            "travel": {
+              "type": "flight",
+              "pnr": "ABC12X",
+              "flight_number": "LH400",
+              "depart_datetime": "2026-11-20T08:40",
+              "check_in": null,
+              "status": "confirmed"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.88
         },
@@ -47,6 +179,29 @@
           "id": "flight-cancel",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_cancelled"
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_cancelled",
+            "requires_confirmation": false,
+            "confidence": 0.88,
+            "organisation": "Lufthansa",
+            "order": null,
+            "travel": {
+              "type": "flight",
+              "pnr": "ABC12X",
+              "flight_number": "LH400",
+              "depart_datetime": "2026-11-20T08:40",
+              "check_in": null,
+              "status": "cancelled"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.88
         },
@@ -54,6 +209,29 @@
           "id": "flight-reschedule",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_rescheduled"
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_rescheduled",
+            "requires_confirmation": false,
+            "confidence": 0.88,
+            "organisation": "Ryanair",
+            "order": null,
+            "travel": {
+              "type": "flight",
+              "pnr": "ZY9876",
+              "flight_number": "FR1234",
+              "depart_datetime": "2026-12-01T06:15",
+              "check_in": null,
+              "status": "rescheduled"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.88
         },
@@ -61,6 +239,29 @@
           "id": "hotel",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_confirmed"
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_confirmed",
+            "requires_confirmation": false,
+            "confidence": 0.88,
+            "organisation": "Booking.com",
+            "order": null,
+            "travel": {
+              "type": "hotel",
+              "pnr": null,
+              "flight_number": null,
+              "depart_datetime": null,
+              "check_in": "2026-11-20",
+              "status": "confirmed"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.88
         },
@@ -68,6 +269,24 @@
           "id": "ambiguous-date",
           "ok": true,
           "errors": [],
+          "expected": {},
+          "actual": {
+            "category": "shopping",
+            "intent": "order_confirmed",
+            "requires_confirmation": true,
+            "confidence": 0.86,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "99-AAA",
+              "delivery_date": null,
+              "status": "ordered",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.86
         },
@@ -75,6 +294,33 @@
           "id": "non-english",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "delivery"
+            ],
+            "intent": [
+              "order_shipped",
+              "delivery_scheduled"
+            ]
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_scheduled",
+            "requires_confirmation": true,
+            "confidence": 0.86,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "302-1112222-3334444",
+              "delivery_date": "2026-11-04",
+              "status": "out_for_delivery",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.86
         },
@@ -82,6 +328,37 @@
           "id": "promo-noise",
           "ok": true,
           "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "promotions",
+              "delivery",
+              "other"
+            ],
+            "intent": [
+              "promotional",
+              "delivery_scheduled",
+              "order_shipped",
+              "informational"
+            ]
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_scheduled",
+            "requires_confirmation": true,
+            "confidence": 0.86,
+            "organisation": "Store Deals",
+            "order": {
+              "order_id": "55-PROMO",
+              "delivery_date": "2026-11-04",
+              "status": "out_for_delivery",
+              "tracking_number": "XYZTRACK999"
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
           "source": "local-heuristic",
           "confidence": 0.86
         }
@@ -90,7 +367,7 @@
     "B": {
       "name": "B_live_gemini_api",
       "ran": false,
-      "reason": "GEMINI_API_KEY not set in environment",
+      "reason": "GEMINI_API_KEY not set",
       "total": 0,
       "passed": 0,
       "failed": [],
@@ -105,8 +382,8 @@
       "ran": true,
       "worker": "https://daylight-api.kratveer050.workers.dev",
       "healthOk": true,
-      "routesDeployed": false,
-      "authEnforced": false,
+      "routesDeployed": true,
+      "authEnforced": true,
       "consentBlocksWhenOff": true,
       "financialOptInEnforced": true,
       "fallbackWithoutServer": true,
@@ -115,37 +392,45 @@
         {
           "name": "health",
           "status": 200,
-          "ms": 240,
+          "ms": 249,
           "body": {
             "ok": true
           }
         },
         {
           "name": "gemini_status_noauth",
-          "status": 404,
-          "ms": 77,
-          "body": "Not found"
+          "status": 401,
+          "ms": 59,
+          "body": {
+            "error": "reauth"
+          }
         },
         {
           "name": "gemini_status_fake",
-          "status": 404,
-          "ms": 108,
-          "body": "Not found"
+          "status": 401,
+          "ms": 69,
+          "body": {
+            "error": "reauth"
+          }
         },
         {
           "name": "gemini_analyse_fake",
-          "status": 404,
-          "ms": 125,
-          "body": "Not found"
+          "status": 401,
+          "ms": 74,
+          "body": {
+            "error": "reauth"
+          }
         },
         {
           "name": "gemini_analyse_noauth",
-          "status": 404,
-          "ms": 43,
-          "body": "Not found"
+          "status": 401,
+          "ms": 61,
+          "body": {
+            "error": "reauth"
+          }
         }
       ],
-      "verdict": "ROUTES_NOT_DEPLOYED_404"
+      "verdict": "routes_live"
     },
     "D": {
       "name": "D_lifecycle_dedupe",
@@ -160,26 +445,17 @@
       },
       "deliveryDateChanges": true,
       "cancelDetected": true,
-      "rescheduleChanges": 4,
-      "note": "Lifecycle keys verified at extraction layer; wallet/reminder wiring covered by unit expectations in report"
+      "rescheduleChanges": 4
     }
   },
   "metrics": {
     "geminiCalls": 0,
     "geminiSuccess": 0,
     "geminiFailed": 0,
-    "classificationAccuracy_B": null,
-    "intentAccuracy_B": null,
     "avgProcessingMs_B": null,
     "tokenUsage_B": null,
     "heuristicPassRate_A": 1,
-    "workerRoutesDeployed": false,
-    "duplicateCreationRate_D": 0,
-    "falseReminderRate": null
-  },
-  "fixesAppliedThisPhase": [
-    "Escalate to Gemini when local heuristic requires_confirmation",
-    "Default model → gemini-3.5-flash-lite (2.5-flash-lite restricted for new projects)",
-    "Cancellation disables AI-generated reminders for the same entityKey"
-  ]
+    "workerRoutesDeployed": true,
+    "duplicateCreationRate_D": 0
+  }
 }

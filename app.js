@@ -1136,7 +1136,7 @@
       flight:{from:t.from,to:t.to,flight:t.flight_number,depart:t.depart_datetime,arrive:t.arrive_datetime,seat:t.seat,gate:t.gate,pnr:t.pnr},
       whenMs:t.depart_datetime?new Date(t.depart_datetime).getTime():(t.check_in?new Date(t.check_in).getTime():Date.now()),
       tripId:null,href:mailMeta.href||gmailLink(mailMeta.threadId||mailMeta.mailId),
-      cancelled:/cancel/i.test(t.status||'')||extraction.intent==='cancellation'
+      cancelled:/cancel/i.test(t.status||'')||extraction.intent==='booking_cancelled'||extraction.intent==='cancellation'
     };
     booking.tripId=tripIdFor(booking.dest||booking.flight?.from||'travel',booking.whenMs);
     const r=upsertWalletFromBooking(booking,list);
@@ -1146,7 +1146,7 @@
   function createAiReminders(extraction,mailMeta){
     const stamped=readJSON('daylight-ai-reminders',{});
     const entityKey=extraction.entityKey||mailMeta.mailId;
-    const cancelled=extraction.intent==='cancellation'||/cancel/i.test(extraction.travel?.status||'')||/cancel/i.test(extraction.event?.status||'');
+    const cancelled=extraction.intent==='booking_cancelled'||extraction.intent==='cancellation'||/cancel/i.test(extraction.travel?.status||'')||/cancel/i.test(extraction.event?.status||'');
     // Cancellations: disable AI reminders for this entity instead of creating new ones
     if(cancelled){
       let disabled=0;

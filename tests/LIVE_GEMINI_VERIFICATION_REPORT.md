@@ -1,150 +1,50 @@
-# LIVE GEMINI VERIFICATION REPORT
+# LIVE GEMINI VERIFICATION REPORT — Phase 10
 
-**Commit under test:** `8dfa25b` (plus Phase 9 verification fixes)  
-**Generated:** see `tests/live-gemini-verify-report.json`  
-**Harness:** `node tests/live-gemini-verify.js`  
-**Production ready:** **NO**
+## Audit finding (root cause)
 
----
+Semantic failure was **not primarily a model quality issue**.
 
-## Executive verdict
+Section B previously called Gemini with a **stripped prompt** that listed categories but **did not list allowed intents**. The model therefore returned `intent: "informational"` for nearly every fixture. The validator also remapped unknown intent strings to `informational`, which hid better raw labels.
 
-The Gemini integration exists in the **repository**, but the **deployed Cloudflare Worker does not serve the new routes yet**. Live `/api/gemini/*` calls against `https://daylight-api.kratveer050.workers.dev` return **HTTP 404**.
+Additional issues:
+- Category `delivery` vs expected `shopping` (taxonomy mismatch).
+- Missing structured fields because the weak harness prompt did not demand order/travel/financial extraction.
+- Ambiguous weekday dates not forced to `requires_confirmation`.
 
-No `GEMINI_API_KEY` was available in this environment, so **Section B (actual Gemini API tests) did not run**. Local heuristics and Worker probe results must not be counted as successful Gemini calls.
+## Fixes applied
 
----
+1. **Shared production prompt** — harness now uses `DaylightAI.SYSTEM` + `DaylightAI.buildPrompt`.
+2. **Canonical intent vocabulary** with aliases (`order_confirmation` → `order_confirmed`, `delivery_update` → `delivery_scheduled`, `cancellation` → `booking_cancelled`, etc.).
+3. **No silent coerce** of unknown intents to `informational` before structure-based inference.
+4. **Category normalization** — `delivery` + order_id → `shopping` (secondary keeps `delivery`).
+5. **Richer schema** for order / travel / financial fields and relative-date rules.
+6. **Diagnostics** — each fixture reports expected vs actual category/intent/fields (no secrets, no full bodies).
 
-## A. Local heuristic tests
+## Latest local run (this environment)
 
-| Metric | Result |
-|--------|--------|
-| Ran | Yes |
-| Fixtures | 10 (Gemini-priority invoice/subscription excluded from A) |
-| Passed | **10/10** |
-| Full synthetic suite | **33/33** (`tests/ai-email-suite.js`) |
+| Section | Result |
+|---------|--------|
+| A Local heuristics | **11/11** (Phase 10 fixtures) |
+| B Live Gemini | **NOT RUN** — `GEMINI_API_KEY` not present in this agent shell |
+| C Worker routes / auth / consent | **deployed=true, auth=true**, consent + financial opt-in pass |
+| D Lifecycle dedupe | **sameOrder=true, samePnr=true** |
+| Synthetic suite `ai-email-suite.js` | **33/33** after intent rename |
 
-Covered here: Amazon confirm/delivery/delay, flight book/cancel/reschedule, hotel, ambiguous date, non-English, promo-noise.
+## Production readiness
 
-**Bugs found and fixed during verification**
-
-1. Order ID regex captured the word `confirmed` from “Order confirmed” and missed `#112-…` tokens.  
-2. PNR regex treated `confirmation LH400` as a PNR, so booking/cancel keys diverged (`LH400` vs `ABC12X`).
-
-After fix: same Amazon order ID and same flight PNR across lifecycle emails.
-
----
-
-## B. Actual Gemini API tests
-
-| Metric | Result |
-|--------|--------|
-| Ran | **NO** |
-| Reason | `GEMINI_API_KEY` not set in the verification environment |
-| Model intended | `gemini-3.5-flash-lite` (default updated; `gemini-2.5-flash-lite` is restricted for many new projects) |
-| Gemini calls | **0** |
-| Success / fail | n/a |
-| Classification / intent / date / event accuracy | **not measured on live Gemini** |
-| Token usage / cost | **n/a** |
-
-To run Section B locally (key never logged):
+**Not declared.** Acceptance requires a fresh Section B run with the API key:
 
 ```powershell
-$env:GEMINI_API_KEY="your-key"
-$env:GEMINI_MODEL="gemini-3.5-flash-lite"
+# Create gitignored .env (do not paste the key into chat)
+# GEMINI_API_KEY=...
+# GEMINI_MODEL=gemini-3.5-flash-lite
 node tests/live-gemini-verify.js
 ```
 
-Invoice and subscription fixtures are marked `geminiOnly` and are scored only in Section B.
+Target: **12/12** (or 13/13 with delivered fixture) semantic pass, **intent accuracy 100%**.
 
----
+## Unresolved until key is available here
 
-## C. End-to-end Daylight / Worker integration tests
-
-Worker base: `https://daylight-api.kratveer050.workers.dev`
-
-| Check | Result |
-|-------|--------|
-| `GET /health` | **200** `{"ok":true}` |
-| `GET /api/gemini/status` (no auth) | **404** Not found |
-| `GET /api/gemini/status` (fake Bearer) | **404** Not found |
-| `POST /api/gemini/analyse` (fake Bearer) | **404** Not found |
-| Routes deployed | **false** |
-| Session auth / rate-limit on live Worker | **cannot verify** (routes absent) |
-| `GEMINI_API_KEY` read server-side on live Worker | **cannot verify** (routes absent; secret not confirmed) |
-| Consent off blocks `shouldCallGemini` | **pass** |
-| Financial opt-in enforced | **pass** (bills blocked unless `daylight-ai-allow-financial=1`) |
-| Fallback without server (no fake Gemini success) | **pass** |
-| Ambiguous local results set `requires_confirmation` | **pass** |
-
-Frontend wiring (code review / static):
-
-- Consent + enable + financial toggles in Connections UI  
-- Enrichment calls Worker only with `serverUrl` + session  
-- API errors fall back to rules/heuristics (`fallback-error` / `fallback-no-server`)  
-- High-confidence local results still escalate when `requires_confirmation` is true (fix applied this phase)
-
----
-
-## D. Lifecycle / dedupe (extraction layer)
-
-| Check | Result |
-|-------|--------|
-| Same Amazon order ID across confirm → delivery → delay | **pass** (after order-id fix) |
-| Delivery date changes on delay email | **pass** |
-| Same PNR across flight book → cancel | **pass** (after PNR fix) |
-| Cancellation intent detected | **pass** |
-| Reschedule produces field changes | **pass** |
-| Cancellation disables AI reminders for entity | **code fix applied** (needs live UI confirmation after deploy) |
-| Wallet / Upcoming E2E with live Gemini | **not verified** (blocked by Worker 404 + no API key) |
-
-Duplicate creation rate at extraction keys: **0** for the Amazon + Lufthansa synthetic chains after fixes.
-
----
-
-## Performance metrics
-
-| Metric | Value |
-|--------|-------|
-| Actual Gemini API calls | **0** |
-| Successful Gemini requests | **0** |
-| Failed Gemini requests | **0** (not attempted) |
-| Classification accuracy (live Gemini) | **unverified** |
-| Intent accuracy (live Gemini) | **unverified** |
-| Date extraction accuracy (live Gemini) | **unverified** |
-| Event extraction accuracy (live Gemini) | **unverified** |
-| Duplicate creation rate (synthetic keys) | **0** post-fix |
-| False reminder rate | **unverified** live; uncertain reminders still require confirmation before create |
-| Average processing time (Gemini) | **n/a** |
-| Token usage / estimated cost | **n/a** |
-
----
-
-## Fixes applied (supported by test results only)
-
-1. Escalate to Gemini when local heuristic sets `requires_confirmation`.  
-2. Default model → `gemini-3.5-flash-lite`.  
-3. Cancellation disables AI-generated reminders for the same `entityKey`.  
-4. Correct Amazon order-id and flight PNR extraction (lifecycle dedupe).  
-5. Added `tests/live-gemini-verify.js` harness separating A / B / C / D.
-
----
-
-## Manual steps required before production readiness
-
-1. Paste the real Cloudflare KV namespace id into `server/wrangler.toml` (`SESSIONS`).  
-2. Redeploy Worker from `server/` so `/api/gemini/analyse` and `/api/gemini/status` exist.  
-3. `npx wrangler secret put GEMINI_API_KEY`  
-4. Set var `GEMINI_MODEL=gemini-3.5-flash-lite` (and optional `GEMINI_MAX_PER_HOUR`).  
-5. Re-run:
-
-```powershell
-$env:GEMINI_API_KEY="…"
-node tests/live-gemini-verify.js
-```
-
-Expect Section C `routesDeployed: true`, auth **401** without a real session, and Section B scored against live JSON.
-
-6. In the app: Stay signed in → Connections → consent + enable Email Intelligence → sync mail.
-
-Until those complete, **do not claim production readiness**.
+- Live Gemini classification/intent/date accuracy numbers after the prompt fix
+- Token usage / cost for the new longer system prompt
+- End-to-end Worker-proxied analyse with a real session (Section B uses direct API by design)

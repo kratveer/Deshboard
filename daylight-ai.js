@@ -18,19 +18,66 @@
     status: 'daylight-ai-status',
   };
 
+  // Daylight canonical categories (compatible with inbox via INBOX_MAP)
   const PRIMARY_CATEGORIES = Object.freeze([
     'shopping', 'travel', 'finance', 'bills', 'subscriptions', 'work', 'meetings',
     'personal', 'social', 'education', 'health', 'documents', 'government',
     'delivery', 'security', 'promotions', 'newsletters', 'other'
   ]);
 
+  // Canonical intents — category ≠ intent
   const INTENTS = Object.freeze([
-    'order_confirmation', 'order_shipped', 'delivery_update', 'delivery_delayed', 'delivered',
-    'flight_booking', 'hotel_booking', 'train_booking', 'payment_due', 'payment_completed',
-    'invoice_received', 'subscription_renewal', 'subscription_cancelled', 'appointment',
-    'meeting_invitation', 'event_invitation', 'refund', 'cancellation', 'rescheduling',
-    'deadline', 'action_required', 'informational', 'marketing'
+    'order_placed', 'order_confirmed', 'order_shipped', 'delivery_scheduled', 'delivery_delayed', 'delivery_delivered',
+    'booking_confirmed', 'booking_cancelled', 'booking_rescheduled', 'check_in_required',
+    'payment_due', 'payment_completed', 'refund_issued',
+    'subscription_started', 'subscription_renewal', 'subscription_cancelled',
+    'ticket_issued', 'reminder', 'informational', 'promotional',
+    // retained aliases accepted by normalizeIntent (also listed for prompt clarity)
+    'order_confirmation', 'delivery_update', 'delivered', 'flight_booking', 'hotel_booking', 'train_booking',
+    'cancellation', 'rescheduling', 'refund', 'invoice_received', 'marketing', 'appointment',
+    'meeting_invitation', 'event_invitation', 'deadline', 'action_required'
   ]);
+
+  const INTENT_ALIASES = Object.freeze({
+    order_confirmation: 'order_confirmed',
+    order_confirm: 'order_confirmed',
+    confirmation: 'order_confirmed',
+    delivery_update: 'delivery_scheduled',
+    out_for_delivery: 'delivery_scheduled',
+    delivered: 'delivery_delivered',
+    delivery_completed: 'delivery_delivered',
+    flight_booking: 'booking_confirmed',
+    hotel_booking: 'booking_confirmed',
+    train_booking: 'booking_confirmed',
+    booking_confirmation: 'booking_confirmed',
+    cancellation: 'booking_cancelled',
+    canceled: 'booking_cancelled',
+    cancelled: 'booking_cancelled',
+    rescheduling: 'booking_rescheduled',
+    schedule_change: 'booking_rescheduled',
+    refund: 'refund_issued',
+    invoice_received: 'payment_due',
+    marketing: 'promotional',
+    promo: 'promotional',
+    subscription_renewed: 'subscription_renewal',
+    membership_renewed: 'subscription_renewal'
+  });
+
+  const CATEGORY_ALIASES = Object.freeze({
+    accommodation: 'travel',
+    hotel: 'travel',
+    payment: 'finance',
+    bill: 'bills',
+    invoice: 'bills',
+    subscription: 'subscriptions',
+    ticket: 'travel',
+    tickets: 'travel',
+    promotion: 'promotions',
+    newsletter: 'newsletters',
+    logistics: 'delivery',
+    package: 'delivery',
+    shipping: 'delivery'
+  });
 
   const INBOX_MAP = Object.freeze({
     shopping: 'shopping', delivery: 'shopping',
@@ -43,30 +90,64 @@
     other: 'other'
   });
 
-  const SYSTEM = `You are Daylight's email intelligence engine.
-Return ONLY valid JSON matching the schema. Never invent facts.
-Use null for unknown fields. Distinguish email received date from event/delivery/booking dates.
-Never use the email received date as a substitute for an unknown event date.
-If a date is ambiguous, set requires_confirmation true and explain in evidence.
-Pass current_datetime and timezone from the user message as the reference "now".`;
+  const SYSTEM = `You are Daylight's email intelligence engine for personal organisation.
+Return ONLY a single JSON object. No markdown fences. No prose outside JSON.
+
+Rules:
+1. Never invent facts. Missing values must be null (or [] for arrays).
+2. category and intent are DIFFERENT. Always set both when possible.
+3. Intent must be the most specific lifecycle action (never default to informational if a clearer intent fits).
+4. Resolve relative dates (tomorrow, morgen, this Saturday) using current_datetime + timezone. Put ISO date in the field and keep original wording in evidence.quoted_text.
+5. Never copy email_received_at into delivery/departure/due dates.
+6. Ambiguous weekday-only dates (e.g. "this Saturday") → requires_confirmation=true.
+7. For shopping/delivery fill order{merchant,order_id,tracking_number,delivery_date,status,product}.
+8. For flights fill travel{type:"flight",pnr,flight_number,from,to,depart_datetime,arrive_datetime,seat,status}.
+9. For hotels fill travel{type:"hotel",hotel_name,check_in,check_out,pnr,status}.
+10. For invoices fill financial{amount,currency,due_date,status,invoice_number}.
+11. For subscriptions fill financial amount/currency when present and set intent subscription_*.
+12. Quote supporting snippets in evidence for every important extracted ID/date.
+
+Canonical categories (pick one primary):
+shopping, delivery, travel, finance, bills, subscriptions, work, meetings, personal, social, education, health, documents, government, security, promotions, newsletters, other
+Note: package/shipping updates may use category "delivery" OR "shopping"; prefer "shopping" when an order_id is present.
+
+Canonical intents (pick the best one):
+order_placed, order_confirmed, order_shipped, delivery_scheduled, delivery_delayed, delivery_delivered,
+booking_confirmed, booking_cancelled, booking_rescheduled, check_in_required,
+payment_due, payment_completed, refund_issued,
+subscription_started, subscription_renewal, subscription_cancelled,
+ticket_issued, reminder, informational, promotional
+
+Intent examples:
+- "Order confirmed" / "Thanks for your order" → order_confirmed
+- "Out for delivery" / "Expected delivery tomorrow" → delivery_scheduled
+- "Delivery delayed" → delivery_delayed
+- "Delivered" / "was delivered" → delivery_delivered
+- "Flight booking confirmation" / hotel reservation confirmed → booking_confirmed
+- "Flight cancelled" → booking_cancelled
+- "Schedule change" / "New departure" → booking_rescheduled
+- "Payment due" / invoice with due date → payment_due
+- "Subscription renewed" → subscription_renewal
+- Pure marketing with no order lifecycle → promotional`;
 
   const SCHEMA_HINT = `{
-  "category": one of ${JSON.stringify(PRIMARY_CATEGORIES)},
+  "category": "shopping|delivery|travel|finance|bills|subscriptions|work|meetings|personal|social|education|health|documents|government|security|promotions|newsletters|other",
   "secondary_categories": [],
-  "intent": one of ${JSON.stringify(INTENTS)} or null,
-  "organisation": string|null,
-  "summary": short string,
+  "intent": "order_confirmed|order_shipped|delivery_scheduled|delivery_delayed|delivery_delivered|booking_confirmed|booking_cancelled|booking_rescheduled|payment_due|payment_completed|refund_issued|subscription_renewal|subscription_cancelled|promotional|informational|...",
+  "organisation": "string|null",
+  "summary": "short string",
   "entities": [{"type":"string","value":"string","quoted_text":"string|null"}],
-  "event": {"exists":boolean,"type":string|null,"title":string|null,"start_datetime":string|null,"end_datetime":string|null,"timezone":string|null,"all_day":boolean,"location":string|null,"status":string|null}|null,
-  "order": {"merchant":string|null,"order_id":string|null,"tracking_number":string|null,"delivery_date":string|null,"status":string|null,"items":[]}|null,
-  "travel": {"type":"flight|hotel|train|other"|null,"pnr":string|null,"flight_number":string|null,"from":string|null,"to":string|null,"depart_datetime":string|null,"arrive_datetime":string|null,"seat":string|null,"gate":string|null,"hotel_name":string|null,"check_in":string|null,"check_out":string|null,"status":string|null}|null,
-  "financial": {"amount":string|null,"currency":string|null,"due_date":string|null,"status":string|null}|null,
-  "reminders": [{"title":string,"datetime":string|null,"reason":string|null,"requires_confirmation":boolean}],
-  "suggested_actions": [{"action":string,"label":string|null}],
-  "confidence": 0-1 number,
-  "evidence": [{"field":string,"quoted_text":string}],
-  "requires_confirmation": boolean,
-  "facts_vs_inferred": {"facts":[string],"inferred":[string],"unknown":[string]}
+  "event": {"exists":true,"type":"delivery|flight|hotel|payment|null","title":"string|null","start_datetime":"ISO-8601|null","end_datetime":"ISO-8601|null","timezone":"string|null","all_day":false,"location":"string|null","status":"string|null"} | null,
+  "order": {"merchant":"string|null","order_id":"string|null","product":"string|null","tracking_number":"string|null","tracking_url":"string|null","delivery_date":"YYYY-MM-DD|null","actual_delivery_date":"YYYY-MM-DD|null","status":"ordered|shipped|out_for_delivery|delayed|delivered|refunded|null","items":[]} | null,
+  "travel": {"type":"flight|hotel|train|other|null","airline":"string|null","pnr":"string|null","flight_number":"string|null","from":"string|null","to":"string|null","depart_datetime":"ISO-8601|null","arrive_datetime":"ISO-8601|null","seat":"string|null","terminal":"string|null","gate":"string|null","check_in_deadline":"ISO-8601|null","hotel_name":"string|null","address":"string|null","check_in":"YYYY-MM-DD|null","check_out":"YYYY-MM-DD|null","status":"confirmed|cancelled|rescheduled|null"} | null,
+  "financial": {"amount":"string|null","currency":"string|null","due_date":"YYYY-MM-DD|null","status":"due|paid|failed|null","invoice_number":"string|null","billing_frequency":"string|null","next_renewal_date":"YYYY-MM-DD|null"} | null,
+  "reminders": [{"title":"string","datetime":"ISO-8601|null","reason":"string|null","requires_confirmation":true}],
+  "suggested_actions": [{"action":"string","label":"string|null"}],
+  "confidence": 0.0,
+  "evidence": [{"field":"order_id|delivery_date|pnr|depart_datetime|due_date|...","quoted_text":"exact snippet"}],
+  "requires_confirmation": false,
+  "original_date_expressions": [{"field":"string","text":"string"}],
+  "facts_vs_inferred": {"facts":[],"inferred":[],"unknown":[]}
 }`;
 
   function readJSON(k, fallback) {
@@ -172,82 +253,193 @@ Pass current_datetime and timezone from the user message as the reference "now".
     return null;
   }
 
-  function validateExtraction(raw) {
-    if (!raw || typeof raw !== 'object') return emptyResult({ valid: false, error: 'not_object' });
-    let category = String(raw.category || 'other').toLowerCase().replace(/\s+/g, '_');
+  function normalizeCategory(rawCat, order, travel) {
+    let category = String(rawCat || 'other').toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
     if (category === 'government_and_administration') category = 'government';
     if (category === 'delivery_and_logistics') category = 'delivery';
     if (category === 'security_and_account_alerts') category = 'security';
+    if (CATEGORY_ALIASES[category]) category = CATEGORY_ALIASES[category];
     if (!PRIMARY_CATEGORIES.includes(category)) category = 'other';
-
-    let intent = raw.intent == null ? null : String(raw.intent).toLowerCase();
-    if (intent && !INTENTS.includes(intent)) intent = 'informational';
-
-    const event = raw.event && typeof raw.event === 'object' ? {
-      exists: !!raw.event.exists,
-      type: asStr(raw.event.type),
-      title: asStr(raw.event.title),
-      start_datetime: asStr(raw.event.start_datetime),
-      end_datetime: asStr(raw.event.end_datetime),
-      timezone: asStr(raw.event.timezone),
-      all_day: !!raw.event.all_day,
-      location: asStr(raw.event.location),
-      status: asStr(raw.event.status)
-    } : null;
-
-    // Never accept event that only mirrors "received" without a real start
-    if (event && event.exists && !event.start_datetime) {
-      event.exists = false;
-      raw.requires_confirmation = true;
+    // Daylight shopping taxonomy: package updates with an order id count as shopping
+    if (category === 'delivery' && (order?.order_id || order?.merchant)) {
+      category = 'shopping';
     }
+    // Hotel/flight structured travel → travel
+    if (category === 'other' && travel && (travel.pnr || travel.flight_number || travel.hotel_name || travel.check_in)) {
+      category = 'travel';
+    }
+    return category;
+  }
+
+  function normalizeIntent(rawIntent) {
+    if (rawIntent == null || rawIntent === '') return null;
+    let intent = String(rawIntent).toLowerCase().trim().replace(/\s+/g, '_').replace(/-/g, '_');
+    if (INTENT_ALIASES[intent]) intent = INTENT_ALIASES[intent];
+    // Soft synonym repair
+    if (intent === 'order_confirmation') intent = 'order_confirmed';
+    if (intent === 'delivery_update') intent = 'delivery_scheduled';
+    if (intent === 'delivered') intent = 'delivery_delivered';
+    if (intent === 'cancellation' || intent === 'cancelled' || intent === 'canceled') intent = 'booking_cancelled';
+    if (intent === 'rescheduling') intent = 'booking_rescheduled';
+    if (intent === 'flight_booking' || intent === 'hotel_booking' || intent === 'train_booking') intent = 'booking_confirmed';
+    if (intent === 'refund') intent = 'refund_issued';
+    if (intent === 'marketing') intent = 'promotional';
+    const canonical = [
+      'order_placed', 'order_confirmed', 'order_shipped', 'delivery_scheduled', 'delivery_delayed', 'delivery_delivered',
+      'booking_confirmed', 'booking_cancelled', 'booking_rescheduled', 'check_in_required',
+      'payment_due', 'payment_completed', 'refund_issued',
+      'subscription_started', 'subscription_renewal', 'subscription_cancelled',
+      'ticket_issued', 'reminder', 'informational', 'promotional'
+    ];
+    if (canonical.includes(intent)) return intent;
+    if (INTENTS.includes(intent)) return INTENT_ALIASES[intent] || intent;
+    return null; // do NOT silently coerce unknown → informational
+  }
+
+  function inferIntentFromStructure(intent, order, travel, financial, category) {
+    if (intent) return intent;
+    const st = String(order?.status || '').toLowerCase();
+    if (st === 'delayed') return 'delivery_delayed';
+    if (st === 'delivered') return 'delivery_delivered';
+    if (st === 'out_for_delivery' || st === 'shipped') return st === 'shipped' ? 'order_shipped' : 'delivery_scheduled';
+    if (st === 'ordered' || st === 'confirmed') return 'order_confirmed';
+    const ts = String(travel?.status || '').toLowerCase();
+    if (ts === 'cancelled' || ts === 'canceled') return 'booking_cancelled';
+    if (ts === 'rescheduled') return 'booking_rescheduled';
+    if (travel?.pnr || travel?.flight_number || travel?.hotel_name) return 'booking_confirmed';
+    if (financial?.due_date && String(financial.status || '').toLowerCase() !== 'paid') return 'payment_due';
+    if (category === 'promotions') return 'promotional';
+    if (category === 'subscriptions') return 'subscription_renewal';
+    return 'informational';
+  }
+
+  function normalizeDateField(v) {
+    if (v == null || v === '') return null;
+    const s = String(v).trim();
+    // Keep YYYY-MM-DD or ISO-like; strip trailing Z quirks later
+    const day = s.match(/^(20\d{2}-\d{2}-\d{2})/);
+    if (day) {
+      const time = s.match(/T\d{2}:\d{2}/);
+      return time ? s.replace(' ', 'T') : day[1];
+    }
+    const m = s.match(/\b(20\d{2}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?)/);
+    return m ? m[1].replace(' ', 'T') : s.slice(0, 40);
+  }
+
+  function validateExtraction(raw) {
+    if (!raw || typeof raw !== 'object') return emptyResult({ valid: false, error: 'not_object' });
 
     const order = raw.order && typeof raw.order === 'object' ? {
       merchant: asStr(raw.order.merchant),
       order_id: asStr(raw.order.order_id),
+      product: asStr(raw.order.product || raw.order.item || null),
       tracking_number: asStr(raw.order.tracking_number),
-      delivery_date: asStr(raw.order.delivery_date),
+      tracking_url: asStr(raw.order.tracking_url),
+      delivery_date: normalizeDateField(raw.order.delivery_date || raw.order.expected_delivery_date),
+      actual_delivery_date: normalizeDateField(raw.order.actual_delivery_date),
       status: asStr(raw.order.status),
       items: asArray(raw.order.items)
     } : null;
 
     const travel = raw.travel && typeof raw.travel === 'object' ? {
       type: asStr(raw.travel.type),
-      pnr: asStr(raw.travel.pnr),
-      flight_number: asStr(raw.travel.flight_number),
-      from: asStr(raw.travel.from),
-      to: asStr(raw.travel.to),
-      depart_datetime: asStr(raw.travel.depart_datetime),
-      arrive_datetime: asStr(raw.travel.arrive_datetime),
+      airline: asStr(raw.travel.airline),
+      pnr: asStr(raw.travel.pnr || raw.travel.booking_ref || raw.travel.confirmation_code),
+      flight_number: asStr(raw.travel.flight_number || raw.travel.flight),
+      from: asStr(raw.travel.from || raw.travel.departure_airport),
+      to: asStr(raw.travel.to || raw.travel.arrival_airport),
+      depart_datetime: normalizeDateField(raw.travel.depart_datetime || raw.travel.departure_datetime || raw.travel.departure),
+      arrive_datetime: normalizeDateField(raw.travel.arrive_datetime || raw.travel.arrival_datetime),
       seat: asStr(raw.travel.seat),
+      terminal: asStr(raw.travel.terminal),
       gate: asStr(raw.travel.gate),
-      hotel_name: asStr(raw.travel.hotel_name),
-      check_in: asStr(raw.travel.check_in),
-      check_out: asStr(raw.travel.check_out),
+      check_in_deadline: normalizeDateField(raw.travel.check_in_deadline),
+      hotel_name: asStr(raw.travel.hotel_name || raw.travel.hotel),
+      address: asStr(raw.travel.address),
+      check_in: normalizeDateField(raw.travel.check_in || raw.travel.checkin),
+      check_out: normalizeDateField(raw.travel.check_out || raw.travel.checkout),
       status: asStr(raw.travel.status)
     } : null;
 
     const financial = raw.financial && typeof raw.financial === 'object' ? {
       amount: asStr(raw.financial.amount),
       currency: asStr(raw.financial.currency),
-      due_date: asStr(raw.financial.due_date),
-      status: asStr(raw.financial.status)
+      due_date: normalizeDateField(raw.financial.due_date || raw.financial.payment_due),
+      status: asStr(raw.financial.status),
+      invoice_number: asStr(raw.financial.invoice_number || raw.financial.invoice_id),
+      billing_frequency: asStr(raw.financial.billing_frequency),
+      next_renewal_date: normalizeDateField(raw.financial.next_renewal_date)
     } : null;
+
+    let category = normalizeCategory(raw.category, order, travel);
+    let intent = normalizeIntent(raw.intent);
+    intent = inferIntentFromStructure(intent, order, travel, financial, category);
+
+    const secondary = asArray(raw.secondary_categories).map(c => {
+      let x = String(c).toLowerCase().replace(/\s+/g, '_');
+      if (CATEGORY_ALIASES[x]) x = CATEGORY_ALIASES[x];
+      return x;
+    }).filter(c => PRIMARY_CATEGORIES.includes(c) && c !== category);
+    if (String(raw.category || '').toLowerCase() === 'delivery' && category === 'shopping' && !secondary.includes('delivery')) {
+      secondary.unshift('delivery');
+    }
+
+    const event = raw.event && typeof raw.event === 'object' ? {
+      exists: !!raw.event.exists,
+      type: asStr(raw.event.type),
+      title: asStr(raw.event.title),
+      start_datetime: normalizeDateField(raw.event.start_datetime),
+      end_datetime: normalizeDateField(raw.event.end_datetime),
+      timezone: asStr(raw.event.timezone),
+      all_day: !!raw.event.all_day,
+      location: asStr(raw.event.location),
+      status: asStr(raw.event.status)
+    } : null;
+
+    if (event && event.exists && !event.start_datetime) {
+      event.exists = false;
+      raw.requires_confirmation = true;
+    }
+
+    // Prefer order.delivery_date / travel.depart as event start when event missing
+    let eventOut = event && event.exists ? event : (event ? { ...event, exists: false } : null);
+    if ((!eventOut || !eventOut.exists) && order?.delivery_date) {
+      eventOut = {
+        exists: true, type: 'delivery', title: (order.merchant || 'Order') + ' delivery',
+        start_datetime: order.delivery_date.length === 10 ? order.delivery_date + 'T00:00:00' : order.delivery_date,
+        end_datetime: null, timezone: null, all_day: order.delivery_date.length === 10,
+        location: null, status: 'scheduled'
+      };
+    }
+    if ((!eventOut || !eventOut.exists) && travel?.depart_datetime) {
+      eventOut = {
+        exists: true, type: travel.type || 'flight', title: travel.flight_number ? ('Flight ' + travel.flight_number) : (travel.hotel_name || 'Travel'),
+        start_datetime: travel.depart_datetime, end_datetime: travel.arrive_datetime || null,
+        timezone: null, all_day: false, location: travel.from && travel.to ? (travel.from + ' → ' + travel.to) : null,
+        status: travel.status || 'scheduled'
+      };
+    }
 
     const reminders = asArray(raw.reminders).map(r => ({
       title: String(r?.title || '').slice(0, 160),
-      datetime: asStr(r?.datetime),
+      datetime: normalizeDateField(r?.datetime),
       reason: asStr(r?.reason),
       requires_confirmation: r?.requires_confirmation !== false && (!r?.datetime || !!raw.requires_confirmation)
     })).filter(r => r.title);
 
-    const confidence = asNum01(raw.confidence);
-    const requires_confirmation = !!raw.requires_confirmation || confidence < 0.72 ||
-      (event?.exists && !event.start_datetime) ||
+    const originalDates = asArray(raw.original_date_expressions);
+    const ambiguousExpr = originalDates.some(d => /saturday|sunday|monday|tuesday|wednesday|thursday|friday|this week|next week|soon/i.test(String(d?.text || '')));
+    const confidence = asNum01(raw.confidence == null ? 0.8 : raw.confidence);
+    let requires_confirmation = !!raw.requires_confirmation || ambiguousExpr || confidence < 0.72 ||
+      (eventOut?.exists && !eventOut.start_datetime) ||
       reminders.some(r => !r.datetime);
+
+    // Ambiguous relative weekday without resolved ISO confirmation already flagged by model — force if delivery date missing on shopping delay/schedule
+    if ((intent === 'delivery_scheduled' || intent === 'delivery_delayed') && !order?.delivery_date) requires_confirmation = true;
 
     const out = {
       category,
-      secondary_categories: asArray(raw.secondary_categories).map(String).filter(c => PRIMARY_CATEGORIES.includes(c)),
+      secondary_categories: secondary,
       intent,
       organisation: asStr(raw.organisation),
       summary: String(raw.summary || '').slice(0, 280),
@@ -256,10 +448,10 @@ Pass current_datetime and timezone from the user message as the reference "now".
         value: String(e?.value || ''),
         quoted_text: asStr(e?.quoted_text)
       })).filter(e => e.value),
-      event: event && event.exists ? event : (event ? { ...event, exists: false } : null),
-      order: order && (order.merchant || order.order_id || order.tracking_number || order.delivery_date) ? order : null,
-      travel: travel && (travel.pnr || travel.flight_number || travel.from || travel.to || travel.hotel_name || travel.check_in) ? travel : null,
-      financial: financial && (financial.amount || financial.due_date) ? financial : null,
+      event: eventOut,
+      order: order && (order.merchant || order.order_id || order.tracking_number || order.delivery_date || order.product) ? order : null,
+      travel: travel && (travel.pnr || travel.flight_number || travel.from || travel.to || travel.hotel_name || travel.check_in || travel.depart_datetime) ? travel : null,
+      financial: financial && (financial.amount || financial.due_date || financial.invoice_number || financial.next_renewal_date) ? financial : null,
       reminders,
       suggested_actions: asArray(raw.suggested_actions).slice(0, 8).map(a => ({
         action: String(a?.action || ''),
@@ -271,6 +463,7 @@ Pass current_datetime and timezone from the user message as the reference "now".
         quoted_text: String(e?.quoted_text || '')
       })).filter(e => e.field && e.quoted_text),
       requires_confirmation,
+      original_date_expressions: originalDates,
       facts_vs_inferred: {
         facts: asArray(raw.facts_vs_inferred?.facts).map(String),
         inferred: asArray(raw.facts_vs_inferred?.inferred).map(String),
@@ -295,13 +488,13 @@ Pass current_datetime and timezone from the user message as the reference "now".
     const shopHit = /amazon\.|ship-confirm@amazon|auto-confirm@amazon|@ebay\.|ebay@/i.test(from)
       || /\b(amazon|ebay|aliexpress|order (confirmed|shipped)|your (package|order)|bestellung|objednávka)\b/i.test(subject + ' ' + body);
     if (shopHit) {
-      let intent = 'order_confirmation';
+      let intent = 'order_confirmed';
       let status = 'ordered';
-      if (/\b(out for delivery|arriving (today|tomorrow)|expected delivery|lieferung|doruč)\b/i.test(text)) { intent = 'delivery_update'; status = 'out_for_delivery'; }
+      if (/\b(out for delivery|arriving (today|tomorrow)|expected delivery|lieferung|doruč)\b/i.test(text)) { intent = 'delivery_scheduled'; status = 'out_for_delivery'; }
       if (/\b(delayed|running late|delivery (date )?changed)\b/i.test(text)) { intent = 'delivery_delayed'; status = 'delayed'; }
-      if (/\b(delivered|was delivered|left at|zugestellt|doručeno)\b/i.test(text)) { intent = 'delivered'; status = 'delivered'; }
-      if (/\brefund\b/i.test(text)) { intent = 'refund'; status = 'refunded'; }
-      if (/\b(shipped|dispatched|on its way|tracking|versandt|odeslán)\b/i.test(text) && intent === 'order_confirmation') { intent = 'order_shipped'; status = 'shipped'; }
+      if (/\b(delivered|was delivered|left at|zugestellt|doručeno)\b/i.test(text)) { intent = 'delivery_delivered'; status = 'delivered'; }
+      if (/\brefund\b/i.test(text)) { intent = 'refund_issued'; status = 'refunded'; }
+      if (/\b(shipped|dispatched|on its way|tracking|versandt|odeslán)\b/i.test(text) && intent === 'order_confirmed') { intent = 'order_shipped'; status = 'shipped'; }
       // Require a real order token (digits); never capture words like "confirmed"
       const orderId = (text.match(/\b(?:order|bestellung)\s*(?:number|no\.?|id|#)?\s*[:#]?\s*#?\s*([0-9][A-Z0-9-]{5,})\b/i) || [])[1]
         || (text.match(/#\s*([0-9][A-Z0-9-]{5,})\b/) || [])[1]
@@ -372,9 +565,9 @@ Pass current_datetime and timezone from the user message as the reference "now".
       const checkOut = (text.match(/\bcheck-?out\s*(?:on\s*)?(20\d{2}-\d{2}-\d{2})/i) || [])[1] || null;
       const seat = (text.match(/\bseat\s*([A-Z]?\d{1,2}[A-Z]?)\b/i) || [])[1] || null;
       const hotelName = isHotel ? ((text.match(/\bHotel\s+([A-ZÁ-ž][\w .'-]{2,40})/i) || [])[1] || org) : null;
-      let intent = isHotel ? 'hotel_booking' : isTrain ? 'train_booking' : 'flight_booking';
-      if (cancelled) intent = 'cancellation';
-      else if (resched) intent = 'rescheduling';
+      let intent = 'booking_confirmed';
+      if (cancelled) intent = 'booking_cancelled';
+      else if (resched) intent = 'booking_rescheduled';
       const type = isHotel ? 'hotel' : isTrain ? 'train' : 'flight';
       const when = departIso || (checkIn ? checkIn + 'T15:00:00' : null);
       return validateExtraction({
@@ -514,7 +707,7 @@ ${SCHEMA_HINT}`;
     // Prefer local high-confidence for known templates to save cost.
     // Still escalate to Gemini when the local result needs confirmation (ambiguous dates, missing fields).
     if (local && local.confidence >= 0.84 && !local.requires_confirmation && !shouldForceGemini(ctx)) {
-      setStatus(local.intent === 'flight_booking' ? 'Booking detected' : 'Delivery date extracted', local.summary);
+      setStatus(/booking_|flight|hotel|train/i.test(local.intent || '') ? 'Booking detected' : 'Delivery date extracted', local.summary);
       return { ...local, source: 'local-heuristic' };
     }
 
@@ -651,7 +844,11 @@ ${SCHEMA_HINT}`;
   root.DaylightAI = {
     PRIMARY_CATEGORIES,
     INTENTS,
+    INTENT_ALIASES,
+    CATEGORY_ALIASES,
     INBOX_MAP,
+    SYSTEM,
+    SCHEMA_HINT,
     LS,
     getConsent, setConsent, isEnabled, setEnabled,
     allowedAccounts, setAllowedAccounts, accountAllowed,
@@ -659,6 +856,9 @@ ${SCHEMA_HINT}`;
     shouldCallGemini,
     localHeuristicExtract,
     validateExtraction,
+    normalizeIntent,
+    normalizeCategory,
+    buildPrompt,
     classifyEmail,
     extractEmailInformation,
     detectEvents,
@@ -668,6 +868,7 @@ ${SCHEMA_HINT}`;
     analyseEmailChanges,
     analyseEmail,
     entityKey,
-    mapInboxToPrimary
+    mapInboxToPrimary,
+    parseJsonLoose
   };
 })(typeof window !== 'undefined' ? window : globalThis);
