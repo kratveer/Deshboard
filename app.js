@@ -663,18 +663,40 @@
     }
     if(h.get('daylight_error'))setTimeout(()=>{const msg=SERVER_ERRORS[h.get('daylight_error')]||'Server sign-in failed: '+h.get('daylight_error');$('#sync-status').textContent=msg;toast(msg,{type:'warn'});if(h.get('daylight_error')==='gmail_readonly_required')connectDialog({setup:false})},0);
     history.replaceState(null,'',location.pathname+location.search)})();
+  function clearServerSession(statusMsg){
+    serverSession='';setLS('daylight-session','');token=null;rememberGoogleScopes('');
+    $('#connections').classList.toggle('active',Boolean(microsoftAccount));
+    if(statusMsg)$('#sync-status').innerHTML=statusMsg;
+  }
+  function reconnectGoogleUpgrade(){
+    if(!serverUrl){connectDialog({setup:true});return}
+    const q=new URLSearchParams({return:location.origin+location.pathname,upgrade:'1'});
+    location.href=serverUrl+'/auth/google/start?'+q.toString();
+  }
   async function serverToken(){
     if(!serverUrl||!serverSession)return false;
     if(serverTokenPromise)return serverTokenPromise;
     serverTokenPromise=(async()=>{try{
       const r=await fetch(serverUrl+'/api/google/token',{method:'POST',headers:{Authorization:'Bearer '+serverSession}});
-      if(r.status===401){serverSession='';setLS('daylight-session','');token=null;$('#connections').classList.toggle('active',Boolean(microsoftAccount));$('#sync-status').textContent='Google sign-in expired · open connections and choose Stay signed in';return false}
-      if(!r.ok)throw new Error('server '+r.status);
-      const d=await r.json();token=d.access_token;serverEmail=d.email||'';tokenExpiry=Date.now()+(Number(d.expires_in)||3600)*1000;
+      let d={};try{d=await r.json()}catch{}
+      if(r.status===401){
+        clearServerSession('Google sign-in expired · <button type="button" class="js-google-upgrade" style="all:unset;cursor:pointer;color:var(--accent-text);font-weight:700;text-decoration:underline">reconnect for full Gmail access</button>');
+        return false;
+      }
+      if(!r.ok){
+        // Dead/revoked stay-signed-in session after scope upgrade — clear and prompt reconnect (keep local Daylight data)
+        if(r.status===502||d.error==='google_unavailable'){
+          clearServerSession('Google session needs refresh · <button type="button" class="js-google-upgrade" style="all:unset;cursor:pointer;color:var(--accent-text);font-weight:700;text-decoration:underline">reconnect for full Gmail access</button>');
+          if(!serverToken._upgradeHinted){serverToken._upgradeHinted=true;toast('Reconnect Google to finish gmail.readonly upgrade',{type:'warn'})}
+          return false;
+        }
+        throw new Error('server '+r.status);
+      }
+      token=d.access_token;serverEmail=d.email||'';tokenExpiry=Date.now()+(Number(d.expires_in)||3600)*1000;
       if(d.scope)rememberGoogleScopes(d.scope);
       $('#connections').classList.add('active');
       if(d.needs_gmail_upgrade||d.gmail_readonly===false||(d.scope&&!hasGmailReadonly())){
-        $('#sync-status').textContent='Google connected · reconnect required for full Gmail reading';
+        $('#sync-status').innerHTML='Google connected · <button type="button" class="js-google-upgrade" style="all:unset;cursor:pointer;color:var(--accent-text);font-weight:700;text-decoration:underline">reconnect for full Gmail access</button>';
         if(!serverToken._upgradeHinted){serverToken._upgradeHinted=true;toast('Reconnect Google once for full mail access (gmail.readonly)',{type:'warn'})}
       }
       clearTimeout(serverRenew);serverRenew=setTimeout(serverToken,Math.max(60,(Number(d.expires_in)||3600)-180)*1000);return true;
@@ -682,6 +704,12 @@
     finally{serverTokenPromise=null}})();
     return serverTokenPromise;
   }
+  document.addEventListener('click',e=>{
+    const b=e.target?.closest?.('.js-google-upgrade');
+    if(!b)return;
+    e.preventDefault();
+    reconnectGoogleUpgrade();
+  });
   renderProfile();$('#profile')?.addEventListener('click',connectDialog);
   setInterval(renderProfile,10*60000);
   if(serverUrl&&serverSession)serverToken().then(ok=>{if(ok)refreshAll()});

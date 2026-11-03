@@ -134,7 +134,14 @@ async function handle(req, env) {
     const allowed = list(env.ALLOWED_EMAILS).map((e) => e.toLowerCase());
     if (!email || (allowed.length && !allowed.includes(email))) return back(ret, { daylight_error: 'account_not_allowed' });
     if (!tok.refresh_token) return back(ret, { daylight_error: 'no_refresh_token' });
-    const granted = scopeBlob(tok.scope);
+    let granted = scopeBlob(tok.scope);
+    // Some Google responses omit scope on the code exchange — confirm via tokeninfo (never forwarded to the client).
+    if (!hasGmailReadonly(granted) && tok.access_token) {
+      try {
+        const info = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(tok.access_token)).then((r) => r.json()).catch(() => ({}));
+        if (info?.scope) granted = scopeBlob(info.scope);
+      } catch {}
+    }
     // Refuse sessions that cannot read message bodies (blocks silent gmail.metadata-only grants).
     if (!hasGmailReadonly(granted)) {
       return back(ret, { daylight_error: 'gmail_readonly_required' });
@@ -153,8 +160,19 @@ async function handle(req, env) {
   if (url.pathname === '/api/google/token' && req.method === 'POST') {
     const s = await sessionFrom(env, req);
     if (!s) return json(env, req, { error: 'reauth' }, 401);
+    if (!s.rec?.rt) {
+      await env.SESSIONS.delete(s.key);
+      return json(env, req, { error: 'reauth', stage: 'missing_refresh' }, 401);
+    }
+    let refreshToken;
     try {
-      const tok = await googleToken({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, refresh_token: await open(env, s.rec.rt), grant_type: 'refresh_token' });
+      refreshToken = await open(env, s.rec.rt);
+    } catch {
+      await env.SESSIONS.delete(s.key);
+      return json(env, req, { error: 'reauth', stage: 'unseal' }, 401);
+    }
+    try {
+      const tok = await googleToken({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, refresh_token: refreshToken, grant_type: 'refresh_token' });
       const scope = scopeBlob(tok.scope || s.rec.scopes || '');
       await env.SESSIONS.put(s.key, JSON.stringify({ ...s.rec, scopes: scope || s.rec.scopes, used: Date.now() }), { expirationTtl: SESSION_TTL }); // keep active sessions alive
       return json(env, req, {
@@ -167,8 +185,12 @@ async function handle(req, env) {
         needs_gmail_upgrade: !hasGmailReadonly(scope)
       });
     } catch (e) {
-      if (e.code === 'invalid_grant') { await env.SESSIONS.delete(s.key); return json(env, req, { error: 'reauth' }, 401); }
-      return json(env, req, { error: 'google_unavailable' }, 502);
+      // Revoked / superseded refresh tokens (common after reconnect) → clear session so the client can upgrade cleanly
+      if (e.code === 'invalid_grant' || e.code === 'unauthorized_client' || e.code === 'invalid_client') {
+        await env.SESSIONS.delete(s.key);
+        return json(env, req, { error: 'reauth', stage: 'refresh', google_error: e.code }, 401);
+      }
+      return json(env, req, { error: 'google_unavailable', stage: 'refresh', google_error: e.code || 'unknown' }, 502);
     }
   }
 
