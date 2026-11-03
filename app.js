@@ -5,6 +5,7 @@
   let tokenExpiry = 0;
   let token = null, tokenClient = null, microsoftApp = null, microsoftAccount = null;
   const providerData = { google:{events:null,mails:null,tasks:null}, microsoft:{events:null,mails:null,tasks:null} };
+  let mWeekCache={}, mCalIds=null, mWeekInflight={};
   let personalTasks = [];
   try { personalTasks = JSON.parse(localStorage.getItem('daylight-personal-tasks') || '[]'); if (!Array.isArray(personalTasks)) personalTasks=[]; } catch { personalTasks=[]; }
   const scopes = [
@@ -472,7 +473,9 @@
     syncBusy=false;
     if(failed.length){lastSyncErr=failed.map(x=>x.reason.message).join('; ');toast('Some services need permission or API setup; check the status line.')}
     else lastSyncOk=Date.now();
+    mWeekCache={};mCalIds=null;
     if(typeof renderDrawerSync==='function')renderDrawerSync();
+    if(typeof renderAssistant==='function'&&mq.matches&&mTab==='assistant'&&!mAssistAsk)renderAssistant();
   }
   $('#refresh').onclick=()=>{if(token||microsoftAccount||DEMO){refreshAll.force=true;refreshAll()}else toast('Connect an app first to refresh live data.')};
   $('#weather-connect').onclick=()=>{
@@ -2205,8 +2208,45 @@
   const STOP=new Set('find search show me the a an my for about of in on to with where is are was what which email emails mail mails message file files document documents doc docs meeting meetings please any that from'.split(' '));
   const keywordsOf=q=>q.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu,' ').split(/\s+/).filter(w=>w&&!STOP.has(w));
   const has=(s,kws)=>kws.every(k=>String(s||'').toLowerCase().includes(k));
-  async function eventsBetween(from,to,q){if(!token)return null;const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');u.searchParams.set('timeMin',from.toISOString());u.searchParams.set('timeMax',to.toISOString());u.searchParams.set('singleEvents','true');u.searchParams.set('orderBy','startTime');u.searchParams.set('maxResults','50');if(q)u.searchParams.set('q',q);
-    try{return (await api(u)).items||[]}catch{return []}
+  async function googleCalendarIds(){
+    if(!token)return [];
+    if(mCalIds)return mCalIds;
+    try{
+      const data=await api('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50&minAccessRole=reader');
+      const ids=(data.items||[]).filter(c=>c&&c.selected!==false&&!c.hidden).slice(0,8).map(c=>c.id).filter(Boolean);
+      mCalIds=ids.length?ids:['primary'];
+    }catch{mCalIds=['primary']}
+    return mCalIds;
+  }
+  async function googleEventsBetween(from,to,q){
+    if(!token)return [];
+    const ids=await googleCalendarIds();
+    const chunks=await Promise.all(ids.map(async id=>{
+      const items=[];let pageToken='';
+      try{
+        do{
+          const u=new URL('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(id)+'/events');
+          u.searchParams.set('timeMin',from.toISOString());
+          u.searchParams.set('timeMax',to.toISOString());
+          u.searchParams.set('singleEvents','true');
+          u.searchParams.set('orderBy','startTime');
+          u.searchParams.set('maxResults','250');
+          if(q)u.searchParams.set('q',q);
+          if(pageToken)u.searchParams.set('pageToken',pageToken);
+          const data=await api(u);
+          (data.items||[]).forEach(e=>{if(e&&e.status!=='cancelled')items.push({...e,source:e.source||'Google Calendar',calendarId:id})});
+          pageToken=data.nextPageToken||'';
+        }while(pageToken&&items.length<500);
+      }catch(err){console.warn('calendar',id,err)}
+      return items;
+    }));
+    const seen=new Set(),out=[];
+    chunks.flat().forEach(e=>{const k=e.id||(e.iCalUID||'')+String(e.start?.dateTime||e.start?.date||'');if(!k||seen.has(k))return;seen.add(k);out.push(e)});
+    return out;
+  }
+  async function eventsBetween(from,to,q){
+    if(!token)return [];
+    try{return await googleEventsBetween(from,to,q)}catch{return []}
   }
   async function msEventsBetween(from,to){
     if(!microsoftAccount)return [];
@@ -2691,7 +2731,7 @@
     const mid=mail?.id||l.mailId||relatedMail?.mailId||null;
     const linked=mid&&window.DaylightData?.linkedRecordsForMail?window.DaylightData.linkedRecordsForMail(mid):{orders:[],wallet:[],extraction:null};
     $('#ls-head').innerHTML=`<span class="td-ico m-brand" style="--a1:${esc(logoBrand.color)};--a2:${esc(logoBrand.color)}" aria-hidden="true">${brandLogoHTML(logoBrand,initialsOf(mailFrom||l.title))}</span>
-      <div class="td-head-copy">${prio?`<span class="td-prio">High Priority</span>`:''}<h2 id="ls-title">${esc(composing?'Write a reply':l.title)}</h2>
+      <div class="td-head-copy">${prio?`<span class="td-prio">Priority</span>`:''}<h2 id="ls-title">${esc(composing?'Write a reply':l.title)}</h2>
       <div class="td-meta-row"><span class="td-chip">${esc(srcOf(l)||'Daylight')}</span>${whenTxt?`<span class="td-chip">${esc(whenTxt)}</span>`:''}${l.amount?`<span class="td-chip accent">${esc(l.amount)}</span>`:''}${l.tripId?`<span class="td-chip">Trip</span>`:''}</div></div>`;
     const tripCard=tripPass.length?`<div class="td-card td-need"><span class="td-need-l">Linked trip</span>${tripPass.map(w=>`<p style="margin:6px 0 0"><button type="button" class="td-link" data-open-wallet="${esc(w.id)}">${esc(w.title)}</button> <small>${esc(w.typeLabel||WALLET_LABEL[w.kind]||'')}</small></p>`).join('')}</div>`:'';
     const linkedBits=[];
@@ -2854,7 +2894,7 @@
   }
   function loopHTML(l){const t=LOOP_TYPES[l.type]||LOOP_TYPES.reply;const list=(wset('loops').view||'List')==='List';
     if(!list)return `<div class="loop ${t.cls}" data-loop="${esc(l.id)}" role="button" tabindex="0"><div class="loop-top"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span><span class="loop-type">${t.label}</span>${l.meta?`<span class="loop-meta">${esc(l.meta)}</span>`:''}</div><div class="loop-title">${esc(l.title)}</div><div class="loop-detail">${esc(l.detail)}</div>${l.related?`<a class="loop-related" href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">Related: ${esc(l.related.name)}</a>`:''}<div class="loop-actions"><button class="connect primary" type="button" data-open-loop="${esc(l.id)}">Expand</button><button class="connect ghost" type="button" data-act="snooze">Snooze</button><button class="connect ghost" type="button" data-act="done">Done</button></div></div>`;
-    const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['High priority','hot']);const tg=TAGS[l.type];if(tg&&!(l.type==='overdue'))tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);
+    const tags=[];if(l.weight>=2||l.type==='overdue')tags.push(['Priority','hot']);const tg=TAGS[l.type];if(tg&&!(l.type==='overdue'))tags.push(tg);if(l.type==='overdue')tags.push(['Reschedule','']);
     return `<div class="arow ${t.cls}" data-loop="${esc(l.id)}" role="button" tabindex="0"><span class="loop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg></span>
       <div class="arow-main"><div class="arow-top"><b>${esc(l.title)}</b><span class="arow-src">${esc([srcOf(l),l.meta].filter(Boolean).join(' · '))}</span></div>
       <div class="arow-detail">${esc(l.detail)}${l.related?` · <a href="${esc(l.related.webViewLink)}" target="_blank" rel="noopener">${esc(l.related.name)}</a>`:''}</div>
@@ -2863,9 +2903,42 @@
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const ICON={home:'<path d="M4 11.5 12 5l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/>',inbox:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/>',wallet:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>',calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="15.5" cy="15" r="1.2" fill="currentColor"/>',assistant:'<path d="M12 3.5 14.4 6l3.4-.3.3 3.4L20.5 12l-2.4 2.9-.3 3.4-3.4-.3L12 20.5 9.6 18l-3.4.3-.3-3.4L3.5 12l2.4-2.9.3-3.4 3.4.3Z"/><path d="m9.5 12 1.6 1.6 3.4-3.4"/>',stats:'<path d="M19.5 13.5c0 4.1-3.4 7.5-7.5 7.5S4.5 17.6 4.5 13.5 7.9 6 12 6c.6 0 1.2.1 1.8.2"/><path d="M16.5 4.5c1.7.9 3.1 2.4 3.8 4.2"/><path d="M12.2 9.2c.9-.3 1.9 0 2.5.7.7.8.7 2 0 2.7-.7.8-1.8 1-2.7.5"/><path d="M11.2 12.8c-.4.9-.2 2 .6 2.6.9.7 2.1.5 2.8-.3"/>',heart:'<path d="M12 20s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 7a3.8 3.8 0 0 1 7 3.8C19 15.6 12 20 12 20Z"/>',flame:'<path d="M12 21c3.3 0 5.5-2.2 5.5-5.3 0-2.4-1.2-3.9-2.5-5.2-.3 1.5-1.2 2.2-1.2 2.2S15 9.2 12.8 6.4C11.8 8.2 10 9.8 10 12c0 0-.9-.7-1.2-2.1C7.7 11.3 6.5 12.9 6.5 15.7 6.5 18.8 8.7 21 12 21Z"/>',shoe:'<path d="M4 15.5h9.2c1.4 0 2.3.4 3.3 1.3l1.5 1.2H4v-2.5Z"/><path d="M5 15.5c.4-2.2 1.5-5.2 4.2-6.4 1.5-.7 3.3-.3 4.3 1l1.2 1.5"/><path d="M8.5 11.5h2"/>',bed:'<path d="M3 18v-5.5A2.5 2.5 0 0 1 5.5 10H10a3 3 0 0 1 3 3v5"/><path d="M13 13h5.5A2.5 2.5 0 0 1 21 15.5V18"/><path d="M3 18h18M6 10V7.5A1.5 1.5 0 0 1 7.5 6h2A1.5 1.5 0 0 1 11 7.5V10"/>',run:'<circle cx="14.5" cy="5.5" r="1.6"/><path d="m8 20 2.2-4.2L13 14l2 2 3.5 1"/><path d="m11 9.5 1.8 2.2L9.5 15"/><path d="m13 11.5 3-1.5 2 2"/>',bulb:'<path d="M9.5 17h5M10 20h4"/><path d="M12 3.5a5 5 0 0 1 3.5 8.4c-.7.7-1.1 1.5-1.2 2.6h-4.6c-.1-1.1-.5-1.9-1.2-2.6A5 5 0 0 1 12 3.5Z"/>',search:'<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',bell:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',filter:'<path d="M4 7h16M7 12h10M10 17h4"/>',back:'<path d="M15 6 9 12l6 6"/>',clock:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',phone:'<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18.5h2"/>',chevron:'<path d="m9 6 6 6-6 6"/>',spark:'<path d="M12 3.5 13.2 8l4.3.4-3.3 2.9.9 4.2L12 13.4 8.9 15.5l.9-4.2-3.3-2.9L10.8 8 12 3.5Z"/>',scan:'<path d="M8 4H6a2 2 0 0 0-2 2v2M16 4h2a2 2 0 0 1 2 2v2M8 20H6a2 2 0 0 1-2-2v-2M16 20h2a2 2 0 0 0 2-2v-2"/><path d="M8 12h8"/>',chat:'<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V13a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.2V15.5H7.5A2.5 2.5 0 0 1 5 13Z"/>',suitcase:'<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M9 8V6.5A1.5 1.5 0 0 1 10.5 5h3A1.5 1.5 0 0 1 15 6.5V8M5 13h14"/>',chevDown:'<path d="m7 10 5 5 5-5"/>',target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',laptop:'<rect x="3.5" y="5" width="17" height="11" rx="2"/><path d="M2.5 18.5h19M9 15.5h6"/>'};
-  const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-  const tabIco=(d)=>`<span class="m-tab-ico" aria-hidden="true">${svg(d,26)}</span>`;
+  const ICON={
+    home:'<path d="M12 3.1 2.8 10.6c-.35.28-.2.8.22.8H5.2V19a2 2 0 0 0 2 2h3.1v-5.4h3.4V21H16.8a2 2 0 0 0 2-2v-7.6h2.18c.42 0 .57-.52.22-.8L12 3.1Z"/>',
+    inbox:'<path d="M4.2 7.1A2.6 2.6 0 0 1 6.8 4.5h10.4a2.6 2.6 0 0 1 2.6 2.6v2.2l-3.35.15a2.7 2.7 0 0 0-2.45 1.55l-.25.5a1.3 1.3 0 0 1-1.15.7h-1.7a1.3 1.3 0 0 1-1.15-.7l-.25-.5A2.7 2.7 0 0 0 7.55 9.45L4.2 9.3V7.1Zm0 3.7 3.2.14a4.2 4.2 0 0 1 3.8 2.4l.12.24h1.36l.12-.24a4.2 4.2 0 0 1 3.8-2.4l3.2-.14V17a2.6 2.6 0 0 1-2.6 2.6H6.8A2.6 2.6 0 0 1 4.2 17V10.8Z"/>',
+    wallet:'<path d="M4.2 7A2.3 2.3 0 0 1 6.5 4.7h11A2.3 2.3 0 0 1 19.8 7V8.2H4.2V7Zm0 2.7h15.6V16.8A2.3 2.3 0 0 1 17.5 19.1h-11A2.3 2.3 0 0 1 4.2 16.8V9.7Zm11.2 3.6a1.2 1.2 0 1 0 0 2.4h2.4v-2.4h-2.4Z"/>',
+    calendar:'<path d="M8.2 3.2a1 1 0 0 1 1 1V5h5.6v-.8a1 1 0 1 1 2 0V5h.5A2.5 2.5 0 0 1 19.8 7.5V9H4.2V7.5A2.5 2.5 0 0 1 6.7 5h.5v-.8a1 1 0 0 1 1-1ZM4.2 10.5h15.6v8A2.5 2.5 0 0 1 17.3 21H6.7a2.5 2.5 0 0 1-2.5-2.5v-8Zm10.4 3.6a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z"/>',
+    assistant:'<path d="M12 2.8 14.2 7.4l4.9.4-3.7 3.3 1.1 4.8L12 13.6 7.5 15.9l1.1-4.8-3.7-3.3 4.9-.4L12 2.8Z"/>',
+    stats:'<path d="M5 19.4h2.6V10.2H5v9.2Zm5.7 0h2.6V6.6h-2.6v12.8Zm5.7 0H19V13h-2.6v6.4Z"/>',
+    heart:'<path d="M12 20.7S4.4 16 4.4 10.6A4.2 4.2 0 0 1 12 7.1a4.2 4.2 0 0 1 7.6 3.5C19.6 16 12 20.7 12 20.7Z"/>',
+    flame:'<path d="M12.2 3.4s2.6 2.8 2.6 6.1c0 0 1.4-1.1 1.8-2.8 2.1 1.9 3.2 3.8 3.2 6.4 0 4-3 6.7-7.6 6.7S4.6 17.1 4.6 13.1c0-2.8 1.6-4.8 3.4-6.4C8.3 8.4 9.2 9.4 9.2 11c0-2.6 2-5.4 3-7.6Z"/>',
+    shoe:'<path d="M4.2 15.2h9.4c1.5 0 2.5.5 3.6 1.5l1.6 1.4H4.2v-2.9Zm.8-1.2c.5-2.6 1.8-5.8 4.8-7.1 1.7-.8 3.7-.3 4.8 1.2l1.4 1.8-2.2 1.1H9.4l-.6 3Z"/>',
+    bed:'<path d="M4.2 18.8V12A2.4 2.4 0 0 1 6.6 9.6h4.1A2.8 2.8 0 0 1 13.5 12.4V18.8H4.2Zm9.3-6.2h5.9A2.4 2.4 0 0 1 21.8 15v3.8h-8.3v-6.2ZM4.2 18.8h17.6V20.2H4.2V18.8ZM7.1 9.6V7.4A1.6 1.6 0 0 1 8.7 5.8h2.1A1.6 1.6 0 0 1 12.4 7.4v2.2H7.1Z"/>',
+    run:'<path d="M14.6 7.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6ZM7.4 20.2l2.4-4.6 2.6-1.7 1.8 1.8 3.4 1-1-2.4-2.6-1.4 1.6-2-2.1-1.4-3.2 3.4-2.3 1.6 1.4 5.7Z"/>',
+    bulb:'<path d="M12 3.2a5.2 5.2 0 0 1 3.6 8.9c-.6.6-1 1.4-1.1 2.4h-5c-.1-1-.5-1.8-1.1-2.4A5.2 5.2 0 0 1 12 3.2ZM9.6 16.8h4.8v1.5H9.6V16.8Zm.6 2.4h3.6V21H10.2v-1.8Z"/>',
+    search:'<path fill-rule="evenodd" d="M10.5 3.6a6.9 6.9 0 1 0 4.33 12.27l3.9 3.9a1.15 1.15 0 0 0 1.63-1.63l-3.9-3.9A6.9 6.9 0 0 0 10.5 3.6Zm0 2.3a4.6 4.6 0 1 1 0 9.2 4.6 4.6 0 0 1 0-9.2Z"/>',
+    bell:'<path d="M12 3.3a6.2 6.2 0 0 0-6.2 6.2v3.3l-1.4 2.5A1.15 1.15 0 0 0 5.4 17.3h13.2a1.15 1.15 0 0 0 1-1.99l-1.4-2.5V9.5A6.2 6.2 0 0 0 12 3.3Zm-2.2 15.4a2.2 2.2 0 0 0 4.4 0h-4.4Z"/>',
+    filter:'<path d="M4.2 6.2A1.1 1.1 0 0 1 5.3 5.4h13.4a1.1 1.1 0 0 1 0 2.2H5.3A1.1 1.1 0 0 1 4.2 6.2Zm2.6 5.3A1.1 1.1 0 0 1 7.9 10.6h8.2a1.1 1.1 0 0 1 0 2.2H7.9a1.1 1.1 0 0 1-1.1-1.3Zm2.8 5.3a1.1 1.1 0 0 1 1.1-.9h3.6a1.1 1.1 0 0 1 0 2.2h-3.6a1.1 1.1 0 0 1-1.1-1.3Z"/>',
+    back:'<path d="M14.7 5.2a1.15 1.15 0 0 1 0 1.63L10.54 12l4.16 5.17a1.15 1.15 0 1 1-1.8 1.44L8 12.72a1.15 1.15 0 0 1 0-1.44l4.9-5.89a1.15 1.15 0 0 1 1.8 0Z"/>',
+    clock:'<path fill-rule="evenodd" d="M12 3.2a8.8 8.8 0 1 0 0 17.6 8.8 8.8 0 0 0 0-17.6Zm.95 4.4a.95.95 0 1 0-1.9 0v4.2c0 .3.15.58.4.76l2.85 1.95a.95.95 0 0 0 1.06-1.58L12.95 11.3V7.6Z"/>',
+    phone:'<path d="M8.2 2.8h7.6A2.2 2.2 0 0 1 18 5v14a2.2 2.2 0 0 1-2.2 2.2H8.2A2.2 2.2 0 0 1 6 19V5A2.2 2.2 0 0 1 8.2 2.8Zm2.6 15.4h2.4a.8.8 0 0 1 0 1.6h-2.4a.8.8 0 0 1 0-1.6Z"/>',
+    chevron:'<path d="M9.15 5.25a1.1 1.1 0 0 1 1.56 0l5.5 5.5a1.1 1.1 0 0 1 0 1.56l-5.5 5.5a1.1 1.1 0 1 1-1.56-1.56L13.9 12 9.15 7.25a1.1 1.1 0 0 1 0-2Z"/>',
+    spark:'<path d="M12 2.6 13.4 8.4l5.8.5-4.45 3.9 1.25 5.7L12 15.4 7.99 18.5l1.26-5.7-4.45-3.9 5.8-.5L12 2.6Z"/>',
+    scan:'<path d="M6.4 3.6h2.2a1 1 0 0 1 0 2H6.4A1.4 1.4 0 0 0 5 7v2.2a1 1 0 0 1-2 0V7A3.4 3.4 0 0 1 6.4 3.6Zm9 0h2.2A3.4 3.4 0 0 1 21 7v2.2a1 1 0 0 1-2 0V7a1.4 1.4 0 0 0-1.4-1.4h-2.2a1 1 0 0 1 0-2ZM4 14.8a1 1 0 0 1 1 1V17a1.4 1.4 0 0 0 1.4 1.4h2.2a1 1 0 0 1 0 2H6.4A3.4 3.4 0 0 1 3 17v-1.2a1 1 0 0 1 1-1Zm16 0a1 1 0 0 1 1 1V17a3.4 3.4 0 0 1-3.4 3.4h-2.2a1 1 0 0 1 0-2h2.2A1.4 1.4 0 0 0 19 17v-1.2a1 1 0 0 1 1-1ZM7.2 11a1 1 0 0 1 1-1h7.6a1 1 0 0 1 0 2H8.2a1 1 0 0 1-1-1Z"/>',
+    chat:'<path d="M6.6 4.4h10.8A2.6 2.6 0 0 1 20 7v6.2a2.6 2.6 0 0 1-2.6 2.6h-5.3L7.2 19.6v-3.8H6.6A2.6 2.6 0 0 1 4 13.2V7a2.6 2.6 0 0 1 2.6-2.6Z"/>',
+    suitcase:'<path d="M9.2 5.4A1.6 1.6 0 0 1 10.8 3.8h2.4A1.6 1.6 0 0 1 14.8 5.4V7h-5.6V5.4ZM4.6 8.2h14.8A2.2 2.2 0 0 1 21.6 10.4V18a2.2 2.2 0 0 1-2.2 2.2H6.8A2.2 2.2 0 0 1 4.6 18V10.4A2.2 2.2 0 0 1 6.8 8.2h-2.2Zm0 4.4h14.8v1.8H4.6v-1.8Z"/>',
+    chevDown:'<path d="M6.25 9.15a1.1 1.1 0 0 1 1.56 0L12 13.34l4.19-4.19a1.1 1.1 0 1 1 1.56 1.56l-4.97 4.97a1.1 1.1 0 0 1-1.56 0L6.25 10.71a1.1 1.1 0 0 1 0-1.56Z"/>',
+    target:'<path fill-rule="evenodd" d="M12 3.2a8.8 8.8 0 1 0 0 17.6 8.8 8.8 0 0 0 0-17.6Zm0 3.1a5.7 5.7 0 1 1 0 11.4 5.7 5.7 0 0 1 0-11.4Zm0 2.6a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2Zm0 2.05a1.05 1.05 0 1 1 0 2.1 1.05 1.05 0 0 1 0-2.1Z"/>',
+    laptop:'<path d="M4.4 5.2h15.2A1.8 1.8 0 0 1 21.4 7v8.4H2.6V7A1.8 1.8 0 0 1 4.4 5.2ZM2.2 17h19.6a1.1 1.1 0 0 1 0 2.2H2.2a1.1 1.1 0 0 1 0-2.2Z"/>',
+    layers:'<path d="M12 3.4 3.6 8.1 12 12.8l8.4-4.7L12 3.4Zm-8.4 8.1L12 16.2l8.4-4.7v2.4L12 18.6 3.6 13.9v-2.4Z"/>',
+    receipt:'<path d="M6.4 3.4h11.2v17.4l-1.8-1-1.8 1-1.8-1-1.8 1-1.8-1-1.8 1V3.4Zm2.4 3.2v1.6h6.4V6.6H8.8Zm0 3.2v1.6h6.4V9.8H8.8Zm0 3.2v1.6h4.4v-1.6H8.8Z"/>',
+    ticket:'<path d="M3.6 8.2A2.2 2.2 0 0 1 5.8 6h12.4a2.2 2.2 0 0 1 2.2 2.2v2.1a1.6 1.6 0 1 0 0 3.2v2.3A2.2 2.2 0 0 1 18.2 18H5.8A2.2 2.2 0 0 1 3.6 15.8v-2.3a1.6 1.6 0 1 0 0-3.2V8.2Zm6.2.8v6.2h1.6V9h-1.6Z"/>',
+    star:'<path d="M12 3.2 14.4 9l6.2.5-4.7 3.9 1.5 6L12 16.4 6.6 19.4l1.5-6-4.7-3.9L9.6 9 12 3.2Z"/>',
+    check:'<path fill-rule="evenodd" d="M12 3.2a8.8 8.8 0 1 0 0 17.6 8.8 8.8 0 0 0 0-17.6Zm4.05 6.05a.95.95 0 1 0-1.34-1.35L10.6 12l-1.7-1.7a.95.95 0 1 0-1.35 1.34l2.38 2.38c.37.37.97.37 1.34 0l4.78-4.77Z"/>'
+  };
+  const svg=(d,w=22)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="currentColor" aria-hidden="true">${d}</svg>`;
+  const tabIco=(d)=>`<span class="m-tab-ico" aria-hidden="true">${svg(d,24)}</span>`;
+  const pillIco=(d,cls='')=>`<span class="m-pill-ico${cls?' '+cls:''}" aria-hidden="true">${svg(d,14)}</span>`;
   const mapp=document.createElement('div');mapp.id='mapp';mapp.className='mapp';
   mapp.innerHTML=`<header class="m-top"><span class="m-title" id="m-title"></span><span class="m-top-actions"><button class="m-circle" id="m-search" type="button" aria-label="Search or ask">${svg(ICON.search,18)}</button><button class="m-circle" id="m-bell" type="button" aria-label="Notifications">${svg(ICON.bell,18)}<i class="m-dot" hidden></i></button><button class="m-avatar" id="m-avatar" type="button" aria-label="Menu"></button></span></header>
    <div class="m-stage" id="m-stage">
@@ -2874,10 +2947,17 @@
      <div class="m-stat-grid" id="m-home-stats" hidden></div>
      <section class="m-schedule" id="m-schedule" aria-label="Today’s schedule">
        <div class="m-schedule-head"><h3>Today’s Schedule</h3><button type="button" class="m-schedule-link" id="m-schedule-cal">View Calendar ${svg(ICON.chevron,14)}</button></div>
+       <p class="m-schedule-prose" id="m-schedule-prose"></p>
        <ol class="m-schedule-rail" id="m-schedule-rail"></ol>
      </section>
      <div class="m-home-block" id="m-loops-block">
        <div class="m-sec-head"><h3 class="m-sec-title">Priority Actions <span class="m-count-pill" id="m-loop-total" hidden></span></h3><button class="m-see-all" type="button" id="m-loops-see">See All ${svg(ICON.chevron,14)}</button></div>
+       <div class="m-prio-tabs m-pills" id="m-prio-tabs" role="tablist" aria-label="Priority filters">
+         <button type="button" role="tab" data-prio="week" class="on" aria-selected="true">${pillIco(ICON.calendar,'ico-blue')}Next 7 Days</button>
+         <button type="button" role="tab" data-prio="tasks" aria-selected="false">${pillIco(ICON.check,'ico-green')}Tasks</button>
+         <button type="button" role="tab" data-prio="payments" aria-selected="false">${pillIco(ICON.wallet,'ico-purple')}Payments</button>
+         <button type="button" role="tab" data-prio="meetings" aria-selected="false">${pillIco(ICON.calendar,'ico-blue')}Meetings</button>
+       </div>
        <div class="m-loop-list" id="m-loop-grid"></div>
        <div class="loops-foot" id="m-loops-foot" hidden></div>
      </div>
@@ -2885,24 +2965,17 @@
        <div class="m-sec-head"><h3 class="m-sec-title">Today’s Health</h3><button type="button" class="m-see-all" id="m-health-see">Open ${svg(ICON.chevron,14)}</button></div>
        <div class="m-health-strip" id="m-health-strip"></div>
      </section>
-     <div class="m-more" id="m-more" hidden></div><div class="m-stat" id="m-stat" hidden></div><h3 class="m-count" id="m-count" hidden></h3></section>
+   </section>
    <section class="m-screen" data-screen="inbox" hidden>
-     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscriptions" aria-selected="false">Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-inbox="receipts" aria-selected="false">Receipts</button><button type="button" role="tab" data-inbox="bills" aria-selected="false">Bills</button><button type="button" role="tab" data-inbox="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-inbox="important" aria-selected="false">Important</button><button type="button" role="tab" data-inbox="promotions" aria-selected="false">Promotions</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
+     <div class="m-inbox-head"><div class="m-inbox-tabs m-pills" role="tablist" id="m-inbox-tabs" aria-label="Inbox categories"><i class="m-inbox-thumb" id="m-inbox-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-inbox="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-inbox="subscriptions" aria-selected="false">${pillIco(ICON.layers,'ico-purple')}Subscriptions</button><button type="button" role="tab" data-inbox="payments" aria-selected="false">${pillIco(ICON.wallet,'ico-green')}Payments</button><button type="button" role="tab" data-inbox="receipts" aria-selected="false">${pillIco(ICON.receipt,'ico-orange')}Receipts</button><button type="button" role="tab" data-inbox="bills" aria-selected="false">${pillIco(ICON.receipt,'ico-red')}Bills</button><button type="button" role="tab" data-inbox="tickets" aria-selected="false">${pillIco(ICON.ticket,'ico-blue')}Tickets</button><button type="button" role="tab" data-inbox="important" aria-selected="false">${pillIco(ICON.star,'ico-orange')}Important</button><button type="button" role="tab" data-inbox="promotions" aria-selected="false">${pillIco(ICON.spark,'ico-purple')}Promotions</button></div><button class="m-inbox-filter" id="m-inbox-filter" type="button" aria-label="Filter">${svg(ICON.filter,16)}</button></div>
      <div id="m-inbox"></div>
    </section>
    <section class="m-screen" data-screen="wallet" hidden>
-     <div class="m-wallet-head"><div class="m-wallet-tabs m-pills" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">Tickets</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">Documents</button><button type="button" role="tab" data-wallet="payments" aria-selected="false">Payments</button><button type="button" role="tab" data-wallet="cards" aria-selected="false">Cards</button></div></div>
+     <div class="m-wallet-head"><div class="m-wallet-tabs m-pills" role="tablist" id="m-wallet-tabs" aria-label="Wallet categories"><i class="m-wallet-thumb" id="m-wallet-thumb" aria-hidden="true" hidden></i><button type="button" role="tab" data-wallet="all" class="on" aria-selected="true">All</button><button type="button" role="tab" data-wallet="tickets" aria-selected="false">${pillIco(ICON.ticket,'ico-blue')}Tickets</button><button type="button" role="tab" data-wallet="documents" aria-selected="false">${pillIco(ICON.receipt,'ico-purple')}Documents</button><button type="button" role="tab" data-wallet="payments" aria-selected="false">${pillIco(ICON.wallet,'ico-green')}Payments</button><button type="button" role="tab" data-wallet="cards" aria-selected="false">${pillIco(ICON.wallet,'ico-orange')}Cards</button></div></div>
      <div id="m-wallet"></div>
    </section>
    <section class="m-screen" data-screen="calendar" hidden><div class="m-cal-head"><button class="m-arrow" type="button" data-wk="-1" aria-label="Previous week">‹</button><b id="m-month"></b><button class="m-arrow" type="button" data-wk="1" aria-label="Next week">›</button><span class="m-pill">Week</span></div><div class="m-week" id="m-week"></div><div class="m-day" id="m-day"></div></section>
    <section class="m-screen" data-screen="assistant" hidden>
-     <div class="tl-top">
-       <h1 class="tl-title">Timeline</h1>
-       <button type="button" class="tl-ask-btn" id="tl-ask-btn" aria-expanded="false" aria-controls="tl-chat-wrap">
-         <span aria-hidden="true">${svg(ICON.chat,16)}</span> Ask
-         <span aria-hidden="true">${svg(ICON.chevDown,14)}</span>
-       </button>
-     </div>
      <div class="tl-cal" id="tl-cal">
        <div class="tl-cal-nav"><button type="button" data-tl-wk="-1" aria-label="Previous week">‹</button><b id="tl-cal-month"></b><button type="button" data-tl-wk="1" aria-label="Next week">›</button></div>
        <div class="tl-week" id="tl-week" role="tablist" aria-label="Choose day"></div>
@@ -2910,7 +2983,7 @@
      <div class="tl-view" id="tl-view">
        <div class="tl-head">
          <h2 id="tl-heading"></h2>
-         <div class="tl-head-meta"><span class="tl-count" id="tl-count" hidden><span aria-hidden="true">${svg(ICON.calendar,14)}</span><b id="tl-count-n">0</b></span><button type="button" class="tl-ask-mini" id="tl-ask-mini">Ask</button></div>
+         <div class="tl-head-meta"><span class="tl-count" id="tl-count" hidden><span aria-hidden="true">${svg(ICON.calendar,14)}</span><b id="tl-count-n">0</b></span></div>
        </div>
        <div class="tl-list" id="tl-list"></div>
      </div>
@@ -2921,7 +2994,7 @@
    </section>
    <section class="m-screen" data-screen="stats" hidden><div id="m-stats"></div></section>
    </div>
-   <nav class="m-tabs" aria-label="Sections"><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.calendar)}<span>Timeline</span></button><button data-tab="stats" type="button">${tabIco(ICON.heart)}<span>Health</span></button></nav>
+   <nav class="m-tabs" aria-label="Sections"><i class="m-tab-thumb" id="m-tab-thumb" aria-hidden="true"></i><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.calendar)}<span>Timeline</span></button><button data-tab="stats" type="button">${tabIco(ICON.heart)}<span>Health</span></button></nav>
    <button type="button" class="m-wallet-fab" id="m-wallet-fab" aria-label="Scan document" hidden>${svg(ICON.scan,22)}</button>`;
   document.body.append(mapp);
   const scanUI=document.createElement('div');scanUI.id='m-scan';scanUI.className='m-scan';scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');
@@ -2961,7 +3034,7 @@
   document.body.append(scanUI);
   // move overlays out of the desktop shell so they work on the phone too
   ['#drawer-scrim','#drawer','#overlay'].forEach(s=>{const el=$(s);if(el)document.body.append(el)});
-  let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mAssistDay=new Date(localMidnight),mAssistAsk=false,mWeekCache={},mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
+  let mTab=getLS('daylight-mtab')||'home',mInboxFilter=getLS('daylight-inbox-filter')||'all',mWalletFilter=getLS('daylight-wallet-filter')||'all',mWalletOpen='',mSel=new Date(localMidnight),mAssistDay=new Date(localMidnight),mAssistAsk=false,mChat=[],scanStream=null,scanDraft=null,scanExtract=null;
   if(!['all','subscriptions','payments','receipts','bills','tickets','important','promotions','subscription','bill','ticket','shopping','other'].includes(mInboxFilter))mInboxFilter='all';
   // Migrate legacy inbox filter ids
   if(mInboxFilter==='subscription')mInboxFilter='subscriptions';
@@ -3769,9 +3842,15 @@
     silentPop:false,
     reduced(){return matchMedia('(prefers-reduced-motion: reduce)').matches},
     _bind(){window.DaylightNav=this;return this},
-    scrollEl(){return document.scrollingElement||document.documentElement},
-    saveTab(){if(!mq.matches)return;this.tabY[mTab]=this.scrollEl().scrollTop||window.scrollY||0},
-    restoreTab(){if(!mq.matches)return;const y=this.tabY[mTab]||0;requestAnimationFrame(()=>{requestAnimationFrame(()=>{this.scrollEl().scrollTop=y;window.scrollTo(0,y)})})},
+    scrollEl(){
+      if(mq.matches){
+        const s=document.querySelector(`#mapp .m-screen.is-active`)||document.querySelector(`#mapp .m-screen[data-screen="${mTab}"]`);
+        if(s)return s;
+      }
+      return document.scrollingElement||document.documentElement;
+    },
+    saveTab(){if(!mq.matches)return;const el=this.scrollEl();this.tabY[mTab]=el?.scrollTop||0},
+    restoreTab(){if(!mq.matches)return;const y=this.tabY[mTab]||0;const el=this.scrollEl();if(!el)return;const apply=()=>{el.scrollTop=y};requestAnimationFrame(()=>requestAnimationFrame(apply))},
     topView(){return this.stack.length?this.stack[this.stack.length-1].view:null},
     isOpen(view){
       if(view==='loop')return!!$('#loop-sheet')?.classList.contains('show');
@@ -3894,7 +3973,6 @@
     el.style.transform='';el.style.opacity='';el.style.transition='';el.style.zIndex='';
   }
   function finishTabSwitch(from,to){
-    const out=screenEl(from),inn=screenEl(to);
     $$('#mapp .m-screen').forEach(s=>{
       const on=s.dataset.screen===to;
       clearTabAnimClasses(s);
@@ -3904,19 +3982,42 @@
     const stage=$('#m-stage');
     if(stage){stage.style.minHeight='';stage.classList.remove('is-sliding')}
     tabAnimating=false;
+    const fab=$('#m-wallet-fab');if(fab)fab.hidden=to!=='wallet';
     Nav.restoreTab();
+    syncTabThumb(true);
     if(pendingTab&&pendingTab!==to){const next=pendingTab;pendingTab=null;setTab(next);return}
     pendingTab=null;
   }
-  function applyTabChrome(t){
+  function syncTabThumb(animate=true){
+    const bar=$('.m-tabs'),thumb=$('#m-tab-thumb'),on=bar?.querySelector('[data-tab].on');
+    if(!bar||!thumb||!on)return;
+    const br=bar.getBoundingClientRect(),r=on.getBoundingClientRect();
+    if(!animate)thumb.style.transition='none';
+    thumb.style.width=Math.round(r.width)+'px';
+    thumb.style.height=Math.round(r.height)+'px';
+    thumb.style.transform=`translate3d(${Math.round(r.left-br.left)}px,${Math.round(r.top-br.top)}px,0)`;
+    if(!animate)requestAnimationFrame(()=>{thumb.style.transition=''});
+  }
+  function pulseTitle(forward){
+    const title=$('#m-title');if(!title||Nav.reduced())return;
+    title.style.transition='none';
+    title.style.opacity='.55';
+    title.style.transform=`translate3d(${forward?8:-8}px,0,0)`;
+    void title.offsetWidth;
+    title.style.transition='';
+    title.style.opacity='1';
+    title.style.transform='none';
+  }
+  function applyTabChrome(t,opts){
     mTab=t;setLS('daylight-mtab',t);
     $$('.m-tabs [data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
     if(typeof markDrawerNav==='function')markDrawerNav();
     mapp.dataset.screen=t;$('#m-title').textContent=TITLES[t];
-    const fab=$('#m-wallet-fab');if(fab)fab.hidden=t!=='wallet';
-    const top=$('#mapp .m-top');if(top)top.hidden=t==='assistant';
+    const fab=$('#m-wallet-fab');if(fab)fab.hidden=t!=='wallet'||tabAnimating;
+    const top=$('#mapp .m-top');if(top)top.hidden=false;
     if(t!=='assistant'&&mAssistAsk)setAssistAsk(false);
     setTabsHidden(false);
+    requestAnimationFrame(()=>syncTabThumb(!(opts&&opts.instantThumb)));
   }
   function setTab(t,opts){
     const soft=opts&&opts.soft;
@@ -3925,6 +4026,7 @@
       applyTabChrome(t);
       $$('#mapp .m-screen').forEach(s=>{const on=s.dataset.screen===t;s.hidden=!on;s.classList.toggle('is-active',on);clearTabAnimClasses(s);if(on)s.classList.add('is-active')});
       renderMobile();
+      Nav.restoreTab();
       return;
     }
     if(tabAnimating&&!soft){pendingTab=t;return}
@@ -3935,6 +4037,7 @@
 
     if(!soft){Nav.saveTab();feel.select()}
     applyTabChrome(t);
+    if(!soft)pulseTitle(forward);
 
     if(!canSlide){
       clearTimeout(tabAnimTimer);tabAnimating=false;
@@ -3956,32 +4059,41 @@
 
     tabAnimating=true;clearTimeout(tabAnimTimer);
     const stage=$('#m-stage');
+    const fab=$('#m-wallet-fab');if(fab)fab.hidden=true;
 
-    // Keep outgoing visible; prepare incoming off-screen
     out.hidden=false;inn.hidden=false;
     clearTabAnimClasses(out);clearTabAnimClasses(inn);
-    // Measure while outgoing is still in normal flow
-    const h=Math.max(out.offsetHeight||0,stage?.offsetHeight||0,Math.round(innerHeight*.55));
-    if(stage){stage.style.minHeight=h+'px';stage.classList.add('is-sliding')}
-    out.classList.add('is-leaving',forward?'to-left':'to-right');
-    inn.classList.add('is-entering',forward?'from-right':'from-left');
-    // Render destination content while it is still off-screen (no flicker)
+    if(stage)stage.classList.add('is-sliding');
+    out.classList.add('is-leaving');
+    inn.classList.add('is-entering');
+    const shift=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tab-shift'))||28;
+    const dxIn=forward?shift:-shift;
+    const dxOut=forward?-shift:shift;
+    out.style.transition='none';inn.style.transition='none';
+    out.style.transform='translate3d(0,0,0)';out.style.opacity='1';
+    inn.style.transform=`translate3d(${dxIn}px,0,0)`;inn.style.opacity='.75';
     renderMobile();
-    // Grow stage if destination is taller
-    const h2=Math.max(h,inn.scrollHeight||0,inn.offsetHeight||0);
-    if(stage&&h2>h)stage.style.minHeight=h2+'px';
+    Nav.restoreTab();
     void inn.offsetWidth;
+    const ms=screenMs();
+    const ease=getComputedStyle(document.documentElement).getPropertyValue('--ease-screen').trim()||'cubic-bezier(.22, 1, .36, 1)';
+    const trans=`transform ${ms}ms ${ease}, opacity ${ms}ms ${ease}`;
     requestAnimationFrame(()=>{
-      requestAnimationFrame(()=>{
-        if(!tabAnimating)return;
-        out.classList.add('slide-run',forward?'go-left':'go-right');
-        inn.classList.add('slide-run','is-active','go-center');
-      });
+      if(!tabAnimating)return;
+      out.style.transition=trans;inn.style.transition=trans;
+      void inn.offsetWidth;
+      out.style.transform=`translate3d(${dxOut}px,0,0)`;out.style.opacity='0';
+      inn.style.transform='translate3d(0,0,0)';inn.style.opacity='1';
     });
-    const ms=Nav.reduced()?0:screenMs();
     tabAnimTimer=setTimeout(()=>finishTabSwitch(from,t),ms+40);
   }
-  function applyMode(){document.body.classList.toggle('m',mq.matches);if(mq.matches)setTab(mTab,{soft:true});else dispatchEvent(new Event('resize'))}
+  function applyMode(){
+    const on=mq.matches;
+    document.body.classList.toggle('m',on);
+    document.documentElement.classList.toggle('m-app',on);
+    if(on){setTab(mTab,{soft:true});requestAnimationFrame(()=>syncTabThumb(false))}
+    else dispatchEvent(new Event('resize'));
+  }
   mq.addEventListener?.('change',applyMode);
   $$('.m-tabs [data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
   window.addEventListener('popstate',()=>Nav.onPop());
@@ -4191,7 +4303,7 @@
   // Home — compact Daily Brief + Open Loops cards (reference layout)
   function loopTags(l){
     const tags=[];
-    if(l.weight>=2||l.type==='overdue')tags.push(['High','hot']);
+    if(l.weight>=2||l.type==='overdue')tags.push(['Priority','hot']);
     const short={reply:'Reply',followup:'Waiting',prepare:'Prepare',renewal:'Renewal',travel:'Trip',deadline:'Due'};
     if(short[l.type]&&l.type!=='overdue')tags.push([short[l.type],l.type==='deadline'?'warm':'']);
     if(l.type==='overdue')tags.push(['Reschedule','']);
@@ -4232,7 +4344,7 @@
       if(l.type==='deadline')return isHomeToday(l.whenMs);
       if(l.type==='reply')return isHomeToday(l.whenMs);
       return false;
-    }).map(l=>({kind:'action',bucket:'todo',id:l.id,title:l.title,meta:l.meta||l.detail||'',type:l.type,href:l.href||'',mailId:l.mailId||null,whenMs:l.whenMs||0}));
+    }).map(l=>({kind:'action',bucket:'todo',id:l.id,title:l.title,meta:l.meta||l.detail||'',type:l.type,href:l.href||'',mailId:l.mailId||null,whenMs:l.whenMs||0,overdue:l.type==='overdue',dueToday:l.type!=='overdue'&&isHomeToday(l.whenMs)}));
     // Tasks due today (Daylight / Google / To Do)
     [
       ...personalTasks.map(t=>({...t,src:'Daylight'})),
@@ -4242,14 +4354,22 @@
       if(!t?.title||!t.dueDate)return;
       const due=dueDayLocal(t.dueDate);if(!due)return;
       if(!isHomeToday(due)&&!(due<localMidnight))return;
-      const tag=due<localMidnight?'Overdue':'Due today';
-      todo.push({kind:'task',bucket:'todo',id:'task:'+(t.id||t.title),title:t.title,meta:[tag,t.listName||t.project||t.src].filter(Boolean).join(' · '),href:t.href||'',mailId:t.mailId||null,whenMs:due.getTime()});
+      const overdue=due<localMidnight,tag=overdue?'Overdue':'Due today';
+      todo.push({kind:'task',bucket:'todo',id:'task:'+(t.id||t.title),title:t.title,meta:[tag,t.listName||t.project||t.src].filter(Boolean).join(' · '),href:t.href||'',mailId:t.mailId||null,whenMs:due.getTime(),overdue,dueToday:!overdue});
     });
     const waiting=loops.filter(l=>l.type==='followup').map(l=>({kind:'action',bucket:'waiting',id:l.id,title:l.title,meta:l.meta||l.detail||'',type:l.type,href:l.href||'',mailId:l.mailId||null,whenMs:l.whenMs||0}));
     const payments=[...(money.pending||[]),...(money.bill||[])]
       .filter((x,i,a)=>a.findIndex(y=>y.id===x.id||(y.mailId&&y.mailId===x.mailId))===i)
-      .filter(p=>isHomeToday(p.whenMs||p.when))
-      .map(p=>({kind:'pay',bucket:'payments',id:p.id||p.mailId,title:p.title||p.subject||'Payment',meta:[p.amount,p.meta||p.tag].filter(Boolean).join(' · '),amount:p.amount||'',href:p.href||'',mailId:p.mailId||null,whenMs:p.whenMs||p.when||0}));
+      .filter(p=>{
+        const ms=+(p.whenMs||p.when||0);
+        if(!ms)return true;
+        return ms<localMidnight.getTime()+86400000;
+      })
+      .map(p=>{
+        const whenMs=p.whenMs||p.when||0;
+        const overdue=whenMs&&whenMs<localMidnight.getTime();
+        return {kind:'pay',bucket:'payments',id:p.id||p.mailId,title:p.title||p.subject||'Payment',meta:[p.amount,p.meta||p.tag,overdue?'Overdue':isHomeToday(whenMs)?'Due today':''].filter(Boolean).join(' · '),amount:p.amount||'',href:p.href||'',mailId:p.mailId||null,whenMs,overdue,dueToday:!!isHomeToday(whenMs)};
+      });
     try{
       (Data?.orders?Data.orders({excludeCancelled:true}):[]).forEach(o=>{
         const ev=Data.eventAt(o);if(!ev||!isHomeToday(ev))return;
@@ -4271,15 +4391,64 @@
     const sortMs=(a,b)=>(a.whenMs||0)-(b.whenMs||0);
     todo.sort(sortMs);waiting.sort(sortMs);payments.sort(sortMs);events.sort(sortMs);
     const counts={todo:todo.length,waiting:waiting.length,payments:payments.length,events:events.length};
+    const connectedNow=!!(token||microsoftAccount||DEMO);
+    const prose=composeDailyBriefProse({todo,payments,events,connected:connectedNow,calConnected:!!connected});
+    const attention=todo.filter(t=>t.overdue).length+payments.filter(p=>p.overdue).length;
     const bits=[];
     if(counts.todo)bits.push(`${counts.todo} to do`);
     if(counts.waiting)bits.push(`${counts.waiting} waiting`);
     if(counts.payments)bits.push(`${counts.payments} payment${counts.payments===1?'':'s'}`);
     if(counts.events)bits.push(`${counts.events} event${counts.events===1?'':'s'}`);
-    const summary=!token&&!microsoftAccount&&!DEMO
+    const summary=!connectedNow
       ?'Connect Google to brief today’s mail, calendar and tasks.'
-      :(bits.length?`Today · ${bits.join(' · ')}`:'You’re clear for today.');
-    return {todo,waiting,payments,events,counts,summary,connected:!!(token||microsoftAccount||DEMO),calConnected:!!connected};
+      :(bits.length?`Today · ${bits.join(' · ')}`:prose);
+    return {todo,waiting,payments,events,counts,summary,prose,attention,connected:connectedNow,calConnected:!!connected};
+  }
+  function spokenCount(n){
+    const w=['','one','two','three','four','five','six','seven','eight','nine','ten'];
+    return n>0&&n<=10?w[n]:String(n);
+  }
+  function joinAnd(parts){
+    if(!parts.length)return '';
+    if(parts.length===1)return parts[0];
+    if(parts.length===2)return parts[0]+' and '+parts[1];
+    return parts.slice(0,-1).join(', ')+', and '+parts[parts.length-1];
+  }
+  function capFirst(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s}
+  function composeDailyBriefProse(day){
+    if(!day.connected)return 'Connect Google to brief today’s mail, calendar and tasks.';
+    const tasks=day.todo||[],pays=day.payments||[],evs=day.events||[];
+    const overdueTasks=tasks.filter(t=>t.overdue);
+    const overduePays=pays.filter(p=>p.overdue);
+    const dueTodayTasks=tasks.filter(t=>t.dueToday&&!t.overdue);
+    const dueTodayPays=pays.filter(p=>p.dueToday&&!p.overdue);
+    const resched=overdueTasks.filter(t=>t.type==='overdue');
+    const sentences=[];
+    const inv=[];
+    if(tasks.length)inv.push(`${tasks.length} ${tasks.length===1?'task':'tasks'}`);
+    if(pays.length)inv.push(`${pays.length} ${pays.length===1?'payment':'payments'}`);
+    if(inv.length)sentences.push(`You have ${joinAnd(inv)} to manage today.`);
+    else if(!evs.length)sentences.push('You’re in good shape today — nothing needs attention.');
+    const urg=[];
+    if(overduePays.length&&overdueTasks.length&&!(resched.length&&resched.length===overdueTasks.length))
+      urg.push(`${spokenCount(overduePays.length)} ${overduePays.length===1?'payment':'payments'} and ${spokenCount(overdueTasks.length)} ${overdueTasks.length===1?'task':'tasks'} are overdue`);
+    else{
+      if(overduePays.length)urg.push(`${spokenCount(overduePays.length)} ${overduePays.length===1?'payment is':'payments are'} overdue`);
+      if(resched.length&&resched.length===overdueTasks.length)urg.push(`${spokenCount(resched.length)} ${resched.length===1?'task needs':'tasks need'} rescheduling`);
+      else if(overdueTasks.length)urg.push(`${spokenCount(overdueTasks.length)} ${overdueTasks.length===1?'task is':'tasks are'} overdue`);
+    }
+    if(dueTodayPays.length&&overduePays.length)urg.push(`${spokenCount(dueTodayPays.length)} more ${dueTodayPays.length===1?'is':'are'} due today`);
+    if(dueTodayTasks.length&&overdueTasks.length)urg.push(`${spokenCount(dueTodayTasks.length)} ${dueTodayTasks.length===1?'task is':'tasks are'} due today`);
+    if(urg.length)sentences.push(capFirst(urg.length===2?urg[0]+', and '+urg[1]:joinAnd(urg))+'.');
+    if(!evs.length){
+      if(inv.length||urg.length)sentences.push('Your calendar is clear today.');
+    }else{
+      const next=evs[0];
+      const t=next.whenMs?hm(new Date(next.whenMs)):'';
+      if(evs.length===1)sentences.push(t?`Next up: ${next.title} at ${t}.`:`Today’s event is ${next.title}.`);
+      else sentences.push(`You have ${evs.length} events today${t?`, starting at ${t}`:''}.`);
+    }
+    return sentences.filter(Boolean).slice(0,3).join(' ');
   }
   /**
    * Priority Actions — same calendar day, Gmail-sourced only, chronological.
@@ -4386,20 +4555,48 @@
     if(/\b(meet|call|sync|standup|1:?1|interview|research)\b/.test(t))return {tone:'blue',icon:ICON.calendar};
     return {tone:'blue',icon:ICON.calendar};
   }
+  function composeScheduleProse({timed,allDay,connected}){
+    if(!connected&&!DEMO)return 'Connect Google Calendar to see today’s timeline here.';
+    const now=new Date();
+    const items=(timed||[]).filter(e=>e&&e.start&&isHomeToday(e.start));
+    const days=(allDay||[]).filter(Boolean);
+    if(!items.length&&!days.length)return 'Nothing on the calendar for today — enjoy the open block.';
+    const sentences=[];
+    const n=items.length,first=items[0],last=items[n-1];
+    if(n===1)sentences.push(`One event today: ${first.title} at ${hm(first.start)}.`);
+    else if(n)sentences.push(`You have ${n} events today, starting with ${first.title} at ${hm(first.start)}.`);
+    const current=items.find(e=>e.start<=now&&e.end>now);
+    const next=items.find(e=>e.start>now);
+    if(current&&next)sentences.push(`You’re in ${current.title} until ${hm(current.end)}. Next is ${next.title} at ${hm(next.start)}.`);
+    else if(current&&!next)sentences.push(`You’re in ${current.title} until ${hm(current.end)} — that’s the last event today.`);
+    else if(next&&first&&next!==first)sentences.push(`Next up is ${next.title} at ${hm(next.start)}.`);
+    else if(n>1&&last&&last!==first&&(!next||last.end<=now))sentences.push(`The day wraps up with ${last.title} at ${hm(last.start)}.`);
+    const clashes=n>1?overlaps(items):[];
+    if(clashes.length===1)sentences.push(`Watch the overlap between ${clashes[0][0].title} and ${clashes[0][1].title}.`);
+    else if(clashes.length>1)sentences.push(`${spokenCount(clashes.length)} events overlap today.`);
+    if(days.length===1)sentences.push(`All day: ${days[0]}.`);
+    else if(days.length>1)sentences.push(`${days.length} all-day items, including ${days[0]}.`);
+    return sentences.filter(Boolean).slice(0,3).join(' ');
+  }
   function renderHomeSchedule(){
     const rail=$('#m-schedule-rail');if(!rail)return;
+    const proseEl=$('#m-schedule-prose');
     // Calendar for the present local day only — never invent events
     let {timed,allDay,connected}=todayEvents();
     timed=timed.filter(e=>isHomeToday(e.start));
+    if(proseEl)proseEl.textContent=composeScheduleProse({timed,allDay,connected});
     const items=timed.slice(0,8);
     if(!connected&&!DEMO){
-      rail.innerHTML=`<li class="m-schedule-empty">Connect Google Calendar to see today’s timeline here.</li>`;
+      rail.innerHTML='';
+      rail.hidden=true;
       return;
     }
     if(!items.length&&!allDay.length){
-      rail.innerHTML=`<li class="m-schedule-empty">Nothing on the calendar for today — enjoy the open block.</li>`;
+      rail.innerHTML='';
+      rail.hidden=true;
       return;
     }
+    rail.hidden=false;
     const rows=items.map(ev=>{
       const {tone,icon}=scheduleTone(ev.title);
       const start=hm(ev.start),end=hm(ev.end);
@@ -4430,19 +4627,26 @@
     const p=readProfile(),first=(p.name||'').split(' ')[0],h=new Date().getHours(),part=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
     $('#m-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     $('#m-hello').innerHTML=first
-      ?`<span class="m-hello-part">${esc(part)}</span><span class="m-hello-name">${esc(first)}</span>`
-      :`<span class="m-hello-part">${esc(part)}</span>`;
+      ?`${esc(part)}, <span class="m-hello-name">${esc(first)}</span>`
+      :esc(part);
     const day=collectHomeDayBuckets();
-    const pending=[...day.todo,...day.payments].sort((a,b)=>(a.whenMs||0)-(b.whenMs||0)).slice(0,3);
-    const upcoming=day.events.slice(0,3);
     const brief=$('#m-brief');
     if(brief){
-      const pendingHtml=pending.length?pending.map(briefMiniRow).join(''):`<p class="m-brief-empty">No pending tasks for today.</p>`;
-      const eventsHtml=upcoming.length?upcoming.map(briefMiniRow).join(''):`<p class="m-brief-empty">No events for today.</p>`;
-      brief.innerHTML=`<div class="m-brief-head"><span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span><div class="m-brief-copy"><b>Daily Brief</b><small>${esc(day.summary)}</small></div></div>
-        <div class="m-brief-cols">
-          <div class="m-brief-col"><span class="m-brief-col-h">Pending</span>${pendingHtml}</div>
-          <div class="m-brief-col"><span class="m-brief-col-h">Events</span>${eventsHtml}</div>
+      const dateLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+      const status=day.connected
+        ?(day.attention?`<span class="m-brief-status is-hot">${day.attention} need attention</span>`:(day.counts.todo||day.counts.payments||day.counts.events?'<span class="m-brief-status">On track</span>':'<span class="m-brief-status">All clear</span>'))
+        :'';
+      const tasksN=day.counts.todo,payN=day.counts.payments,evN=day.counts.events;
+      brief.innerHTML=`<div class="m-brief-head">
+          <span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span>
+          <div class="m-brief-copy"><b>Daily brief</b><small>${esc(dateLabel)}</small></div>
+          ${status}
+        </div>
+        <p class="m-brief-prose">${esc(day.prose||day.summary)}</p>
+        <div class="m-brief-meta">
+          <span>${svg(ICON.clock,14)} ${tasksN} ${tasksN===1?'task':'tasks'}</span>
+          <span>${svg(ICON.wallet,14)} ${payN} ${payN===1?'payment':'payments'}</span>
+          <span>${svg(ICON.calendar,14)} ${evN?`${evN} ${evN===1?'event':'events'}`:'No events'}</span>
         </div>`;
     }
     const stats=$('#m-home-stats');
@@ -4470,20 +4674,31 @@
       const todayKey=window.DaylightData?.localDayKey?.(localMidnight)||localMidnight.toISOString().slice(0,10);
       const today=series.find(d=>d.date===todayKey)||series[series.length-1]||null;
       if(!today&&!h?.connected){
-        strip.innerHTML=`<div class="m-health-empty" style="grid-column:1/-1">Connect Health or Google Fit to see today’s steps, calories and sleep.</div>`;
+        strip.innerHTML=`<div class="m-health-empty">Connect Health or Google Fit to see today’s steps, calories and sleep.</div>`;
         return;
       }
       const steps=today?.steps??h?.stepsAvg??0;
       const cal=today?.calories??h?.caloriesAvg??0;
       const sleep=today?.sleepMin??h?.sleepAvgMin??0;
-      const score=h?.score??'—';
-      strip.innerHTML=`
-        <div class="m-health-chip is-steps"><b>${esc(fmtSteps(steps))}</b><span>Steps</span></div>
-        <div class="m-health-chip is-cal"><b>${esc(fmtSteps(cal))}</b><span>kcal</span></div>
-        <div class="m-health-chip is-sleep"><b>${esc(fmtSleep(sleep))}</b><span>Sleep</span></div>
-        <div class="m-health-chip is-score"><b>${esc(String(score))}</b><span>Score</span></div>`;
+      const score=Math.max(0,Math.min(100,+(h?.score||0)));
+      const delta=h?.scoreDelta||0;
+      strip.innerHTML=`<button type="button" class="m-health-card" aria-label="Open today’s health">
+        <div class="m-health-top">
+          <div class="hx-ring" style="--p:${esc(String(score))}"><span>${svg(ICON.heart,22)}</span></div>
+          <div class="m-health-copy">
+            <small>Health score</small>
+            <b>${esc(String(h?.score??'—'))}/100</b>
+            <span class="hx-delta${delta<0?' is-down':''}">${delta>=0?'+':''}${esc(String(delta))} vs last week</span>
+          </div>
+        </div>
+        <div class="m-health-metrics">
+          <span class="m-health-m is-steps"><span class="m-health-m-ico">${svg(ICON.shoe,14)}</span><b>${esc(fmtSteps(steps))}</b><span>Steps</span></span>
+          <span class="m-health-m is-cal"><span class="m-health-m-ico">${svg(ICON.flame,14)}</span><b>${esc(fmtSteps(cal))}</b><span>kcal</span></span>
+          <span class="m-health-m is-sleep"><span class="m-health-m-ico">${svg(ICON.bed,14)}</span><b>${esc(fmtSleep(sleep))}</b><span>Sleep</span></span>
+        </div>
+      </button>`;
     }catch{
-      strip.innerHTML=`<div class="m-health-empty" style="grid-column:1/-1">Health data unavailable right now.</div>`;
+      strip.innerHTML=`<div class="m-health-empty">Health data unavailable right now.</div>`;
     }
   }
   function ensureLoopsPop(){
@@ -4848,7 +5063,7 @@
   function inboxCard(item){
     const initial=(item.title||'?').trim().slice(0,2).toUpperCase();
     const tag=item.needsReview?'Needs review':item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||MONEY_LABEL[item.kind]||inboxDaysLabel(item)||'');
-    const tagCls=item.needsReview?' is-review':item.kind==='pending'||item.urgent?' is-urgent':item.kind==='subscription'?' is-sub':item.kind==='bill'?' is-bill':item.kind==='ticket'?' is-ticket':item.kind==='shopping'?' is-shop':'';
+    const tagCls=item.needsReview?' is-review':item.urgent?' is-urgent':item.kind==='pending'?' is-review':item.kind==='subscription'?' is-sub':item.kind==='bill'?' is-bill':item.kind==='ticket'?' is-ticket':item.kind==='shopping'?' is-shop':'';
     const snip=(item.snippet||item.subject||item.detail||'').replace(/\s+/g,' ').trim().slice(0,72);
     const amt=item.amount?`<span class="m-inbox-amt">${esc(item.amount)}</span>`:'';
     return `<div class="m-swipe" data-swipe-id="${esc(item.id)}">
@@ -5419,7 +5634,29 @@
   });
   // Calendar
   const weekStart=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
-  async function weekEvents(ws){const k=ws.toISOString();if(mWeekCache[k])return mWeekCache[k];if(!token)return [];const ev=await eventsBetween(ws,new Date(ws.getTime()+7*86400000))||[];mWeekCache[k]=ev;setTimeout(()=>delete mWeekCache[k],5*60000);return ev}
+  function weekCacheKey(ws){
+    const Data=window.DaylightData;
+    return Data?Data.localDayKey(ws):(ws.getFullYear()+'-'+String(ws.getMonth()+1).padStart(2,'0')+'-'+String(ws.getDate()).padStart(2,'0'));
+  }
+  async function weekEvents(ws){
+    const start=new Date(ws.getFullYear(),ws.getMonth(),ws.getDate());
+    const k=weekCacheKey(start);
+    if(mWeekCache[k])return mWeekCache[k];
+    if(mWeekInflight[k])return mWeekInflight[k];
+    if(!token&&!microsoftAccount)return [];
+    const to=new Date(start.getTime()+7*86400000);
+    mWeekInflight[k]=(async()=>{
+      const [g,m]=await Promise.all([
+        token?googleEventsBetween(start,to):Promise.resolve([]),
+        microsoftAccount?msEventsBetween(start,to):Promise.resolve([])
+      ]);
+      const ev=[...(g||[]),...(m||[])];
+      mWeekCache[k]=ev;
+      setTimeout(()=>{if(mWeekCache[k]===ev)delete mWeekCache[k]},5*60000);
+      return ev;
+    })();
+    try{return await mWeekInflight[k]}finally{delete mWeekInflight[k]}
+  }
   async function renderCalendar2(){
     const ws=weekStart(mSel),days=[...Array(7)].map((_,i)=>new Date(ws.getTime()+i*86400000));
     $('#m-month').textContent=mSel.toLocaleDateString(undefined,{month:'long',year:'numeric'});
@@ -5440,30 +5677,25 @@
   function assistWeekStart(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
   function setAssistAsk(on){
     mAssistAsk=!!on;
-    const wrap=$('#tl-chat-wrap'),view=$('#tl-view'),btn=$('#tl-ask-btn'),mini=$('#tl-ask-mini');
+    const wrap=$('#tl-chat-wrap'),view=$('#tl-view');
     if(wrap)wrap.hidden=!mAssistAsk;
     if(view)view.hidden=!!mAssistAsk;
-    btn?.setAttribute('aria-expanded',mAssistAsk?'true':'false');
-    btn?.classList.toggle('on',mAssistAsk);
-    mini?.classList.toggle('on',mAssistAsk);
     if(mAssistAsk){if(!mChat.length)chatHello();else renderChat();$('#m-msg-input')?.focus()}
   }
   async function paintAssistCal(){
-    const ws=assistWeekStart(mAssistDay),days=[...Array(7)].map((_,i)=>new Date(ws.getTime()+i*86400000));
+    const ws=assistWeekStart(mAssistDay),days=[...Array(7)].map((_,i)=>new Date(ws.getFullYear(),ws.getMonth(),ws.getDate()+i));
     const monthEl=$('#tl-cal-month');if(monthEl)monthEl.textContent=mAssistDay.toLocaleDateString(undefined,{month:'long',year:'numeric'});
     const week=$('#tl-week');if(!week)return;
     const busy=new Set();
     try{
-      const [g,m]=await Promise.all([
-        token?weekEvents(ws):Promise.resolve([]),
-        microsoftAccount?msEventsBetween(ws,new Date(ws.getTime()+7*86400000)):Promise.resolve([])
-      ]);
-      [...(g||[]),...(m||[])].forEach(e=>{
+      const ev=await weekEvents(ws);
+      (ev||[]).forEach(e=>{
         const t=parseCalTimes(e);if(!t)return;
-        for(let x=new Date(t.start.getFullYear(),t.start.getMonth(),t.start.getDate());x<t.end&&x<new Date(ws.getTime()+7*86400000);x=new Date(x.getTime()+86400000)){
-          if(x>=ws)busy.add(dayKey(x));
-          if(!t.allDay)break;
-        }
+        days.forEach(d=>{
+          const ds=new Date(d.getFullYear(),d.getMonth(),d.getDate()),de=new Date(ds.getTime()+86400000);
+          if(t.allDay){if(ds>=t.start&&ds<t.end)busy.add(dayKey(ds))}
+          else if(t.end>ds&&t.start<de)busy.add(dayKey(ds));
+        });
       });
     }catch{}
     personalTasks.forEach(t=>{if(t.dueDate)busy.add(dayKey(new Date(t.dueDate)))});
@@ -5487,10 +5719,9 @@
     const push=it=>{if(!it||seen.has(it.id))return;seen.add(it.id);items.push(it)};
     const addEvent=e=>{
       const t=parseCalTimes(e);if(!t)return;
-      // Strict local-day overlap: timed events intersecting the day; all-day must start on this local day
-      if(t.allDay){
-        if(dayKey(t.start)!==dayKey(start))return;
-      }else if(!(t.end>start&&t.start<end))return;
+      // Real calendar overlap for this local day (all-day uses exclusive end, same as Google)
+      if(t.allDay){if(!(start>=t.start&&start<t.end))return}
+      else if(!(t.end>start&&t.start<end))return;
       const title=e.summary||e.subject||'(No title)';
       const loc=typeof e.location==='string'?e.location:(e.location?.displayName||'');
       const mail=loopsData?.meetingMail?.[e.id];
@@ -5503,20 +5734,8 @@
       });
     };
     try{
-      const jobs=[];
-      if(token)jobs.push(eventsBetween(start,end));
-      if(microsoftAccount)jobs.push(msEventsBetween(start,end));
-      const parts=jobs.length?await Promise.all(jobs):[];
-      parts.flat().forEach(addEvent);
-      // Fallback only from already-synced events that belong to this local day (never dump 14-day upcoming)
-      if(!parts.flat().length){
-        [...(providerData.google.events||[]),...(providerData.microsoft.events||[])].forEach(addEvent);
-        (loopsData?.upcoming||[]).forEach(e=>{
-          const st=new Date(e.start?.dateTime||e.start?.date||NaN);
-          if(isNaN(st)||dayKey(st)!==dayKey(start))return;
-          addEvent(e);
-        });
-      }
+      const ev=await weekEvents(assistWeekStart(start));
+      (ev||[]).forEach(addEvent);
     }catch(err){console.warn('timeline cal',err)}
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(String(v))?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
     [
@@ -5583,9 +5802,9 @@
     if(!list)return;
     const same=dayKey(mAssistDay)===dayKey(localMidnight);
     const dateTxt=mAssistDay.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
-    if(heading)heading.textContent=same?`Today · ${dateTxt}`:dateTxt;
-    paintAssistCal();
+    if(heading)heading.textContent=same?'Today':mAssistDay.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
     list.innerHTML=skelRows(4);
+    await paintAssistCal();
     const items=await dayTimelineItems(mAssistDay);
     if(count&&countN){countN.textContent=String(items.length);count.hidden=!items.length}
     if(!items.length){
@@ -5616,9 +5835,6 @@
     if(mAssistAsk)setAssistAsk(false);
     renderAssistant();
   });
-  const toggleAsk=()=>{feel.select();setAssistAsk(!mAssistAsk)};
-  $('#tl-ask-btn')?.addEventListener('click',toggleAsk);
-  $('#tl-ask-mini')?.addEventListener('click',toggleAsk);
   $('#tl-list')?.addEventListener('click',e=>{
     const loop=e.target.closest('[data-open-loop]');if(loop){openLoopSheet(loop.dataset.openLoop);return}
     const tr=e.target.closest('[data-open-travel]');
