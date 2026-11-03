@@ -66,7 +66,7 @@ const CASES = [
     mail: { fromEmail: 'noreply@booking.com', fromName: 'Booking.com', subject: 'Hotel reservation confirmed', body: 'Hotel Central Prague. Check-in 2026-11-20 check-out 2026-11-22. Confirmation 998877.', whenMs: Date.parse(NOW) } },
   { id: 'train-ticket', expect: { category: 'travel' },
     mail: { fromEmail: 'tickets@cd.cz', fromName: 'České dráhy', subject: 'Your train ticket', body: 'Train IC 514 Praha → Brno 2026-11-10T09:15. E-ticket attached.', whenMs: Date.parse(NOW) } },
-  { id: 'invoice', expect: { category: 'other' }, // local heuristic may not classify bills; schema still validates
+  { id: 'invoice', expect: { category: 'bills', intent: 'payment_due' },
     mail: { fromEmail: 'billing@cez.cz', fromName: 'ČEZ', subject: 'Invoice November', body: 'Invoice 2026-1102 amount 1 240 Kč due 2026-11-20.', whenMs: Date.parse(NOW) } },
   { id: 'payment-due', expect: {},
     mail: { fromEmail: 'billing@vodafone.cz', fromName: 'Vodafone', subject: 'Payment due', body: 'Amount due 599 Kč. Please pay by 2026-11-15.', whenMs: Date.parse(NOW) } },

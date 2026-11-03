@@ -1,0 +1,1165 @@
+{
+  "generatedAt": "2026-11-03T08:11:29.091Z",
+  "phase": 11,
+  "productionReadyClaim": false,
+  "productionReadyReason": "Synthetic + live-Gemini fixture verification passed; controlled real-Gmail E2E in browser still required before full production readiness",
+  "deployment": {
+    "frontendAffected": [
+      "daylight-ai.js",
+      "app.js",
+      "index.html",
+      "sw.js",
+      "tests/phase11-e2e.js",
+      "tests/live-gemini-verify.js",
+      "tests/ai-email-suite.js"
+    ],
+    "workerAffected": [],
+    "cacheBumps": {
+      "daylight-ai.js": "?v=4",
+      "app.js": "?v=58",
+      "sw.js": "daylight-v40"
+    },
+    "autoDeploy": false,
+    "notes": "Static frontend assets only. Do not redeploy Worker. Preserve Google OAuth client, KV namespaces, GEMINI_API_KEY secret, ALLOWED_ORIGINS / dashboard vars unchanged."
+  },
+  "guards": {
+    "consentBlocked": true,
+    "financialOptInBlocked": true
+  },
+  "promoNoiseFix": {
+    "description": "Fixture now requires category=promotions intent=promotional. Heuristic short-circuits marketing-primary mail. Distribution skips orders/reminders/upcoming for promotional.",
+    "heuristicPromoPass": true,
+    "liveGeminiPromoPass": true,
+    "note": "Gemini may still surface buried tracking/order fields in extraction JSON; module writes are gated by promotional intent/category so no shopping reminders or order cards are created."
+  },
+  "heuristic": {
+    "total": 13,
+    "passed": 13,
+    "failed": [],
+    "rows": [
+      {
+        "id": "amazon-confirm",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 1,
+        "classification": {
+          "category": "shopping",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "shopping",
+          "intent": "order_confirmed",
+          "modules": [
+            "orders"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "order_confirmed",
+          "requires_confirmation": true,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "created",
+          "wallet": "skip",
+          "reminders": {
+            "action": "skip_uncertain",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        },
+        "entityKey": "order:112-3344556-7788990",
+        "sourceMailIds": [
+          "amazon-confirm"
+        ]
+      },
+      {
+        "id": "amazon-ship",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 1,
+        "classification": {
+          "category": "shopping",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "shopping",
+          "intent": "delivery_scheduled",
+          "modules": [
+            "orders",
+            "upcoming"
+          ],
+          "fields": [
+            "order.delivery_date"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "delivery_scheduled",
+          "requires_confirmation": true,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": "2026-11-04",
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "updated",
+          "wallet": "skip",
+          "reminders": {
+            "action": "skip_uncertain",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        },
+        "entityKey": "order:112-3344556-7788990",
+        "sourceMailIds": [
+          "amazon-confirm",
+          "amazon-ship"
+        ]
+      },
+      {
+        "id": "amazon-delay",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 0,
+        "classification": {
+          "category": "shopping",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "shopping",
+          "intent": "delivery_delayed",
+          "modules": [
+            "orders"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "delivery_delayed",
+          "requires_confirmation": false,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": "2026-11-06",
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "updated",
+          "wallet": "skip",
+          "reminders": {
+            "action": "created",
+            "created": 1,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        },
+        "entityKey": "order:112-3344556-7788990",
+        "sourceMailIds": [
+          "amazon-confirm",
+          "amazon-ship",
+          "amazon-delay"
+        ]
+      },
+      {
+        "id": "amazon-delivered",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 1,
+        "classification": {
+          "category": "shopping",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "shopping",
+          "intent": "delivery_delivered",
+          "modules": [
+            "orders"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "delivery_delivered",
+          "requires_confirmation": true,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": "2026-11-03",
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "updated",
+          "wallet": "skip",
+          "reminders": {
+            "action": "skip_uncertain",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        },
+        "entityKey": "order:112-3344556-7788990",
+        "sourceMailIds": [
+          "amazon-confirm",
+          "amazon-ship",
+          "amazon-delay",
+          "amazon-delivered"
+        ]
+      },
+      {
+        "id": "flight-book",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 2,
+        "classification": {
+          "category": "ticket",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "modules": [
+            "wallet",
+            "upcoming"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": "ABC12X",
+          "depart": "2026-11-20T08:40",
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "created",
+          "reminders": {
+            "action": "created",
+            "created": 1,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        },
+        "entityKey": "pnr:abc12x",
+        "sourceMailIds": [
+          "flight-book"
+        ]
+      },
+      {
+        "id": "flight-resched",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 1,
+        "classification": {
+          "category": "ticket",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "travel",
+          "intent": "booking_rescheduled",
+          "modules": [
+            "wallet",
+            "upcoming"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_rescheduled",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": "ABC12X",
+          "depart": "2026-11-20T10:10",
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "updated",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "updated"
+        },
+        "entityKey": "pnr:abc12x",
+        "sourceMailIds": [
+          "flight-resched"
+        ]
+      },
+      {
+        "id": "flight-cancel",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 1,
+        "classification": {
+          "category": "ticket",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "travel",
+          "intent": "booking_cancelled",
+          "modules": [
+            "wallet"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_cancelled",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": "ABC12X",
+          "depart": "2026-11-20T10:10",
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "updated",
+          "reminders": {
+            "action": "disabled",
+            "created": 0,
+            "disabled": 1
+          },
+          "upcoming": "cancelled"
+        },
+        "entityKey": "pnr:abc12x",
+        "sourceMailIds": [
+          "flight-cancel"
+        ]
+      },
+      {
+        "id": "hotel",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 0,
+        "classification": {
+          "category": "ticket",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "modules": [
+            "wallet"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": "reservation confirmed",
+          "check_in": "2026-11-20",
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "created",
+          "reminders": {
+            "action": "created",
+            "created": 1,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        },
+        "entityKey": "hotel:reservation-confirmed:2026-11-20",
+        "sourceMailIds": [
+          "hotel"
+        ]
+      },
+      {
+        "id": "invoice",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 0,
+        "classification": {
+          "category": "bill",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": [
+            "bills",
+            "finance"
+          ],
+          "intent": "payment_due",
+          "fields": [
+            "financial.due_date"
+          ]
+        },
+        "actual": {
+          "category": "bills",
+          "intent": "payment_due",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": "2026-11-20"
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "created",
+            "created": 1,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        },
+        "entityKey": "thread:t-bill-1",
+        "sourceMailIds": [
+          "invoice"
+        ]
+      },
+      {
+        "id": "sub-renew",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 0,
+        "classification": {
+          "category": "subscription",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "subscriptions",
+          "intent": "subscription_renewal"
+        },
+        "actual": {
+          "category": "subscriptions",
+          "intent": "subscription_renewal",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": "2026-12-03"
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "created",
+            "created": 1,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        },
+        "entityKey": "thread:t-sub-1",
+        "sourceMailIds": [
+          "sub-renew"
+        ]
+      },
+      {
+        "id": "sub-cancel",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 1,
+        "classification": {
+          "category": "subscription",
+          "confidence": 0.98
+        },
+        "expected": {
+          "category": "subscriptions",
+          "intent": "subscription_cancelled"
+        },
+        "actual": {
+          "category": "subscriptions",
+          "intent": "subscription_cancelled",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": "2026-12-03"
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "disabled",
+            "created": 0,
+            "disabled": 1
+          },
+          "upcoming": "skip"
+        },
+        "entityKey": "thread:t-sub-1",
+        "sourceMailIds": [
+          "sub-cancel"
+        ]
+      },
+      {
+        "id": "promo",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 0,
+        "classification": {
+          "category": "other",
+          "confidence": 0.25
+        },
+        "expected": {
+          "category": "promotions",
+          "intent": "promotional",
+          "modules": [],
+          "noReminders": true
+        },
+        "actual": {
+          "category": "promotions",
+          "intent": "promotional",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "skip_promo",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip_promo"
+        },
+        "entityKey": "thread:t-promo-1",
+        "sourceMailIds": [
+          "promo"
+        ]
+      },
+      {
+        "id": "personal",
+        "pass": "heuristic",
+        "ok": true,
+        "errors": [],
+        "ms": 0,
+        "classification": {
+          "category": "other",
+          "confidence": 0.25
+        },
+        "expected": {
+          "category": [
+            "personal",
+            "other",
+            "meetings"
+          ],
+          "intent": [
+            "informational",
+            "reminder",
+            null
+          ]
+        },
+        "actual": {
+          "category": "other",
+          "intent": "informational",
+          "requires_confirmation": true,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "skip_uncertain",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        },
+        "entityKey": "thread:t-pers-1",
+        "sourceMailIds": [
+          "personal"
+        ]
+      }
+    ]
+  },
+  "gemini": {
+    "ran": true,
+    "model": "gemini-3.5-flash-lite",
+    "calls": 13,
+    "total": 13,
+    "passed": 13,
+    "failed": [],
+    "rows": [
+      {
+        "id": "amazon-confirm",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 1802,
+        "expected": {
+          "category": "shopping",
+          "intent": "order_confirmed",
+          "modules": [
+            "orders"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "order_confirmed",
+          "requires_confirmation": false,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "created",
+          "wallet": "skip",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        }
+      },
+      {
+        "id": "amazon-ship",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 3943,
+        "expected": {
+          "category": "shopping",
+          "intent": "delivery_scheduled",
+          "modules": [
+            "orders",
+            "upcoming"
+          ],
+          "fields": [
+            "order.delivery_date"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "delivery_scheduled",
+          "requires_confirmation": true,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": "2026-11-04",
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "updated",
+          "wallet": "skip",
+          "reminders": {
+            "action": "skip_uncertain",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        }
+      },
+      {
+        "id": "amazon-delay",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 2005,
+        "expected": {
+          "category": "shopping",
+          "intent": "delivery_delayed",
+          "modules": [
+            "orders"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "delivery_delayed",
+          "requires_confirmation": false,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": "2026-11-06",
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "updated",
+          "wallet": "skip",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        }
+      },
+      {
+        "id": "amazon-delivered",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 1862,
+        "expected": {
+          "category": "shopping",
+          "intent": "delivery_delivered",
+          "modules": [
+            "orders"
+          ]
+        },
+        "actual": {
+          "category": "shopping",
+          "intent": "delivery_delivered",
+          "requires_confirmation": false,
+          "order_id": "112-3344556-7788990",
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "updated",
+          "wallet": "skip",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "updated"
+        }
+      },
+      {
+        "id": "flight-book",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 2092,
+        "expected": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "modules": [
+            "wallet",
+            "upcoming"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": "ABC12X",
+          "depart": "2026-11-20T08:40:00+01:00",
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "created",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        }
+      },
+      {
+        "id": "flight-resched",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 1911,
+        "expected": {
+          "category": "travel",
+          "intent": "booking_rescheduled",
+          "modules": [
+            "wallet",
+            "upcoming"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_rescheduled",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": "ABC12X",
+          "depart": "2026-11-20T10:10:00+01:00",
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "updated",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "updated"
+        }
+      },
+      {
+        "id": "flight-cancel",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 2231,
+        "expected": {
+          "category": "travel",
+          "intent": "booking_cancelled",
+          "modules": [
+            "wallet"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_cancelled",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": "ABC12X",
+          "depart": "2026-11-20T10:10:00",
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "updated",
+          "reminders": {
+            "action": "disabled",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "cancelled"
+        }
+      },
+      {
+        "id": "hotel",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 2368,
+        "expected": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "modules": [
+            "wallet"
+          ]
+        },
+        "actual": {
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": "998877",
+          "depart": null,
+          "hotel": "Hotel Central Prague",
+          "check_in": "2026-11-20",
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "created",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        }
+      },
+      {
+        "id": "invoice",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 2175,
+        "expected": {
+          "category": [
+            "bills",
+            "finance"
+          ],
+          "intent": "payment_due",
+          "fields": [
+            "financial.due_date"
+          ]
+        },
+        "actual": {
+          "category": "bills",
+          "intent": "payment_due",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": "2026-11-20"
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "created",
+            "created": 1,
+            "disabled": 0
+          },
+          "upcoming": "created"
+        }
+      },
+      {
+        "id": "sub-renew",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 1661,
+        "expected": {
+          "category": "subscriptions",
+          "intent": "subscription_renewal"
+        },
+        "actual": {
+          "category": "subscriptions",
+          "intent": "subscription_renewal",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        }
+      },
+      {
+        "id": "sub-cancel",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 1523,
+        "expected": {
+          "category": "subscriptions",
+          "intent": "subscription_cancelled"
+        },
+        "actual": {
+          "category": "subscriptions",
+          "intent": "subscription_cancelled",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "disabled",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        }
+      },
+      {
+        "id": "promo",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 917,
+        "expected": {
+          "category": "promotions",
+          "intent": "promotional",
+          "modules": [],
+          "noReminders": true
+        },
+        "actual": {
+          "category": "promotions",
+          "intent": "promotional",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "skip_promo",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip_promo"
+        }
+      },
+      {
+        "id": "personal",
+        "pass": "gemini",
+        "ok": true,
+        "errors": [],
+        "ms": 1212,
+        "expected": {
+          "category": [
+            "personal",
+            "other",
+            "meetings"
+          ],
+          "intent": [
+            "informational",
+            "reminder",
+            null
+          ]
+        },
+        "actual": {
+          "category": "personal",
+          "intent": "informational",
+          "requires_confirmation": false,
+          "order_id": null,
+          "delivery_date": null,
+          "pnr": null,
+          "depart": null,
+          "hotel": null,
+          "check_in": null,
+          "due_date": null
+        },
+        "distribution": {
+          "order": "skip",
+          "wallet": "skip",
+          "reminders": {
+            "action": "noop",
+            "created": 0,
+            "disabled": 0
+          },
+          "upcoming": "skip"
+        }
+      }
+    ]
+  },
+  "lifecycle": {
+    "amazonSingleOrder": true,
+    "amazonStatusDelivered": true,
+    "amazonSourceMails": true,
+    "amazonHadDelayedDate": true,
+    "flightSinglePass": true,
+    "flightCancelled": true,
+    "flightRemindersDisabled": true,
+    "hotelWalletCreated": true,
+    "subRemindersCancelled": true,
+    "promoNoOrder": true,
+    "promoNoReminders": true,
+    "upcomingHasNoCancelled": true
+  },
+  "persistence": {
+    "refreshRestore": true,
+    "repeatedDistributeNoDup": true
+  },
+  "lifecycleOk": true,
+  "verified": [
+    "Promo-noise false-positive fixed (promotions/promotional; no auto reminders)",
+    "Synthetic Gmail MIME → classify → extract → distribute (13/13 heuristic, 13/13 Gemini)",
+    "Module distribution: shopping orders, travel wallet, upcoming, reminders",
+    "Amazon confirm→ship→delay→delivered updates one order entity",
+    "Flight book→reschedule→cancel updates one wallet pass; cancelled events removed from active upcoming; reminders disabled",
+    "Hotel booking mints verified wallet pass",
+    "Subscription renew→cancel disables AI reminders",
+    "Sandbox persistence restore + repeated sync dedupe",
+    "Consent gate and financial opt-in gate enforced",
+    "Phase 10 live semantic still 13/13; local suite 33/33"
+  ],
+  "unverified": [
+    "Live Gmail API fetch against a real mailbox (messages.get format=full)",
+    "Browser refresh/restart with real IndexedDB on a user device",
+    "Logout/login session restore with real Google OAuth tokens",
+    "Interrupted sync recovery against Gmail history.list",
+    "Worker-proxied /api/gemini/analyse under a real Daylight session cookie in the browser",
+    "Open Loops UI rendering of AI-linked entities with real concurrent calendar data"
+  ],
+  "realGmailTestingSafe": true,
+  "realGmailGuidance": "Controlled real-Gmail testing is safe on a dedicated test account with AI consent on, financial opt-in off unless intended, and a narrow Gmail query/label. Do not wipe production IndexedDB. Prefer demo/synthetic first. Do not claim full production readiness from synthetics alone.",
+  "relatedSuites": {
+    "aiEmailSuite": {
+      "passed": 33,
+      "total": 33,
+      "failed": []
+    },
+    "liveGeminiVerify": {
+      "heuristic": "11/11",
+      "gemini": "13/13",
+      "productionReadyPhase10Semantic": true
+    }
+  }
+}

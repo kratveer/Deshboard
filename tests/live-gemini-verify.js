@@ -86,8 +86,9 @@ const FIXTURES = [
     mail: { fromEmail: 'shipment-tracking@amazon.com', fromName: 'Amazon', subject: 'Arriving soon', body: 'Your order #99-AAA arrives this Saturday.', whenMs: Date.parse(NOW) } },
   { id: 'non-english', expect: { category: ['shopping', 'delivery'], intent: ['order_shipped', 'delivery_scheduled'] },
     mail: { fromEmail: 'auto-confirm@amazon.de', fromName: 'Amazon.de', subject: 'Bestellung versandt', body: 'Bestellung 302-1112222-3334444. Lieferung morgen erwartet.', whenMs: Date.parse(NOW) } },
-  { id: 'promo-noise', expect: { category: ['shopping', 'promotions', 'delivery', 'other'], intent: ['promotional', 'delivery_scheduled', 'order_shipped', 'informational'] },
-    mail: { fromEmail: 'deals@store.example', fromName: 'Store Deals', subject: 'FLASH SALE 50% OFF + your package update', body: 'Buy more today! Also: tracking XYZTRACK999 out for delivery tomorrow for order #55-PROMO.', whenMs: Date.parse(NOW) } },
+  // Marketing-first: must NOT classify as shopping delivery (false-positive guard)
+  { id: 'promo-noise', expect: { category: 'promotions', intent: 'promotional' },
+    mail: { fromEmail: 'deals@store.example', fromName: 'Store Deals', subject: 'FLASH SALE 50% OFF + your package update', body: 'Buy more today! Shop the weekend deal. Also: tracking XYZTRACK999 out for delivery tomorrow for order #55-PROMO. Unsubscribe anytime.', whenMs: Date.parse(NOW) } },
 ];
 
 function fieldGet(obj, dotted) {

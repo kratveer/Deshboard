@@ -106,10 +106,11 @@ Rules:
 10. For invoices fill financial{amount,currency,due_date,status,invoice_number}.
 11. For subscriptions fill financial amount/currency when present and set intent subscription_*.
 12. Quote supporting snippets in evidence for every important extracted ID/date.
+13. Marketing-first emails (FLASH SALE, % off, "buy now", newsletter digests) → category "promotions" and intent "promotional", even if a tracking line is buried in the footer. Do not treat promo noise as a delivery lifecycle email. Set requires_confirmation=true if an order id appears only as secondary noise.
 
 Canonical categories (pick one primary):
 shopping, delivery, travel, finance, bills, subscriptions, work, meetings, personal, social, education, health, documents, government, security, promotions, newsletters, other
-Note: package/shipping updates may use category "delivery" OR "shopping"; prefer "shopping" when an order_id is present.
+Note: package/shipping updates may use category "delivery" OR "shopping"; prefer "shopping" when an order_id is present and the email is primarily a shipping update (not a sale blast).
 
 Canonical intents (pick the best one):
 order_placed, order_confirmed, order_shipped, delivery_scheduled, delivery_delayed, delivery_delivered,
@@ -476,6 +477,22 @@ Intent examples:
     return out;
   }
 
+  function isPromotionalPrimary(subject, body) {
+    const s = `${subject}\n${body}`;
+    const promoHits = [
+      /\bflash\s*sale\b/i, /\b\d{1,2}%\s*off\b/i, /\bbuy\s+now\b/i, /\bshop\s+now\b/i,
+      /\blimited\s+time\b/i, /\bnewsletter\b/i, /\bweekly\s+digest\b/i, /\bunsubscribe\b/i,
+      /\bpromo(tion|tional)?\b/i, /\bdeal\s+of\s+the\s+day\b/i
+    ].filter(rx => rx.test(s)).length;
+    const lifecycleHits = [
+      /\bout\s+for\s+delivery\b/i, /\bdelivery\s+delayed\b/i, /\bwas\s+delivered\b/i,
+      /\bbording\s*pass\b/i, /\bflight\b/i, /\bPNR\b/, /\binvoice\b/i, /\bpayment\s+due\b/i
+    ].filter(rx => rx.test(s)).length;
+    // Subject-led promo wins when sale language dominates
+    if (/\b(flash\s*sale|%\s*off|newsletter|digest)\b/i.test(subject) && promoHits >= 1) return true;
+    return promoHits >= 2 && promoHits > lifecycleHits;
+  }
+
   /** Level-1 style local enrichment for high-signal templates (no network). */
   function localHeuristicExtract(mail, nowIso, tz) {
     const subject = String(mail.subject || '');
@@ -483,6 +500,26 @@ Intent examples:
     const text = `${subject}\n${body}`;
     const from = String(mail.fromEmail || mail.from || '').toLowerCase();
     const org = (mail.fromName || from.split('@')[0] || '').replace(/[^a-zA-Z0-9 ._-]/g, '').trim() || null;
+
+    // Promotional / newsletter primary — do not emit delivery reminders
+    if (isPromotionalPrimary(subject, body)) {
+      return validateExtraction({
+        category: 'promotions',
+        intent: 'promotional',
+        organisation: org,
+        summary: subject.slice(0, 120) || 'Promotional email',
+        order: null,
+        travel: null,
+        financial: null,
+        event: null,
+        reminders: [],
+        confidence: 0.82,
+        requires_confirmation: false,
+        evidence: [{ field: 'category', quoted_text: subject.slice(0, 80) }],
+        facts_vs_inferred: { facts: ['promotional_language'], inferred: [], unknown: [] },
+        method: 'local-heuristic'
+      });
+    }
 
     // Shopping / delivery (Amazon, eBay, and generic order templates)
     const shopHit = /amazon\.|ship-confirm@amazon|auto-confirm@amazon|@ebay\.|ebay@/i.test(from)
@@ -608,6 +645,64 @@ Intent examples:
           inferred: [],
           unknown: [!departIso && !checkIn && 'depart_datetime', !pnr && 'pnr'].filter(Boolean)
         },
+        method: 'local-heuristic'
+      });
+    }
+
+    // Bills / invoices
+    if (/\binvoice\b|\bpayment\s+due\b|\bamount\s+due\b|\bdue\s+by\b|\bfaktura\b/i.test(text)) {
+      const due = (text.match(/\b(?:due(?:\s+(?:by|date))?|splatnost)\s*[:#]?\s*(20\d{2}-\d{2}-\d{2})\b/i) || [])[1]
+        || (text.match(/\b(20\d{2}-\d{2}-\d{2})\b/) || [])[1]
+        || null;
+      const amountMatch = text.match(/\b(\d[\d\s]*[.,]?\d*)\s*(CZK|Kč|EUR|€|USD|\$|GBP|£)\b/i)
+        || text.match(/\b(CZK|EUR|USD|GBP)\s*(\d[\d\s]*[.,]?\d*)\b/i);
+      let amount = null, currency = null;
+      if (amountMatch) {
+        if (/^[A-Z€$£]/.test(amountMatch[1]) || /EUR|CZK|USD|GBP|€|\$|£/i.test(amountMatch[1])) {
+          currency = amountMatch[1].replace('€', 'EUR').replace('$', 'USD').replace('£', 'GBP').replace('Kč', 'CZK');
+          amount = parseFloat(String(amountMatch[2]).replace(/\s/g, '').replace(',', '.'));
+        } else {
+          amount = parseFloat(String(amountMatch[1]).replace(/\s/g, '').replace(',', '.'));
+          currency = (amountMatch[2] || '').replace('€', 'EUR').replace('$', 'USD').replace('£', 'GBP').replace('Kč', 'CZK');
+        }
+      }
+      const inv = (text.match(/\b(?:invoice|faktura)\s*(?:number|no\.?|#)?\s*[:#]?\s*([A-Z0-9-]{4,})\b/i) || [])[1] || null;
+      return validateExtraction({
+        category: 'bills',
+        intent: 'payment_due',
+        organisation: org,
+        summary: subject.slice(0, 120) || 'Invoice',
+        financial: { amount: Number.isFinite(amount) ? amount : null, currency: currency || null, due_date: due, status: 'due', invoice_number: inv },
+        event: due ? { exists: true, type: 'payment', title: 'Payment due', start_datetime: due + 'T09:00:00', end_datetime: null, timezone: tz || null, all_day: true, location: null, status: 'scheduled' } : null,
+        reminders: due ? [{ title: 'Pay invoice', datetime: due + 'T09:00:00', reason: 'Payment due', requires_confirmation: false }] : [],
+        confidence: due || amount ? 0.8 : 0.55,
+        evidence: [due ? { field: 'due_date', quoted_text: due } : null, inv ? { field: 'invoice_number', quoted_text: inv } : null].filter(Boolean),
+        requires_confirmation: !due,
+        facts_vs_inferred: { facts: [due && 'due_date', amount && 'amount'].filter(Boolean), inferred: [], unknown: [!due && 'due_date'].filter(Boolean) },
+        method: 'local-heuristic'
+      });
+    }
+
+    // Subscriptions
+    if (/\bsubscription\b|\bmembership\b|\brenew(ed|al|s)?\b|\bpremium\b/i.test(text)
+      && /spotify|netflix|disney|youtube|apple|microsoft|adobe|notion|subscription|membership/i.test(from + subject + body)) {
+      const cancelled = /\bcancel+ed|cancellation|will end\b/i.test(text);
+      const renew = /\brenew/i.test(text);
+      const next = (text.match(/\b(?:next\s+renewal|renews?(?:\s+on)?|ends?(?:\s+on)?)\s*(20\d{2}-\d{2}-\d{2})\b/i) || [])[1]
+        || (text.match(/\b(20\d{2}-\d{2}-\d{2})\b/) || [])[1]
+        || null;
+      return validateExtraction({
+        category: 'subscriptions',
+        intent: cancelled ? 'subscription_cancelled' : (renew ? 'subscription_renewal' : 'subscription_started'),
+        organisation: org,
+        summary: subject.slice(0, 120) || 'Subscription update',
+        financial: { amount: null, currency: null, due_date: next, status: cancelled ? 'cancelled' : 'active', invoice_number: null },
+        event: next && !cancelled ? { exists: true, type: 'subscription', title: (org || 'Subscription') + ' renewal', start_datetime: next + 'T09:00:00', end_datetime: null, timezone: tz || null, all_day: true, location: null, status: 'scheduled' } : null,
+        reminders: next && !cancelled ? [{ title: (org || 'Subscription') + ' renewal', datetime: next + 'T09:00:00', reason: 'Renewal date', requires_confirmation: false }] : [],
+        confidence: 0.78,
+        evidence: [next ? { field: 'due_date', quoted_text: next } : null].filter(Boolean),
+        requires_confirmation: false,
+        facts_vs_inferred: { facts: [cancelled ? 'cancelled' : 'renewal'].filter(Boolean), inferred: [], unknown: [] },
         method: 'local-heuristic'
       });
     }
@@ -837,6 +932,10 @@ ${SCHEMA_HINT}`;
     if (extraction?.travel?.flight_number && extraction?.travel?.depart_datetime) {
       return 'flight:' + extraction.travel.flight_number.replace(/\s+/g, '') + ':' + extraction.travel.depart_datetime.slice(0, 10);
     }
+    if (extraction?.travel?.hotel_name && extraction?.travel?.check_in) {
+      return 'hotel:' + String(extraction.travel.hotel_name).toLowerCase().replace(/\s+/g, '-') + ':' + extraction.travel.check_in;
+    }
+    if (extraction?.financial?.invoice_number) return 'invoice:' + String(extraction.financial.invoice_number).toLowerCase();
     if (mail?.threadId) return 'thread:' + mail.threadId;
     return 'mail:' + (mail?.id || mail?.mailId || 'unknown');
   }

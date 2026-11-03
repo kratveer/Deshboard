@@ -1120,16 +1120,18 @@
     return row;
   }
   function upsertAiTravelIntoWallet(extraction,mailMeta){
-    if(!extraction?.travel||extraction.travel.type==='hotel'&&!extraction.travel.hotel_name&&!extraction.travel.check_in){
-      if(!extraction?.travel||extraction.travel.type!=='flight')return null;
-    }
+    if(!extraction?.travel)return null;
     const t=extraction.travel;
-    // Only mint a flight pass when we have verified booking details
-    const verified=!!(t.pnr||(t.flight_number&&t.depart_datetime)||(t.from&&t.to&&t.depart_datetime));
+    const isHotel=t.type==='hotel'||!!(t.hotel_name&&t.check_in);
+    const isTrain=t.type==='train';
+    // Only mint a pass when booking details are verified (never fabricate)
+    const verified=isHotel
+      ?!!(t.hotel_name&&t.check_in)
+      :!!(t.pnr||(t.flight_number&&t.depart_datetime)||(t.from&&t.to&&t.depart_datetime)||(isTrain&&t.depart_datetime));
     if(!verified)return null;
     let list=readWallet();
     const booking={
-      mailId:mailMeta.mailId,threadId:mailMeta.threadId,kind:t.type==='hotel'?'hotel':t.type==='train'?'train':'flight',
+      mailId:mailMeta.mailId,threadId:mailMeta.threadId,kind:isHotel?'hotel':isTrain?'train':'flight',
       subject:extraction.summary||mailMeta.subject||'Travel',
       from:{name:extraction.organisation||t.hotel_name||'Travel'},
       dest:t.to||t.hotel_name||'',
@@ -1146,7 +1148,9 @@
   function createAiReminders(extraction,mailMeta){
     const stamped=readJSON('daylight-ai-reminders',{});
     const entityKey=extraction.entityKey||mailMeta.mailId;
-    const cancelled=extraction.intent==='booking_cancelled'||extraction.intent==='cancellation'||/cancel/i.test(extraction.travel?.status||'')||/cancel/i.test(extraction.event?.status||'');
+    // Never auto-create reminders from promotional / newsletter mail
+    if(extraction.intent==='promotional'||extraction.category==='promotions'||extraction.category==='newsletters')return 0;
+    const cancelled=extraction.intent==='booking_cancelled'||extraction.intent==='cancellation'||extraction.intent==='subscription_cancelled'||/cancel/i.test(extraction.travel?.status||'')||/cancel/i.test(extraction.event?.status||'');
     // Cancellations: disable AI reminders for this entity instead of creating new ones
     if(cancelled){
       let disabled=0;
@@ -1191,28 +1195,37 @@
     const upcomingAi=[];
     Object.values(map).forEach(ex=>{
       if(!ex||!ex.valid)return;
+      const promo=ex.intent==='promotional'||ex.category==='promotions'||ex.category==='newsletters';
       const mailMeta={mailId:ex.mailId,threadId:ex.threadId,subject:ex.summary,href:gmailLink(ex.threadId||ex.mailId)};
-      if(ex.order){if(upsertAiOrder(ex,mailMeta))orders++}
-      if(ex.travel){const r=upsertAiTravelIntoWallet(ex,mailMeta);if(r&&(r.added||r.updated))wallet++}
+      // Promotional mail must not seed shopping orders / delivery events / reminders
+      if(ex.order&&!promo){if(upsertAiOrder(ex,mailMeta))orders++}
+      if(ex.travel&&!promo){const r=upsertAiTravelIntoWallet(ex,mailMeta);if(r&&(r.added||r.updated))wallet++}
       reminders+=createAiReminders(ex,mailMeta);
-      if(ex.event?.exists&&ex.event.start_datetime&&!ex.requires_confirmation){
+      if(!promo&&ex.event?.exists&&ex.event.start_datetime&&!ex.requires_confirmation){
+        const cancelled=ex.intent==='booking_cancelled'||/cancel/i.test(ex.event.status||'');
         upcomingAi.push({
           id:'ai-event:'+(ex.entityKey||ex.mailId),
           summary:ex.event.title||ex.summary,
           start:{dateTime:ex.event.all_day?undefined:ex.event.start_datetime,date:ex.event.all_day?ex.event.start_datetime.slice(0,10):undefined},
           end:ex.event.end_datetime?{dateTime:ex.event.end_datetime}:undefined,
           location:ex.event.location||'',
-          source:'daylight-ai',mailId:ex.mailId,entityKey:ex.entityKey,status:ex.event.status||'confirmed'
+          source:'daylight-ai',mailId:ex.mailId,entityKey:ex.entityKey,
+          status:cancelled?'cancelled':(ex.event.status||'confirmed')
         });
       }
     });
     if(data){
       data.orders=readAiOrders();
       data.aiUpcoming=upcomingAi;
-      // Merge AI upcoming into loops upcoming display list (non-destructive)
+      // Merge AI upcoming: upsert by id; cancelled statuses replace active ones
       if(upcomingAi.length){
-        const seen=new Set((data.upcoming||[]).map(e=>e.id));
-        data.upcoming=[...(data.upcoming||[]),...upcomingAi.filter(e=>!seen.has(e.id))];
+        const byId=new Map((data.upcoming||[]).map(e=>[e.id,e]));
+        upcomingAi.forEach(e=>{
+          const prev=byId.get(e.id);
+          if(prev&&e.entityKey&&prev.entityKey===e.entityKey){byId.set(e.id,{...prev,...e})}
+          else byId.set(e.id,e);
+        });
+        data.upcoming=[...byId.values()].filter(e=>e.status!=='cancelled');
       }
     }
     return {orders,wallet,reminders,upcoming:upcomingAi.length};

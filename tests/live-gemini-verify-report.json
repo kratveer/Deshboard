@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-11-03T07:52:30.729Z",
+  "generatedAt": "2026-11-03T08:10:52.992Z",
   "phase": 10,
-  "productionReady": false,
-  "productionReadyReason": "GEMINI_API_KEY missing",
+  "productionReady": true,
+  "productionReadyReason": "acceptance met",
   "rootCauseFixed": [
     "Live harness now uses production SYSTEM + buildPrompt (previously omitted intent enum → informational)",
     "normalizeIntent aliases; no silent coerce of unknown intents to informational before structure inference",
@@ -329,24 +329,521 @@
           "ok": true,
           "errors": [],
           "expected": {
+            "category": "promotions",
+            "intent": "promotional"
+          },
+          "actual": {
+            "category": "promotions",
+            "intent": "promotional",
+            "requires_confirmation": false,
+            "confidence": 0.82,
+            "organisation": "Store Deals",
+            "order": null,
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "local-heuristic",
+          "confidence": 0.82
+        }
+      ]
+    },
+    "B": {
+      "name": "B_live_gemini_api",
+      "ran": true,
+      "model": "gemini-3.5-flash-lite",
+      "promptSource": "DaylightAI.SYSTEM + DaylightAI.buildPrompt",
+      "total": 13,
+      "passed": 13,
+      "failed": [],
+      "calls": 13,
+      "success": 13,
+      "fail": 0,
+      "avgMs": 2015,
+      "tokens": {
+        "promptTokens": 20662,
+        "outputTokens": 9153
+      },
+      "estimatedCostUsd": null,
+      "classificationAccuracy": 1,
+      "intentAccuracy": 1,
+      "rows": [
+        {
+          "id": "amazon-confirm",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": "shopping",
+            "intent": "order_confirmed",
+            "fields": [
+              "order.order_id"
+            ],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "order_confirmed",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": null,
+              "status": "ordered",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 1817,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "shopping",
+          "intent": "order_confirmed",
+          "requires_confirmation": false
+        },
+        {
+          "id": "amazon-delivery",
+          "ok": true,
+          "errors": [],
+          "expected": {
             "category": [
               "shopping",
-              "promotions",
-              "delivery",
-              "other"
+              "delivery"
             ],
             "intent": [
-              "promotional",
               "delivery_scheduled",
-              "order_shipped",
-              "informational"
-            ]
+              "order_shipped"
+            ],
+            "fields": [
+              "order.delivery_date"
+            ],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_scheduled",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": "2026-11-04",
+              "status": "out_for_delivery",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 1745,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "shopping",
+          "intent": "delivery_scheduled",
+          "requires_confirmation": false
+        },
+        {
+          "id": "amazon-delay",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "delivery"
+            ],
+            "intent": "delivery_delayed",
+            "fields": [
+              "order.delivery_date"
+            ],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_delayed",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": "2026-11-06",
+              "status": "delayed",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2127,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "shopping",
+          "intent": "delivery_delayed",
+          "requires_confirmation": false
+        },
+        {
+          "id": "amazon-delivered",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "delivery"
+            ],
+            "intent": "delivery_delivered",
+            "fields": [],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_delivered",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "112-3344556-7788990",
+              "delivery_date": "2026-11-03",
+              "status": "delivered",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 1421,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "shopping",
+          "intent": "delivery_delivered",
+          "requires_confirmation": false
+        },
+        {
+          "id": "flight-booking",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_confirmed",
+            "fields": [
+              "travel.pnr",
+              "travel.depart_datetime"
+            ],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_confirmed",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Lufthansa",
+            "order": null,
+            "travel": {
+              "type": "flight",
+              "pnr": "ABC12X",
+              "flight_number": "LH400",
+              "depart_datetime": "2026-11-20T08:40:00",
+              "check_in": null,
+              "status": "confirmed"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2009,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "requires_confirmation": false
+        },
+        {
+          "id": "flight-cancel",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_cancelled",
+            "fields": [],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_cancelled",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Lufthansa",
+            "order": null,
+            "travel": {
+              "type": "flight",
+              "pnr": "ABC12X",
+              "flight_number": "LH400",
+              "depart_datetime": "2026-11-20T08:40:00",
+              "check_in": null,
+              "status": "cancelled"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2112,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "travel",
+          "intent": "booking_cancelled",
+          "requires_confirmation": false
+        },
+        {
+          "id": "flight-reschedule",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_rescheduled",
+            "fields": [
+              "travel.depart_datetime"
+            ],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_rescheduled",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Ryanair",
+            "order": null,
+            "travel": {
+              "type": "flight",
+              "pnr": "ZY9876",
+              "flight_number": "FR1234",
+              "depart_datetime": "2026-12-01T06:15:00",
+              "check_in": null,
+              "status": "rescheduled"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2499,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "travel",
+          "intent": "booking_rescheduled",
+          "requires_confirmation": false
+        },
+        {
+          "id": "hotel",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": "travel",
+            "intent": "booking_confirmed",
+            "fields": [
+              "travel.check_in"
+            ],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "travel",
+            "intent": "booking_confirmed",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Booking.com",
+            "order": null,
+            "travel": {
+              "type": "hotel",
+              "pnr": "998877",
+              "flight_number": null,
+              "depart_datetime": null,
+              "check_in": "2026-11-20",
+              "status": "confirmed"
+            },
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2148,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "travel",
+          "intent": "booking_confirmed",
+          "requires_confirmation": false
+        },
+        {
+          "id": "invoice",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": [
+              "bills",
+              "finance"
+            ],
+            "intent": "payment_due",
+            "fields": [
+              "financial.due_date"
+            ],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "bills",
+            "intent": "payment_due",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "ČEZ",
+            "order": null,
+            "travel": null,
+            "financial": {
+              "amount": "1240",
+              "currency": "CZK",
+              "due_date": "2026-11-20"
+            }
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2523,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "bills",
+          "intent": "payment_due",
+          "requires_confirmation": false
+        },
+        {
+          "id": "sub-renewal",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": "subscriptions",
+            "intent": "subscription_renewal",
+            "fields": [],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "subscriptions",
+            "intent": "subscription_renewal",
+            "requires_confirmation": false,
+            "confidence": 1,
+            "organisation": "Spotify",
+            "order": null,
+            "travel": null,
+            "financial": {
+              "amount": "10.99",
+              "currency": "EUR",
+              "due_date": null
+            }
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2138,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 1,
+          "category": "subscriptions",
+          "intent": "subscription_renewal",
+          "requires_confirmation": false
+        },
+        {
+          "id": "ambiguous-date",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "fields": [],
+            "requires_confirmation": true
           },
           "actual": {
             "category": "shopping",
             "intent": "delivery_scheduled",
             "requires_confirmation": true,
-            "confidence": 0.86,
+            "confidence": 0.95,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "99-AAA",
+              "delivery_date": "2026-11-07",
+              "status": "shipped",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 1863,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 0.95,
+          "category": "shopping",
+          "intent": "delivery_scheduled",
+          "requires_confirmation": true
+        },
+        {
+          "id": "non-english",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": [
+              "shopping",
+              "delivery"
+            ],
+            "intent": [
+              "order_shipped",
+              "delivery_scheduled"
+            ],
+            "fields": [],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "shopping",
+            "intent": "delivery_scheduled",
+            "requires_confirmation": false,
+            "confidence": 0.95,
+            "organisation": "Amazon",
+            "order": {
+              "order_id": "302-1112222-3334444",
+              "delivery_date": "2026-11-04",
+              "status": "shipped",
+              "tracking_number": null
+            },
+            "travel": null,
+            "financial": null
+          },
+          "missing": [],
+          "incorrect": [],
+          "source": "gemini-direct",
+          "ms": 2003,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 0.95,
+          "category": "shopping",
+          "intent": "delivery_scheduled",
+          "requires_confirmation": false
+        },
+        {
+          "id": "promo-noise",
+          "ok": true,
+          "errors": [],
+          "expected": {
+            "category": "promotions",
+            "intent": "promotional",
+            "fields": [],
+            "requires_confirmation": false
+          },
+          "actual": {
+            "category": "promotions",
+            "intent": "promotional",
+            "requires_confirmation": true,
+            "confidence": 0.85,
             "organisation": "Store Deals",
             "order": {
               "order_id": "55-PROMO",
@@ -359,23 +856,15 @@
           },
           "missing": [],
           "incorrect": [],
-          "source": "local-heuristic",
-          "confidence": 0.86
+          "source": "gemini-direct",
+          "ms": 1795,
+          "model": "gemini-3.5-flash-lite",
+          "confidence": 0.85,
+          "category": "promotions",
+          "intent": "promotional",
+          "requires_confirmation": true
         }
       ]
-    },
-    "B": {
-      "name": "B_live_gemini_api",
-      "ran": false,
-      "reason": "GEMINI_API_KEY not set",
-      "total": 0,
-      "passed": 0,
-      "failed": [],
-      "calls": 0,
-      "success": 0,
-      "fail": 0,
-      "avgMs": null,
-      "tokens": null
     },
     "C": {
       "name": "C_worker_consent_fallback",
@@ -392,7 +881,7 @@
         {
           "name": "health",
           "status": 200,
-          "ms": 249,
+          "ms": 165,
           "body": {
             "ok": true
           }
@@ -400,7 +889,7 @@
         {
           "name": "gemini_status_noauth",
           "status": 401,
-          "ms": 59,
+          "ms": 61,
           "body": {
             "error": "reauth"
           }
@@ -408,7 +897,7 @@
         {
           "name": "gemini_status_fake",
           "status": 401,
-          "ms": 69,
+          "ms": 135,
           "body": {
             "error": "reauth"
           }
@@ -416,7 +905,7 @@
         {
           "name": "gemini_analyse_fake",
           "status": 401,
-          "ms": 74,
+          "ms": 84,
           "body": {
             "error": "reauth"
           }
@@ -424,7 +913,7 @@
         {
           "name": "gemini_analyse_noauth",
           "status": 401,
-          "ms": 61,
+          "ms": 42,
           "body": {
             "error": "reauth"
           }
@@ -449,11 +938,16 @@
     }
   },
   "metrics": {
-    "geminiCalls": 0,
-    "geminiSuccess": 0,
+    "geminiCalls": 13,
+    "geminiSuccess": 13,
     "geminiFailed": 0,
-    "avgProcessingMs_B": null,
-    "tokenUsage_B": null,
+    "classificationAccuracy_B": 1,
+    "intentAccuracy_B": 1,
+    "avgProcessingMs_B": 2015,
+    "tokenUsage_B": {
+      "promptTokens": 20662,
+      "outputTokens": 9153
+    },
     "heuristicPassRate_A": 1,
     "workerRoutesDeployed": true,
     "duplicateCreationRate_D": 0
