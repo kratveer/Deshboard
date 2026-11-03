@@ -285,7 +285,7 @@
     await Store.setActiveAccount(acct.id);
     return acct;
   }
-  $('#connections')?.onclick=connectDialog;
+  $('#connections')?.addEventListener('click',connectDialog);
   $('#close')?.addEventListener('click',()=>$('#overlay').classList.remove('show'));
   $('#overlay').onclick=e=>{if(e.target.id==='overlay')$('#overlay').classList.remove('show')};
 
@@ -2903,7 +2903,7 @@
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
   const mq=matchMedia('(max-width:680px)');
-  const inApp=()=>document.body.classList.contains('m');
+  const inApp=()=>mq.matches;
   const ICON={
     home:'<path d="M12 3.1 2.8 10.6c-.35.28-.2.8.22.8H5.2V19a2 2 0 0 0 2 2h3.1v-5.4h3.4V21H16.8a2 2 0 0 0 2-2v-7.6h2.18c.42 0 .57-.52.22-.8L12 3.1Z"/>',
     inbox:'<path d="M4.2 7.1A2.6 2.6 0 0 1 6.8 4.5h10.4a2.6 2.6 0 0 1 2.6 2.6v2.2l-3.35.15a2.7 2.7 0 0 0-2.45 1.55l-.25.5a1.3 1.3 0 0 1-1.15.7h-1.7a1.3 1.3 0 0 1-1.15-.7l-.25-.5A2.7 2.7 0 0 0 7.55 9.45L4.2 9.3V7.1Zm0 3.7 3.2.14a4.2 4.2 0 0 1 3.8 2.4l.12.24h1.36l.12-.24a4.2 4.2 0 0 1 3.8-2.4l3.2-.14V17a2.6 2.6 0 0 1-2.6 2.6H6.8A2.6 2.6 0 0 1 4.2 17V10.8Z"/>',
@@ -4089,7 +4089,7 @@
     tabAnimTimer=setTimeout(()=>finishTabSwitch(from,t),ms+40);
   }
   function applyMode(){
-    const on=true;
+    const on=mq.matches;
     document.body.classList.toggle('m',on);
     document.documentElement.classList.toggle('m-app',on);
     if(on){setTab(mTab,{soft:true});requestAnimationFrame(()=>syncTabThumb(false))}

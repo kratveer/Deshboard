@@ -1775,15 +1775,6 @@ body.dark .hx-chart,body.dark .hx-connect{box-shadow:var(--shadow-card)}
 body.m .mapp,body.m .m-screen,body.m .m-stage{overflow-x:clip}
 body.m .mapp,body.m .m-screen,body.m .m-stage,body.m .m-top{min-width:0;max-width:100%}
 body.m .m-hello{max-width:100%}
-@media(min-width:681px){
-  body.m .mapp{max-width:720px;width:100%;margin-left:auto;margin-right:auto}
-  .m-tabs{
-    left:50%;right:auto;width:min(688px,calc(100% - 32px));
-    transform:translate3d(-50%,0,0);
-  }
-  body.m.tabs-hide .m-tabs{transform:translate3d(-50%,calc(100% + 28px),0)}
-  body.m.kb-open.tabs-hide .m-tabs{transform:translate3d(-50%,120%,0)}
-}
 @media(min-width:681px) and (max-width:1100px){
   .shell{padding:24px 22px 44px}
   .topbar{margin-bottom:22px}
@@ -1872,7 +1863,7 @@ $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="daylight-data.js?v=3" defer></script><script src="email-classify.js?v=1" defer></script><script src="daylight-ai.js?v=4" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=97" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="daylight-data.js?v=3" defer></script><script src="email-classify.js?v=1" defer></script><script src="daylight-ai.js?v=4" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=99" defer></script></body></html>
 
 
 
