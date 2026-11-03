@@ -135,10 +135,23 @@ body.menu-open .drawer{transform:none}
 .mi-note{margin-left:auto;font-size:11.5px;color:#2f9a72;font-weight:700;white-space:nowrap}
 .mi-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--card2);color:var(--muted);font:700 11px/20px var(--font);text-align:center}
 .mi-soon{margin-left:auto;font:650 10.5px var(--font);color:var(--muted);letter-spacing:.02em}
-.theme-choices{display:none;gap:6px;padding:0 8px 8px}
-.theme-choices.show{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
-.theme-choices button{border:0;border-radius:10px;min-height:36px;padding:0 8px;background:var(--card2);color:var(--muted);font:650 12px var(--font);cursor:pointer}
-.theme-choices button.on{background:var(--accent-soft);color:var(--accent-text)}
+.theme-row{cursor:default}.theme-row:hover,.theme-row:focus-visible{background:transparent}
+.theme-toggle{
+  margin-left:auto;flex:none;position:relative;width:52px;height:28px;padding:0;border:1px solid rgba(23,32,51,.12);
+  border-radius:999px;background:#2c2c2e;cursor:pointer;box-shadow:inset 0 1px 2px rgba(0,0,0,.18);
+}
+.theme-knob{
+  position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;
+  background:#fff;color:#111;display:grid;place-items:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.22);
+  transition:transform .22s cubic-bezier(.22,1,.36,1),background .18s ease,color .18s ease;
+}
+.theme-knob svg{width:13px;height:13px;display:block}
+.theme-moon{display:none}
+.theme-toggle[aria-checked="true"]{background:#f4f4f5;border-color:rgba(0,0,0,.08);box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+.theme-toggle[aria-checked="true"] .theme-knob{transform:translateX(24px);background:#111;color:#fff}
+.theme-toggle[aria-checked="true"] .theme-sun{display:none}
+.theme-toggle[aria-checked="true"] .theme-moon{display:block}
 .drawer-premium{margin:14px 4px 8px;padding:14px;border-radius:16px;background:color-mix(in srgb,var(--accent) 10%,var(--card));text-align:left;border:0;color:inherit;cursor:pointer;width:calc(100% - 8px)}
 .drawer-premium b{display:flex;align-items:center;gap:8px;font:700 13.5px var(--font)}
 .drawer-premium p{margin:8px 0 0;font:500 12.5px/1.45 var(--font);color:var(--muted)}
@@ -1814,29 +1827,28 @@ body.m .m-hello{max-width:100%}
 <button class="menu-item" type="button" data-ws="overview"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Overview</button>
 <button class="menu-item" type="button" data-ws="inbox"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.5Z"/><path d="M4 13h4.2a2 2 0 0 1 1.8 1.1l.4.8a2 2 0 0 0 1.8 1.1h1.6a2 2 0 0 0 1.8-1.1l.4-.8A2 2 0 0 1 15.8 13H20"/></svg></span>Inbox<span class="mi-badge" id="drawer-inbox-count" hidden></span></button>
 <button class="menu-item" type="button" data-ws="calendar"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg></span>Calendar</button>
-<button class="menu-item" type="button" data-ws="tasks"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m4 6 1.2 1.2L7.2 5.2M4 12l1.2 1.2L7.2 11.2M4 18l1.2 1.2L7.2 17.2"/></svg></span>Tasks</button>
-<button class="menu-item" type="button" data-ws="loops"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h9M4 12h16M4 17h12"/></svg></span>Open Loops</button>
-<button class="menu-item" type="button" data-ws="travel"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="2"/><path d="M9 8V6.5A1.5 1.5 0 0 1 10.5 5h3A1.5 1.5 0 0 1 15 6.5V8M5 13h14"/></svg></span>Travel</button>
 <button class="menu-item" type="button" data-ws="wallet"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/></svg></span>Wallet</button>
-<button class="menu-item" type="button" data-ws="subscriptions"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></span>Subscriptions</button>
 </div>
 <p class="drawer-kicker">Personalise</p>
 <div class="menu-list">
-<button class="menu-item" id="customize" type="button"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Widgets &amp; layout</button>
 <button class="menu-item" id="connections" type="button"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1"/></svg></span>Connections<span class="mi-note" id="conn-state"></span></button>
 </div>
 <p class="drawer-kicker">Preferences</p>
 <div class="menu-list">
-<button class="menu-item" id="theme" type="button" aria-expanded="false" aria-controls="theme-choices"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M5 5l1.5 1.5M17.5 17.5 19 19M3 12h2M19 12h2M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></span><span id="theme-label">Appearance</span></button>
-<div class="theme-choices" id="theme-choices" hidden>
-<button type="button" data-theme-pref="light">Light</button>
-<button type="button" data-theme-pref="dark">Dark</button>
-<button type="button" data-theme-pref="system">System</button>
+<div class="menu-item theme-row">
+  <span class="mi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M5 5l1.5 1.5M17.5 17.5 19 19M3 12h2M19 12h2M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></span>
+  <span>Appearance</span>
+  <button type="button" class="theme-toggle" id="theme-toggle" role="switch" aria-checked="false" aria-label="Dark mode">
+    <span class="theme-knob" aria-hidden="true">
+      <svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 3.2v1.8M12 19v1.8M4.9 4.9l1.3 1.3M17.8 17.8l1.3 1.3M3.2 12h1.8M19 12h1.8M4.9 19.1l1.3-1.3M17.8 6.2l1.3-1.3"/></svg>
+      <svg class="theme-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M15.2 3.1A8.8 8.8 0 1 0 20.8 14 7.2 7.2 0 0 1 15.2 3.1Z"/></svg>
+    </span>
+  </button>
 </div>
 <a class="menu-item" href="privacy.html"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6l-7-3Z"/></svg></span>Privacy &amp; security</a>
 <button class="menu-item" id="drawer-settings" type="button"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2M12 18.5v2M5.6 5.6l1.5 1.5M16.9 16.9l1.5 1.5M3.5 12h2M18.5 12h2M5.6 18.4l1.5-1.5M16.9 7.1l1.5-1.5"/></svg></span>Settings</button>
 <div class="drawer-sub" id="drawer-settings-panel" hidden>
-Day start, widgets and Email Intelligence already live in Widgets &amp; layout and Connections. Nothing extra is stored here.
+Day start and Email Intelligence already live in Connections. Nothing extra is stored here.
 <button type="button" id="drawer-settings-conn">Open Connections</button>
 </div>
 <a class="menu-item" href="https://github.com/kratveer/Deshboard/issues" target="_blank" rel="noopener"><span class="mi-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a2.8 2.8 0 0 1 5.4.8c0 1.9-2.8 2.2-2.8 4"/><path d="M12 17.5h.01"/></svg></span>Help &amp; feedback</a>
@@ -1866,11 +1878,11 @@ const d=new Date();$('#today').textContent=d.toLocaleDateString(undefined,{weekd
 if(localStorage.getItem('daylight-theme')==='dark')document.body.classList.add('dark');
 $('#connections').onclick=()=>$('#overlay').classList.add('show');$('#close').onclick=()=>$('#overlay').classList.remove('show');$('#overlay').onclick=e=>{if(e.target.id==='overlay')$('#overlay').classList.remove('show')};
 function $$(s){return [...document.querySelectorAll(s)]}
-$('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to sync updates.');const grid=$('#layout');const savedOrder=JSON.parse(localStorage.getItem('daylight-order')||'[]');savedOrder.forEach(id=>{const c=grid.querySelector(`[data-widget="${id}"]`);if(c)grid.append(c)});let editing=false;$('#customize').onclick=()=>{editing=!editing;$('#customize').classList.toggle('active',editing);$$('.card').forEach(c=>{c.draggable=editing;c.style.outline=editing?'1px dashed #7892e6':'none';c.style.cursor=editing?'grab':''});toast(editing?'Drag tiles to arrange your dashboard':'Layout saved on this device')};let dragged=null;grid.addEventListener('dragstart',e=>{if(!editing)return;dragged=e.target.closest('.card');if(dragged)e.dataTransfer.effectAllowed='move'});grid.addEventListener('dragover',e=>{if(!editing||!dragged)return;e.preventDefault();const target=e.target.closest('.card');if(target&&target!==dragged){const r=target.getBoundingClientRect();const after=(e.clientY-r.top)/r.height>.5;grid.insertBefore(dragged,after?target.nextSibling:target)}});grid.addEventListener('dragend',()=>{if(editing&&dragged)localStorage.setItem('daylight-order',JSON.stringify($$('.card').map(c=>c.dataset.widget)));dragged=null});
+$('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to sync updates.');const grid=$('#layout');const savedOrder=JSON.parse(localStorage.getItem('daylight-order')||'[]');savedOrder.forEach(id=>{const c=grid.querySelector(`[data-widget="${id}"]`);if(c)grid.append(c)});let editing=false;$('#customize')?.addEventListener('click',()=>{editing=!editing;$('#customize')?.classList.toggle('active',editing);$$('.card').forEach(c=>{c.draggable=editing;c.style.outline=editing?'1px dashed #7892e6':'none';c.style.cursor=editing?'grab':''});toast(editing?'Drag tiles to arrange your dashboard':'Layout saved on this device')});let dragged=null;grid.addEventListener('dragstart',e=>{if(!editing)return;dragged=e.target.closest('.card');if(dragged)e.dataTransfer.effectAllowed='move'});grid.addEventListener('dragover',e=>{if(!editing||!dragged)return;e.preventDefault();const target=e.target.closest('.card');if(target&&target!==dragged){const r=target.getBoundingClientRect();const after=(e.clientY-r.top)/r.height>.5;grid.insertBefore(dragged,after?target.nextSibling:target)}});grid.addEventListener('dragend',()=>{if(editing&&dragged)localStorage.setItem('daylight-order',JSON.stringify($$('.card').map(c=>c.dataset.widget)));dragged=null});
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="daylight-data.js?v=3" defer></script><script src="email-classify.js?v=1" defer></script><script src="daylight-ai.js?v=4" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=95" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=3" defer></script><script src="daylight-data.js?v=3" defer></script><script src="email-classify.js?v=1" defer></script><script src="daylight-ai.js?v=4" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=101" defer></script></body></html>
 
 
 

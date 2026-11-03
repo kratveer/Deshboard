@@ -1866,22 +1866,16 @@
     syncTheme();
   };
   const syncTheme=()=>{
-    const pref=themePref();
     const dark=document.body.classList.contains('dark');
-    const label=$('#theme-label');
-    if(label)label.textContent=pref==='system'?'Appearance · System':pref==='dark'?'Appearance · Dark':'Appearance · Light';
-    $$('#theme-choices [data-theme-pref]').forEach(b=>b.classList.toggle('on',b.dataset.themePref===pref));
+    const tog=$('#theme-toggle');
+    if(tog){tog.setAttribute('aria-checked',dark?'true':'false');tog.setAttribute('aria-label',dark?'Switch to light mode':'Switch to dark mode')}
     document.querySelector('meta[name=theme-color]')?.setAttribute('content',dark?'#0d0e12':'#F3F5F9');
   };
   if(!getLS('daylight-theme'))document.body.classList.toggle('dark',darkMq.matches);
   darkMq.addEventListener?.('change',e=>{if(!getLS('daylight-theme')){document.body.classList.toggle('dark',e.matches);syncTheme()}});
-  $('#theme')?.addEventListener('click',()=>{
-    const box=$('#theme-choices');if(!box)return;
-    const on=box.hidden;box.hidden=!on;box.classList.toggle('show',on);$('#theme').setAttribute('aria-expanded',String(on));
-  });
-  $('#theme-choices')?.addEventListener('click',e=>{
-    const pref=e.target.closest('[data-theme-pref]')?.dataset.themePref;if(!pref)return;
-    applyThemePref(pref);
+  $('#theme-toggle')?.addEventListener('click',e=>{
+    e.stopPropagation();
+    applyThemePref(document.body.classList.contains('dark')?'light':'dark');
   });
   syncTheme();
   // ---- Notification bell (slide-in from right + source logos) ----
@@ -2133,7 +2127,7 @@
     editing2=on??!editing2;grid.setStatic(!editing2);document.body.classList.toggle('editing',editing2);bar.hidden=!editing2;$('#customize')?.classList.toggle('active',editing2);
     if(editing2){$('#hours-start').value=DAY_START;$('#hours-end').value=DAY_END;bar.scrollIntoView({behavior:'smooth',block:'nearest'})}else closePanel();
   }
-  $('#customize').onclick=()=>toggleEdit();
+  $('#customize')?.addEventListener('click',()=>toggleEdit());
   $('#eb-done').onclick=()=>toggleEdit(false);
   $('#eb-preset').onchange=e=>{if(!e.target.value)return;loadItems(presetItems(e.target.value));toast(`Layout: ${e.target.value}`);e.target.value=''};
   $('#eb-reset').onclick=()=>{loadItems(presetItems('Default'));toast('Layout reset')};
