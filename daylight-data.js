@@ -1,8 +1,9 @@
 /**
- * DaylightData — minimal canonical read adapter (Phase 13).
+ * DaylightData — canonical read adapter (Phase 13–14).
  *
  * Bridges IndexedDB (DaylightStore) + legacy localStorage sidecars without
- * destructive migration. UI modules should prefer these helpers over ad-hoc LS reads.
+ * destructive migration. Phase 14 adds travel identity: mailId join key,
+ * mail:{mailId} wallet ids (+ optional #pass: child keys), idempotent normalize.
  *
  * Never invents dates, QR codes, or attachments. Does not log bodies/tokens.
  */
@@ -240,13 +241,312 @@
     return map[mailId] || null;
   }
 
-  function linkedRecordsForMail(mailId) {
-    if (!mailId) return { orders: [], wallet: [], extractions: null };
+  /** Ordinary single-booking id; multi-pass emails use mail:{mailId}#pass:{childKey}. */
+  function canonicalWalletId(mailId, childKey) {
+    if (!mailId) return null;
+    const base = 'mail:' + mailId;
+    const child = childKey != null && String(childKey).trim() !== '' ? String(childKey).trim() : '';
+    if (!child) return base;
+    return base + '#pass:' + child.replace(/[^a-zA-Z0-9._:-]+/g, '_').slice(0, 64);
+  }
+
+  function parseWalletIdParts(id) {
+    const s = String(id || '');
+    const childM = s.match(/^mail:(.+?)#pass:(.+)$/);
+    if (childM) return { mailId: childM[1], childKey: childM[2], legacy: false };
+    const mailM = s.match(/^mail:(.+)$/);
+    if (mailM) return { mailId: mailM[1], childKey: null, legacy: false };
+    const ticketM = s.match(/^ticket:(.+)$/);
+    if (ticketM) return { mailId: ticketM[1], childKey: null, legacy: true };
+    return { mailId: null, childKey: null, legacy: false };
+  }
+
+  function journeyFingerprint(w) {
+    if (!w) return '';
+    const f = w.flight || {};
+    return [
+      w.childKey || '',
+      f.pnr || w.bookingRef || w.number || '',
+      f.flight || '',
+      f.from || '',
+      f.to || '',
+      f.depart || w.travelAt || w.eventAt || ''
+    ].join('|').toLowerCase();
+  }
+
+  function richnessScore(w) {
+    if (!w) return 0;
+    let s = 0;
+    if (w.qrAuthentic || w.exactQr || w.scanSource) s += 40;
+    if (w.qrImage) s += 20;
+    if (w.barcodeImage) s += 15;
+    if (w.barcodeAuthentic) s += 10;
+    if (w.flight && (w.flight.from || w.flight.pnr || w.flight.depart)) s += 12;
+    if (w.travelAt || w.eventAt) s += 8;
+    if (w.bookingRef || w.number) s += 4;
+    if (w.attachmentId || w.attachmentIds?.length || w.attachments?.length) s += 6;
+    if (w.recordKey) s += 2;
+    if (w.entityKey) s += 2;
+    if (w.tripId) s += 1;
+    if (w.status === 'cancelled' || w.cancelled) s += 3;
+    if (w.lastChange || w.rescheduled) s += 2;
+    if (w.image) s += 3;
+    if (w.ocr) s += 1;
+    return s;
+  }
+
+  /** Merge two wallet rows for the same booking; never drop authentic QR / richer travel facts. */
+  function mergeWalletRichness(a, b) {
+    if (!a) return b ? { ...b } : null;
+    if (!b) return { ...a };
+    const primary = richnessScore(a) >= richnessScore(b) ? a : b;
+    const secondary = primary === a ? b : a;
+    const out = { ...secondary, ...primary };
+    const aAuth = !!(a.qrAuthentic || a.barcodeAuthentic || a.exactQr || a.scanSource);
+    const bAuth = !!(b.qrAuthentic || b.barcodeAuthentic || b.exactQr || b.scanSource);
+    if (aAuth && !bAuth) {
+      out.qrAuthentic = !!(a.qrAuthentic || a.exactQr || a.scanSource);
+      out.barcodeAuthentic = !!(a.barcodeAuthentic || a.scanSource);
+      out.exactQr = !!(a.exactQr || a.qrAuthentic);
+      out.scanSource = !!a.scanSource;
+      out.qrImage = a.qrImage || out.qrImage;
+      out.barcodeImage = a.barcodeImage || out.barcodeImage;
+      out.qrPayload = a.qrPayload || out.qrPayload;
+      out.barcode = a.barcode || out.barcode;
+      out.barcodes = a.barcodes?.length ? a.barcodes : out.barcodes;
+    } else if (bAuth && !aAuth) {
+      out.qrAuthentic = !!(b.qrAuthentic || b.exactQr || b.scanSource);
+      out.barcodeAuthentic = !!(b.barcodeAuthentic || b.scanSource);
+      out.exactQr = !!(b.exactQr || b.qrAuthentic);
+      out.scanSource = !!b.scanSource;
+      out.qrImage = b.qrImage || out.qrImage;
+      out.barcodeImage = b.barcodeImage || out.barcodeImage;
+      out.qrPayload = b.qrPayload || out.qrPayload;
+      out.barcode = b.barcode || out.barcode;
+      out.barcodes = b.barcodes?.length ? b.barcodes : out.barcodes;
+    } else {
+      out.qrImage = primary.qrImage || secondary.qrImage;
+      out.barcodeImage = primary.barcodeImage || secondary.barcodeImage;
+      out.qrPayload = primary.qrPayload || secondary.qrPayload;
+      out.barcode = primary.barcode || secondary.barcode;
+      out.barcodes = (primary.barcodes?.length ? primary.barcodes : null) || secondary.barcodes;
+      out.qrAuthentic = aAuth || bAuth;
+      out.barcodeAuthentic = !!(a.barcodeAuthentic || b.barcodeAuthentic || out.qrAuthentic);
+      out.exactQr = !!(a.exactQr || b.exactQr || out.qrAuthentic);
+      out.scanSource = !!(a.scanSource || b.scanSource);
+    }
+    out.flight = { ...(secondary.flight || {}), ...(primary.flight || {}) };
+    if (!Object.keys(out.flight).length) out.flight = primary.flight || secondary.flight || null;
+    const pe = eventAt(primary), se = eventAt(secondary);
+    if (pe) {
+      out.travelAt = primary.travelAt || pe.toISOString();
+      out.eventAt = primary.eventAt || pe.toISOString();
+    } else if (se) {
+      out.travelAt = secondary.travelAt || se.toISOString();
+      out.eventAt = secondary.eventAt || se.toISOString();
+    }
+    out.bookingRef = primary.bookingRef || secondary.bookingRef || primary.flight?.pnr || secondary.flight?.pnr || null;
+    out.number = primary.number || secondary.number || '';
+    out.recordKey = primary.recordKey || secondary.recordKey || null;
+    out.entityKey = primary.entityKey || secondary.entityKey || null;
+    out.tripId = primary.tripId || secondary.tripId || null;
+    out.threadId = primary.threadId || secondary.threadId || null;
+    out.mailId = primary.mailId || secondary.mailId || null;
+    out.childKey = primary.childKey || secondary.childKey || null;
+    out.href = primary.href || secondary.href || '';
+    out.title = (primary.title && primary.title !== 'Ticket' ? primary.title : null) || secondary.title || primary.title;
+    out.note = primary.note || secondary.note || '';
+    out.attachmentId = primary.attachmentId || secondary.attachmentId || null;
+    out.attachmentIds = Array.from(new Set([...(primary.attachmentIds || []), ...(secondary.attachmentIds || [])].filter(Boolean)));
+    out.attachments = (primary.attachments?.length ? primary.attachments : null) || secondary.attachments || [];
+    out.image = primary.image || secondary.image || '';
+    out.ocr = primary.ocr || secondary.ocr || '';
+    if (primary.status === 'cancelled' || secondary.status === 'cancelled' || primary.cancelled || secondary.cancelled) {
+      out.status = 'cancelled';
+      out.cancelled = true;
+    } else {
+      out.status = primary.status || secondary.status || 'active';
+    }
+    out.lastChange = primary.lastChange || secondary.lastChange || null;
+    out.rescheduled = !!(primary.rescheduled || secondary.rescheduled || (out.lastChange && out.lastChange.kind === 'rescheduled'));
+    const legacyIds = Array.from(new Set([
+      ...(primary.legacyIds || []),
+      ...(secondary.legacyIds || []),
+      primary.id && primary.id !== out.id ? primary.id : null,
+      secondary.id && secondary.id !== out.id ? secondary.id : null
+    ].filter(Boolean)));
+    out.legacyIds = legacyIds;
+    out.sourceRefs = Object.assign({}, secondary.sourceRefs || {}, primary.sourceRefs || {}, {
+      mailId: out.mailId,
+      threadId: out.threadId,
+      recordKey: out.recordKey,
+      entityKey: out.entityKey
+    });
+    return out;
+  }
+
+  /**
+   * Idempotent wallet id normalization.
+   * Maps ticket:{mailId} → mail:{mailId}; merges duplicate same-booking rows (richest wins).
+   * Does NOT merge distinct child passes or distinct journeys that share only a thread.
+   */
+  function normalizeWalletIds(list) {
+    const input = Array.isArray(list) ? list.filter(Boolean).map((w) => ({ ...w })) : [];
+    if (!input.length) return { list: [], changed: false, merges: [], beforeIds: [], afterIds: [] };
+    const beforeIds = input.map((w) => w.id);
+    const buckets = new Map();
+    const merges = [];
+
+    input.forEach((raw) => {
+      const w = { ...raw };
+      const parts = parseWalletIdParts(w.id);
+      if (!w.mailId && parts.mailId) w.mailId = parts.mailId;
+      if (!w.childKey && parts.childKey) w.childKey = parts.childKey;
+      let canonId;
+      if (w.childKey || parts.childKey) {
+        const ck = w.childKey || parts.childKey;
+        w.childKey = ck;
+        canonId = canonicalWalletId(w.mailId || parts.mailId, ck);
+      } else if (w.mailId || parts.mailId) {
+        canonId = canonicalWalletId(w.mailId || parts.mailId, null);
+      } else {
+        canonId = w.id;
+      }
+      w.id = canonId;
+      if (raw.id && raw.id !== canonId) {
+        w.legacyIds = Array.from(new Set([...(w.legacyIds || []), raw.id]));
+        w.sourceRefs = Object.assign({}, w.sourceRefs || {}, { legacyId: raw.id });
+      }
+
+      if (!buckets.has(canonId)) {
+        buckets.set(canonId, w);
+        return;
+      }
+      const existing = buckets.get(canonId);
+      const fpA = journeyFingerprint(existing), fpB = journeyFingerprint(w);
+      const richDiff =
+        fpA && fpB && fpA !== fpB &&
+        fpA.split('|').filter(Boolean).length >= 3 &&
+        fpB.split('|').filter(Boolean).length >= 3;
+      // Same canonical id but clearly different journeys (multi-ticket without child yet)
+      if (richDiff && !existing.childKey && !w.childKey && (w.mailId || parts.mailId)) {
+        const mid = w.mailId || parts.mailId;
+        const c1 = existing.flight?.pnr || existing.bookingRef || 'leg-a';
+        const c2 = w.flight?.pnr || w.bookingRef || 'leg-b';
+        existing.childKey = c1;
+        existing.id = canonicalWalletId(mid, c1);
+        w.childKey = c2;
+        w.id = canonicalWalletId(mid, c2);
+        buckets.delete(canonId);
+        buckets.set(existing.id, existing);
+        buckets.set(w.id, w);
+        merges.push({ from: [raw.id, existing.legacyIds?.[0] || canonId], to: [existing.id, w.id], reason: 'split-distinct-journeys' });
+        return;
+      }
+      const merged = mergeWalletRichness(existing, w);
+      merged.id = canonId;
+      merges.push({ from: [existing.id, raw.id], to: canonId });
+      buckets.set(canonId, merged);
+    });
+
+    const finals = [...buckets.values()];
+    const afterIds = finals.map((w) => w.id);
+    const changed =
+      beforeIds.length !== afterIds.length ||
+      beforeIds.slice().sort().join('\0') !== afterIds.slice().sort().join('\0') ||
+      merges.length > 0;
+    return { list: finals, changed: !!changed, merges, beforeIds, afterIds };
+  }
+
+  function walletMatchesMail(w, mailId, hints) {
+    if (!w || !mailId) return false;
+    if (w.mailId === mailId || w.sourceId === mailId) return true;
+    const parts = parseWalletIdParts(w.id);
+    if (parts.mailId === mailId) return true;
+    if ((w.legacyIds || []).some((id) => {
+      const p = parseWalletIdParts(id);
+      return p.mailId === mailId || id === 'ticket:' + mailId || id === 'mail:' + mailId;
+    })) return true;
+    const h = hints || {};
+    if (h.recordKey && w.recordKey && w.recordKey === h.recordKey) return true;
+    if (h.entityKey && w.entityKey && w.entityKey === h.entityKey) return true;
+    return false;
+  }
+
+  function travelRecordsForMail(mailId, hints) {
+    if (!mailId) return [];
+    const h = hints || {};
+    const ex = h.extraction || extractionForMail(mailId);
+    const entityKey = h.entityKey || ex?.entityKey || null;
+    const recordKey = h.recordKey || null;
+    const norm = normalizeWalletIds(readWalletRaw());
+    return norm.list.filter((w) => walletMatchesMail(w, mailId, { recordKey, entityKey })).map((w) => {
+      const nw = normalizeWalletItem(w);
+      const ev = eventAt(nw);
+      return {
+        mailId,
+        threadId: nw.threadId || h.threadId || null,
+        recordKey: nw.recordKey || recordKey,
+        entityKey: nw.entityKey || entityKey,
+        walletId: nw.id,
+        childKey: nw.childKey || null,
+        tripId: nw.tripId || null,
+        eventAt: ev ? ev.toISOString() : null,
+        status: nw.walletStatus || walletStatus(nw),
+        cancelled: nw.status === 'cancelled' || !!nw.cancelled,
+        wallet: nw,
+        extraction: ex || null,
+        legacyIds: nw.legacyIds || []
+      };
+    });
+  }
+
+  function travelRecordForMail(mailId, hints) {
+    const all = travelRecordsForMail(mailId, hints);
+    if (!all.length) {
+      const ex = (hints && hints.extraction) || extractionForMail(mailId);
+      if (!ex && !(hints && (hints.recordKey || hints.ensureStub))) return null;
+      return {
+        mailId,
+        threadId: hints?.threadId || null,
+        recordKey: hints?.recordKey || null,
+        entityKey: hints?.entityKey || ex?.entityKey || null,
+        walletId: canonicalWalletId(mailId, hints?.childKey || null),
+        childKey: hints?.childKey || null,
+        tripId: null,
+        eventAt: null,
+        status: 'active',
+        cancelled: false,
+        wallet: null,
+        extraction: ex || null,
+        legacyIds: []
+      };
+    }
+    all.sort((a, b) => {
+      const ae = a.eventAt ? Date.parse(a.eventAt) : Infinity;
+      const be = b.eventAt ? Date.parse(b.eventAt) : Infinity;
+      return ae - be;
+    });
+    if (hints?.childKey) {
+      const hit = all.find((t) => t.childKey === hints.childKey || t.walletId === canonicalWalletId(mailId, hints.childKey));
+      if (hit) return hit;
+    }
+    if (hints?.walletId) {
+      const hit = all.find((t) => t.walletId === hints.walletId);
+      if (hit) return hit;
+    }
+    return all[0];
+  }
+
+  function linkedRecordsForMail(mailId, hints) {
+    if (!mailId) return { orders: [], wallet: [], extraction: null, travel: [] };
     const ex = extractionForMail(mailId);
+    const travel = travelRecordsForMail(mailId, { ...(hints || {}), extraction: ex });
     return {
       orders: orders().filter((o) => o.mailId === mailId || (o.sourceMailIds || []).includes(mailId)),
-      wallet: walletItems({ filter: 'all' }).filter((w) => w.mailId === mailId),
-      extraction: ex
+      wallet: travel.map((t) => t.wallet).filter(Boolean),
+      extraction: ex,
+      travel
     };
   }
 
@@ -285,7 +585,15 @@
   }
 
   function belongsToLocalDay(record, day) {
-    const ev = eventAt(record) || parseMaybeDate(record?.start) || parseMaybeDate(record?.whenMs);
+    // Prefer real event dates only — never fall back to email-received whenMs for membership
+    const ev = eventAt(record) || parseMaybeDate(record?.start);
+    if (!ev) return false;
+    return sameLocalDay(ev, day);
+  }
+
+  /** Timeline/Brief: true only when a reliable travel/event date falls on the local day. */
+  function belongsToLocalDayStrict(record, day) {
+    const ev = eventAt(record);
     if (!ev) return false;
     return sameLocalDay(ev, day);
   }
@@ -300,6 +608,7 @@
     sortAt,
     sameLocalDay,
     belongsToLocalDay,
+    belongsToLocalDayStrict,
     isPromotionalExtraction,
     isPromotionalMail,
     inboxBucket,
@@ -313,6 +622,15 @@
     walletStatus,
     extractionForMail,
     linkedRecordsForMail,
+    canonicalWalletId,
+    parseWalletIdParts,
+    journeyFingerprint,
+    richnessScore,
+    mergeWalletRichness,
+    normalizeWalletIds,
+    walletMatchesMail,
+    travelRecordsForMail,
+    travelRecordForMail,
     storeSnapshot,
     relationshipsFor
   };

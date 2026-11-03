@@ -1,0 +1,74 @@
+{
+  "phase": 14,
+  "at": "2026-11-03T10:07:36.627Z",
+  "passed": 22,
+  "total": 22,
+  "failed": [],
+  "evidence": {
+    "normalization": {
+      "beforeIds": [
+        "ticket:msgA",
+        "mail:msgA"
+      ],
+      "afterIds": [
+        "mail:msgA"
+      ],
+      "merges": [
+        {
+          "from": [
+            "mail:msgA",
+            "mail:msgA"
+          ],
+          "to": "mail:msgA"
+        }
+      ],
+      "resolved": null
+    },
+    "walkthrough": {
+      "steps": [
+        {
+          "step": "Inbox ticket",
+          "mailId": "msgA",
+          "action": "openLoopSheet / openTravelRecord preferEmail"
+        },
+        {
+          "step": "Open Wallet pass",
+          "walletId": "mail:msgA",
+          "via": "data-open-wallet → openTravelRecord"
+        },
+        {
+          "step": "View email",
+          "action": "data-pass-email → openTravelRecord preferEmail",
+          "mailId": "msgA"
+        },
+        {
+          "step": "Timeline day",
+          "day": "2026-11-10",
+          "itemId": "wallet:mail:msgA",
+          "mailId": "msgA"
+        },
+        {
+          "step": "Same Wallet pass",
+          "walletId": "mail:msgA",
+          "via": "data-open-travel"
+        }
+      ],
+      "resolvedTravelObject": {
+        "mailId": "msgA",
+        "walletId": "mail:msgA",
+        "eventAt": "2026-11-10T07:30:00.000Z",
+        "legacyIds": [
+          "ticket:msgA"
+        ],
+        "status": "upcoming",
+        "qrAuthentic": true,
+        "displayTitle": "Berlin train"
+      }
+    }
+  },
+  "productionClaim": false,
+  "notes": [
+    "Synthetic identity tests only — controlled real-Gmail walkthrough still required for screenshots.",
+    "Do not commit/push/deploy until user approves."
+  ]
+}

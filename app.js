@@ -1187,18 +1187,36 @@
       :!!(t.pnr||(t.flight_number&&t.depart_datetime)||(t.from&&t.to&&t.depart_datetime)||(isTrain&&t.depart_datetime));
     if(!verified)return null;
     let list=readWallet();
-    const booking={
-      mailId:mailMeta.mailId,threadId:mailMeta.threadId,kind:isHotel?'hotel':isTrain?'train':'flight',
-      subject:extraction.summary||mailMeta.subject||'Travel',
-      from:{name:extraction.organisation||t.hotel_name||'Travel'},
-      dest:t.to||t.hotel_name||'',
-      flight:{from:t.from,to:t.to,flight:t.flight_number,depart:t.depart_datetime,arrive:t.arrive_datetime,seat:t.seat,gate:t.gate,pnr:t.pnr},
-      whenMs:t.depart_datetime?new Date(t.depart_datetime).getTime():(t.check_in?new Date(t.check_in).getTime():Date.now()),
-      tripId:null,href:mailMeta.href||gmailLink(mailMeta.threadId||mailMeta.mailId),
-      cancelled:/cancel/i.test(t.status||'')||extraction.intent==='booking_cancelled'||extraction.intent==='cancellation'
+    const travelMs=t.depart_datetime?new Date(t.depart_datetime).getTime():(t.check_in?new Date(t.check_in).getTime():null);
+    if(travelMs==null||isNaN(travelMs))return null; // no fabricated travel date
+    // Multi-pass: stable child when AI/extraction exposes multiple segments
+    const segments=Array.isArray(t.segments)&&t.segments.length>1?t.segments:null;
+    const upsertOne=(seg,childKey)=>{
+      const flight=seg?{from:seg.from||t.from,to:seg.to||t.to,flight:seg.flight_number||t.flight_number,depart:seg.depart_datetime||t.depart_datetime,arrive:seg.arrive_datetime||t.arrive_datetime,seat:seg.seat||t.seat,gate:seg.gate||t.gate,pnr:seg.pnr||t.pnr}
+        :{from:t.from,to:t.to,flight:t.flight_number,depart:t.depart_datetime,arrive:t.arrive_datetime,seat:t.seat,gate:t.gate,pnr:t.pnr};
+      const whenMs=flight.depart?new Date(flight.depart).getTime():travelMs;
+      const booking={
+        mailId:mailMeta.mailId,threadId:mailMeta.threadId,kind:isHotel?'hotel':isTrain?'train':'flight',
+        subject:extraction.summary||mailMeta.subject||'Travel',
+        from:{name:extraction.organisation||t.hotel_name||'Travel'},
+        dest:flight.to||t.hotel_name||'',flight,whenMs,receivedMs:mailMeta.whenMs||Date.now(),
+        travelReliable:true,childKey:childKey||null,
+        tripId:null,href:mailMeta.href||gmailLink(mailMeta.threadId||mailMeta.mailId),
+        recordKey:mailMeta.recordKey||null,entityKey:extraction.entityKey||null,
+        cancelled:/cancel/i.test(t.status||'')||extraction.intent==='booking_cancelled'||extraction.intent==='cancellation'
+      };
+      booking.tripId=tripIdFor(booking.dest||booking.flight?.from||'travel',booking.whenMs);
+      return upsertWalletFromBooking(booking,list);
     };
-    booking.tripId=tripIdFor(booking.dest||booking.flight?.from||'travel',booking.whenMs);
-    const r=upsertWalletFromBooking(booking,list);
+    let r;
+    if(segments){
+      r={added:false,updated:false,change:null};
+      segments.forEach((seg,idx)=>{
+        const ck=seg.pnr||seg.flight_number||('seg-'+(idx+1));
+        const one=upsertOne(seg,ck);
+        if(one.added)r.added=true;if(one.updated)r.updated=true;r.walletId=one.walletId;r.change=one.change||r.change;
+      });
+    }else r=upsertOne(null,null);
     if(r.added||r.updated)saveWallet(list);
     return r;
   }
@@ -1288,29 +1306,26 @@
     return {orders,wallet,reminders,upcoming:upcomingAi.length};
   }
   function syncClassifiedTicketsToWallet(){
+    // Single write path: classified tickets upsert into mail:{mailId} (no ticket: legacy ids)
     const tickets=loopsData?.classified?.byCategory?.ticket||[];
     if(!tickets.length||typeof readWallet!=='function'||typeof saveWallet!=='function')return;
     let list=readWallet(),changed=false;
     const Data=window.DaylightData;
     tickets.forEach(t=>{
       if(!t.mailId)return;
-      if(list.some(w=>w.mailId===t.mailId||(w.href&&t.href&&w.href===t.href)))return;
-      // Prefer AI extraction travel datetime when present — never invent
       const ex=Data?.extractionForMail?.(t.mailId)||readAiExtractions()?.[t.mailId];
       const depart=ex?.travel?.depart_datetime||ex?.travel?.check_in||null;
-      const travelAt=depart&&!isNaN(new Date(depart))?new Date(depart).toISOString():null;
-      const id='ticket:'+t.mailId;
-      list.unshift({
-        id,kind:'tickets',title:t.subject||t.title||'Ticket',
-        typeLabel:'Ticket',note:t.fromName||t.domain||'',org:t.title||'',
-        href:t.href||'',mailId:t.mailId,at:new Date(t.whenMs||Date.now()).toISOString(),
-        travelAt,eventAt:travelAt,
-        flight:ex?.travel?{from:ex.travel.from,to:ex.travel.to,flight:ex.travel.flight_number,depart:ex.travel.depart_datetime,pnr:ex.travel.pnr,seat:ex.travel.seat}:null,
-        // No QR unless authentic scan/attachment later
-        qrAuthentic:false,barcodeAuthentic:false,
-        color:'#2f8fb0',category:'ticket',recordKey:t.recordKey
-      });
-      changed=true;
+      const travelMs=depart&&!isNaN(new Date(depart))?new Date(depart).getTime():null;
+      const flight=ex?.travel?{from:ex.travel.from,to:ex.travel.to,flight:ex.travel.flight_number,depart:ex.travel.depart_datetime,pnr:ex.travel.pnr,seat:ex.travel.seat}:null;
+      const r=upsertWalletFromBooking({
+        mailId:t.mailId,threadId:t.threadId||t.mailId,kind:'train',
+        subject:t.subject||t.title||'Ticket',from:{name:t.fromName||t.title||''},
+        dest:flight?.to||'',flight,whenMs:travelMs,receivedMs:t.whenMs||Date.now(),
+        travelReliable:!!travelMs,href:t.href||'',tripId:null,
+        recordKey:t.recordKey||null,entityKey:ex?.entityKey||null,
+        cancelled:/cancel/i.test(t.status||t.subject||'')
+      },list);
+      if(r.added||r.updated)changed=true;
     });
     if(changed)saveWallet(list.slice(0,80));
   }
@@ -2626,7 +2641,13 @@
         }
         if(a==='open-related-mail'){openGmailApp({...loop,...(loop.relatedMail||{}),href:loop.relatedMail?.href||loop.href,mailId:loop.relatedMail?.mailId||loop.mailId,threadId:loop.relatedMail?.threadId||loop.threadId});return}
         const wOpen=e.target.closest('[data-open-wallet]');
-        if(wOpen){feel.select();closeLoopSheet();setTab('wallet');openPassSheet(wOpen.dataset.openWallet);return}
+        if(wOpen){
+          feel.select();closeLoopSheet();
+          const wid=wOpen.dataset.openWallet;
+          const pass=readWallet().find(w=>w.id===wid);
+          openTravelRecord({walletId:wid,mailId:pass?.mailId,threadId:pass?.threadId,childKey:pass?.childKey,recordKey:pass?.recordKey,entityKey:pass?.entityKey});
+          return;
+        }
         if(a==='cancel-compose'||a==='close-compose'){
           syncReplyFieldsFromDom();
           if(replyState)replyState.open=false;
@@ -2785,29 +2806,36 @@
   function qrUrl(payload,size){return(window.DaylightScan?.qrImageUrl?.(payload,size))||('https://api.qrserver.com/v1/create-qr-code/?size='+(size||200)+'x'+(size||200)+'&margin=8&data='+encodeURIComponent(payload))}
   function barcodeUrl(payload){return(window.DaylightScan?.barcodeImageUrl?.(payload))||('https://bwipjs-api.metafloor.com/?bcid=code128&text='+encodeURIComponent(payload)+'&scale=3&includetext&guardwhitespace')}
   function readWallet(){
-    const list=readJSON('daylight-wallet',null);
+    const raw=readJSON('daylight-wallet',null);
     // Never seed fabricated tickets/QR. Empty wallet stays empty until real mail/scan data arrives.
-    if(!Array.isArray(list))return [];
+    if(!Array.isArray(raw))return [];
+    const Data=window.DaylightData;
+    let list=raw;
     let changed=false;
+    // Phase 14: idempotent canonical id normalize (ticket: → mail:, merge duplicates, keep richest QR)
+    if(Data?.normalizeWalletIds){
+      const norm=Data.normalizeWalletIds(list);
+      if(norm.changed){list=norm.list;changed=true}
+      else list=norm.list;
+    }
     list.forEach(i=>{
       // Only render QR/barcode images when marked authentic (scan/attachment) — never invent codes from PNR/mailId
       if(i.qrAuthentic||i.barcodeAuthentic||i.exactQr||i.scanSource){
         if(i.qrPayload&&!i.qrImage){i.qrImage=qrUrl(i.qrPayload,220);changed=true}
         if((i.barcode||i.qrPayload)&&!i.barcodeImage){i.barcodeImage=barcodeUrl(i.barcode||i.qrPayload);changed=true}
       }else{
-        // Strip previously auto-generated images that were fabricated from ids
         if(i.qrImage&&!i.qrAuthentic&&!i.scanSource){delete i.qrImage;changed=true}
         if(i.barcodeImage&&!i.barcodeAuthentic&&!i.scanSource){delete i.barcodeImage;changed=true}
       }
-      // Ensure travelAt when flight depart ISO is known
+      // travelAt only from reliable depart — never from email received `at`
       if(!i.travelAt&&i.flight?.depart&&/\d{4}-\d{2}-\d{2}/.test(String(i.flight.depart))){
-        const d=new Date(i.flight.depart);if(!isNaN(d)){i.travelAt=d.toISOString();changed=true}
+        const d=new Date(i.flight.depart);if(!isNaN(d)){i.travelAt=d.toISOString();i.eventAt=i.eventAt||d.toISOString();changed=true}
       }
       if(i.kind==='tickets'&&!i.flight&&/\b(→|->|seat|flight|gate|coach)\b/i.test(i.note||i.title||'')){
         i.flight=window.DaylightScan?.extractFlight?.([i.title,i.note,i.ocr].filter(Boolean).join('\n'))||null;if(i.flight)changed=true;
       }
     });
-    if(changed)writeJSON('daylight-wallet',list);
+    if(changed)writeJSON('daylight-wallet',list.slice(0,80));
     return list;
   }
   function saveWallet(list){writeJSON('daylight-wallet',list.slice(0,80));try{queueDaylightHydrate?.()}catch{}}
@@ -2817,7 +2845,17 @@
     return [header(h,'Subject'),header(h,'From'),header(h,'To'),m?.snippet||''].join(' ');
   }
   function parseFlexibleDate(text,fallback){
+    const found=parseFlexibleDateOrNull(text);
+    if(found)return found;
+    return fallback instanceof Date&&!isNaN(fallback)?fallback:new Date();
+  }
+  /** Travel-safe parser: returns null when no reliable date (never invent for Timeline). */
+  function parseFlexibleDateOrNull(text){
     const s=String(text||'');let m;
+    if((m=s.match(/\b(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/))){
+      const d=m[4]!=null?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]||0):new Date(+m[1],+m[2]-1,+m[3],12,0,0);
+      return isNaN(d)?null:d;
+    }
     if((m=s.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/))){
       const a=+m[1],b=+m[2],yr=m[3]?(String(m[3]).length===2?2000+ +m[3]:+m[3]):localMidnight.getFullYear();
       const dayFirst=a>12||/^\d{1,2}\.\d{1,2}/.test(m[0]);
@@ -2833,7 +2871,7 @@
     }
     if(/\btomorrow\b/i.test(s))return new Date(localMidnight.getTime()+86400000);
     if(/\btoday\b/i.test(s))return new Date(localMidnight);
-    return fallback instanceof Date&&!isNaN(fallback)?fallback:new Date();
+    return null;
   }
   function classifyTravelKind(text){
     if(HOTEL.test(text))return 'hotel';
@@ -2859,11 +2897,19 @@
     const received=new Date(header(h,'Date')||m.internalDate*1);
     const flight=window.DaylightScan?.extractFlight?.(text)||null;
     const dest=(flight?.to||(text.match(/\b(?:to|→|->|–)\s*([A-Za-zÀ-ž][A-Za-zÀ-ž .'-]{2,28})/i)||[])[1]||'').trim();
-    const when=parseFlexibleDate(text,received);
-    const tripId=tripIdFor(dest||flight?.from||from.name||subject.slice(0,16),when.getTime());
+    // Prefer structured depart; otherwise parse text — never treat received as travel date
+    let travelWhen=null;
+    if(flight?.depart&&/\d{4}-\d{2}-\d{2}/.test(String(flight.depart))){
+      const d=new Date(flight.depart);if(!isNaN(d))travelWhen=d;
+    }
+    if(!travelWhen)travelWhen=parseFlexibleDateOrNull(text);
+    const travelReliable=!!travelWhen;
+    const whenMs=travelReliable?travelWhen.getTime():null;
+    const tripAnchor=whenMs||received.getTime();
+    const tripId=tripIdFor(dest||flight?.from||from.name||subject.slice(0,16),tripAnchor);
     return {
       mailId:m.id,threadId:m.threadId||m.id,kind,subject,from,dest,flight,
-      whenMs:when.getTime(),receivedMs:received.getTime(),tripId,href:gmailLink(m.threadId||m.id),
+      whenMs,receivedMs:received.getTime(),travelReliable,tripId,href:gmailLink(m.threadId||m.id),
       title:subject
     };
   }
@@ -2872,10 +2918,14 @@
     for(let i=0;i<out.length;i++){
       for(let j=i+1;j<out.length;j++){
         const a=out[i],b=out[j];
+        // Never merge solely because same thread — require dest proximity + reliable travel times
+        if(a.mailId&&b.mailId&&a.mailId===b.mailId)continue;
+        const aw=a.whenMs??a.receivedMs,bw=b.whenMs??b.receivedMs;
+        if(aw==null||bw==null)continue;
         const sameDest=a.dest&&b.dest&&a.dest.toLowerCase().slice(0,8)===b.dest.toLowerCase().slice(0,8);
-        const close=Math.abs(a.whenMs-b.whenMs)<6*86400000;
+        const close=Math.abs(aw-bw)<6*86400000;
         if((sameDest||(!a.dest&&!b.dest&&close))&&close){
-          const keep=a.whenMs<=b.whenMs?a.tripId:b.tripId;
+          const keep=aw<=bw?a.tripId:b.tripId;
           out[i].tripId=keep;out[j].tripId=keep;
         }
       }
@@ -2928,59 +2978,92 @@
   const PRICE_CHANGE=/\b(price\s+increas|new\s+price|updated\s+price|rate\s+chang|now\s+(costs?|only)|was\s+[€$£]|increased\s+to)\b/i;
   const FOLLOWUP_NEED=/\b(following\s+up|just\s+checking|any\s+update|did\s+you\s+(get|see)|circling\s+back|friendly\s+reminder|waiting\s+on\s+your)\b/i;
   function bookingFingerprint(b){
-    return [b.whenMs||'',b.flight?.depart||'',b.flight?.arrive||'',b.flight?.flight||'',b.flight?.gate||'',b.cancelled?'1':'0',b.dest||''].join('|');
+    return [b.childKey||'',b.whenMs||'',b.flight?.depart||'',b.flight?.arrive||'',b.flight?.flight||'',b.flight?.gate||'',b.flight?.pnr||'',b.cancelled?'1':'0',b.dest||''].join('|');
   }
   function upsertWalletFromBooking(booking,list){
-    if(!booking)return {added:false,updated:false,change:null};
-    const existing=list.find(i=>i.mailId===booking.mailId||i.sourceId===booking.mailId||i.id==='mail:'+booking.mailId);
+    if(!booking?.mailId)return {added:false,updated:false,change:null};
+    const Data=window.DaylightData;
+    const childKey=booking.childKey||null;
+    const canonId=Data?.canonicalWalletId
+      ?Data.canonicalWalletId(booking.mailId,childKey)
+      :(childKey?('mail:'+booking.mailId+'#pass:'+childKey):('mail:'+booking.mailId));
+    const existing=list.find(i=>{
+      if(i.id===canonId)return true;
+      if(childKey)return i.mailId===booking.mailId&&i.childKey===childKey;
+      if(i.childKey)return false;
+      return i.mailId===booking.mailId||i.sourceId===booking.mailId||i.id==='mail:'+booking.mailId||i.id==='ticket:'+booking.mailId;
+    });
     const isStay=booking.kind==='hotel';
     const route=booking.flight?.from&&booking.flight?.to?`${booking.flight.from} → ${booking.flight.to}`:'';
+    const subj=String(booking.subject||'');
     const title=booking.cancelled
-      ?('Cancelled · '+(route||booking.subject.replace(/^re:\s*/i,'').slice(0,48)))
-      :(isStay?(booking.subject.replace(/^re:\s*/i,'').slice(0,60)):(route||booking.subject.slice(0,60)));
+      ?('Cancelled · '+(route||subj.replace(/^re:\s*/i,'').slice(0,48)))
+      :(isStay?(subj.replace(/^re:\s*/i,'').slice(0,60)):(route||subj.slice(0,60)));
     const note=[booking.cancelled?'CANCELLED':'',booking.flight?.flight,booking.flight?.depart?`Dep ${booking.flight.depart}`:'',booking.flight?.seat?`Seat ${booking.flight.seat}`:'',booking.from?.name,booking.dest&&`→ ${booking.dest}`].filter(Boolean).join(' · ');
+    const reliableTravelAt=(()=>{
+      if(booking.flight?.depart&&/\d{4}-\d{2}-\d{2}/.test(String(booking.flight.depart))){
+        const d=new Date(booking.flight.depart);if(!isNaN(d))return d.toISOString();
+      }
+      if(booking.travelReliable&&booking.whenMs!=null&&!isNaN(booking.whenMs))return new Date(booking.whenMs).toISOString();
+      return null;
+    })();
+    const bookingRef=booking.flight?.pnr||booking.bookingRef||null;
+    const nextFp=bookingFingerprint(booking);
     if(existing){
       const prevFp=existing._bookingFp||'';
-      const nextFp=bookingFingerprint(booking);
       let change=null;
       if(booking.cancelled&&existing.status!=='cancelled')change={kind:'cancelled',field:'status',from:existing.status||'active',to:'cancelled'};
       else if(prevFp&&prevFp!==nextFp){
-        if(String(existing.travelAt||'')!==new Date(booking.whenMs).toISOString())change={kind:'rescheduled',field:'travelAt',from:existing.travelAt,to:new Date(booking.whenMs).toISOString()};
+        if(reliableTravelAt&&String(existing.travelAt||'')!==reliableTravelAt)change={kind:'rescheduled',field:'travelAt',from:existing.travelAt,to:reliableTravelAt};
         else if((existing.flight?.depart||'')!==(booking.flight?.depart||''))change={kind:'schedule_change',field:'depart',from:existing.flight?.depart||'',to:booking.flight?.depart||''};
         else change={kind:'updated',field:'booking',from:prevFp,to:nextFp};
       }
-      existing.title=title;existing.note=note;existing.tripId=booking.tripId||existing.tripId;
-      existing.travelAt=new Date(booking.whenMs).toISOString();
-      existing.date=new Date(booking.whenMs).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
-      existing.flight=booking.flight||existing.flight||null;
-      existing.href=booking.href||existing.href;
-      existing.status=booking.cancelled?'cancelled':'active';
-      existing._bookingFp=nextFp;
-      if(booking.linkedMailId)existing.linkedMailId=booking.linkedMailId;
-      if(change){existing.lastChange=change;existing.updatedAt=new Date().toISOString()}
-      return {added:false,updated:!!change,change};
+      const patch={
+        title,note,tripId:booking.tripId||existing.tripId,
+        href:booking.href||existing.href,
+        flight:booking.flight?Object.assign({},existing.flight||{},booking.flight):existing.flight,
+        status:booking.cancelled?'cancelled':(existing.status==='cancelled'?'cancelled':'active'),
+        cancelled:!!booking.cancelled||existing.status==='cancelled',
+        recordKey:booking.recordKey||existing.recordKey||null,
+        entityKey:booking.entityKey||existing.entityKey||null,
+        threadId:booking.threadId||existing.threadId,
+        childKey:childKey||existing.childKey||null,
+        bookingRef:bookingRef||existing.bookingRef||null,
+        number:bookingRef?('#'+bookingRef):(existing.number||''),
+        _bookingFp:nextFp,id:canonId,mailId:booking.mailId,sourceId:booking.mailId
+      };
+      if(reliableTravelAt){
+        patch.travelAt=reliableTravelAt;patch.eventAt=reliableTravelAt;
+        patch.date=new Date(reliableTravelAt).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+      }
+      if(booking.linkedMailId)patch.linkedMailId=booking.linkedMailId;
+      if(change){patch.lastChange=change;patch.updatedAt=new Date().toISOString();if(change.kind==='rescheduled')patch.rescheduled=true}
+      const merged=Data?.mergeWalletRichness?Data.mergeWalletRichness(existing,patch):Object.assign({},existing,patch);
+      Object.keys(merged).forEach(k=>{existing[k]=merged[k]});
+      const prevId=existing.id;
+      existing.id=canonId;
+      if(prevId&&prevId!==canonId)existing.legacyIds=Array.from(new Set([...(existing.legacyIds||[]),prevId,'ticket:'+booking.mailId].filter(Boolean)));
+      return {added:false,updated:true,change,walletId:canonId};
     }
-    const bookingRef=booking.flight?.pnr||null;
     const item={
-      id:'mail:'+booking.mailId,
+      id:canonId,childKey:childKey||null,
       mailId:booking.mailId,sourceId:booking.mailId,threadId:booking.threadId,tripId:booking.tripId,
       title,kind:isStay?'documents':'tickets',note,
       org:booking.from?.name||(isStay?'Hotel':'Travel'),
       typeLabel:booking.kind==='hotel'?'Hotel booking':booking.kind==='train'?'Train ticket':'Flight ticket',
       number:bookingRef?('#'+bookingRef):'',
-      date:new Date(booking.whenMs).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}),
-      travelAt:new Date(booking.whenMs).toISOString(),
-      eventAt:new Date(booking.whenMs).toISOString(),
+      date:reliableTravelAt?new Date(reliableTravelAt).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'',
+      travelAt:reliableTravelAt,eventAt:reliableTravelAt,
       at:new Date().toISOString(),
       color:isStay?WALLET_COLORS.documents:WALLET_COLORS.tickets,
       href:booking.href,flight:booking.flight||null,
-      // Store booking reference for display — never invent QR from PNR/mailId
-      bookingRef:bookingRef,
+      bookingRef,recordKey:booking.recordKey||null,entityKey:booking.entityKey||null,
       qrAuthentic:false,barcodeAuthentic:false,
-      status:booking.cancelled?'cancelled':'active',
-      _bookingFp:bookingFingerprint(booking)
+      status:booking.cancelled?'cancelled':'active',cancelled:!!booking.cancelled,
+      legacyIds:[],sourceRefs:{mailId:booking.mailId,threadId:booking.threadId},
+      _bookingFp:nextFp
     };
-    list.unshift(item);return {added:true,updated:false,change:null};
+    list.unshift(item);return {added:true,updated:false,change:null,walletId:canonId};
   }
   function syncTravelWalletAndTrips(){
     if(!loopsData)return {added:0,updated:0,trips:[]};
@@ -2997,14 +3080,20 @@
     const bookings=mergeTripIds(raw);
     const trips={};
     bookings.forEach(b=>{
-      if(!trips[b.tripId])trips[b.tripId]={id:b.tripId,dest:b.dest||'',whenMs:b.whenMs,kinds:new Set(),mailIds:[],items:[]};
+      const anchor=b.whenMs??b.receivedMs??Date.now();
+      if(!trips[b.tripId])trips[b.tripId]={id:b.tripId,dest:b.dest||'',whenMs:anchor,kinds:new Set(),mailIds:[],items:[]};
       const t=trips[b.tripId];
       t.kinds.add(b.kind);t.mailIds.push(b.mailId);t.items.push(b);
-      if(b.whenMs<t.whenMs)t.whenMs=b.whenMs;
+      if(b.whenMs!=null&&b.whenMs<t.whenMs)t.whenMs=b.whenMs;
       if(!t.dest&&b.dest)t.dest=b.dest;
     });
     bookings.filter(b=>b.kind==='hotel').forEach(h=>{
-      const mate=bookings.find(x=>x.kind!=='hotel'&&Math.abs(x.whenMs-h.whenMs)<6*86400000);
+      const hw=h.whenMs??h.receivedMs;
+      if(hw==null)return;
+      const mate=bookings.find(x=>{
+        if(x.kind==='hotel'||x.mailId===h.mailId)return false;
+        const xw=x.whenMs??x.receivedMs;return xw!=null&&Math.abs(xw-hw)<6*86400000;
+      });
       if(mate){h.tripId=mate.tripId;h.linkedMailId=mate.mailId}
     });
     let list=readWallet();
@@ -3376,21 +3465,27 @@
       const travelMs=w.travelAt?Date.parse(w.travelAt):(w.eventAt?Date.parse(w.eventAt):NaN);
       entities.push({
         ...base,type:'wallet',source:'local',
-        sourceIds:{walletId:w.id},
+        sourceIds:{walletId:w.id,messageId:w.mailId||null,recordKey:w.recordKey||null,entityKey:w.entityKey||null,childKey:w.childKey||null},
         title:w.title||'Pass',
         subtitle:w.typeLabel||w.org||w.kind||'',
-        whenMs:!isNaN(travelMs)?travelMs:(w.at?Date.parse(w.at):null),
+        whenMs:!isNaN(travelMs)?travelMs:null,
         href:w.href||'',
         tripId:w.tripId||null,
         tags,
         privacyClass:w.kind==='documents'?Store.PRIVACY.IDENTITY:Store.PRIVACY.NORMAL,
-        payload:{mailId:w.mailId||'',number:w.number||'',org:w.org||'',travelAt:w.travelAt||null,eventAt:w.eventAt||null,qrAuthentic:!!(w.qrAuthentic||w.scanSource)}
+        payload:{
+          mailId:w.mailId||'',number:w.number||'',org:w.org||'',
+          travelAt:w.travelAt||null,eventAt:w.eventAt||null,
+          qrAuthentic:!!(w.qrAuthentic||w.scanSource),
+          recordKey:w.recordKey||null,entityKey:w.entityKey||null,childKey:w.childKey||null,
+          legacyIds:w.legacyIds||[],status:w.status||null
+        }
       });
       if(w.mailId){
         relationships.push({
           ...base,fromId:Store.id.wallet(accountId,w.id),toId:Store.id.mail(accountId,w.mailId),type:'from_mail',
           confidence:0.95,confirmed:'auto',method:'rule',
-          evidence:[{kind:'wallet_mailId'}],sourceIds:{walletId:w.id,messageId:w.mailId}
+          evidence:[{kind:'wallet_mailId'}],sourceIds:{walletId:w.id,messageId:w.mailId,recordKey:w.recordKey||null}
         });
       }
       if(w.tripId){
@@ -4467,7 +4562,19 @@
     }
     const b=e.target.closest('[data-inbox-open]');if(!b)return;
     if(b.closest('.m-swipe.open')){b.closest('.m-swipe').classList.remove('open');return}
-    const item=computeMoney().all.find(i=>i.id===b.dataset.inboxOpen);if(!item)return;
+    const item=(typeof inboxUniverse==='function'?inboxUniverse():computeMoney().all).find(i=>i.id===b.dataset.inboxOpen)||computeMoney().all.find(i=>i.id===b.dataset.inboxOpen);
+    if(!item)return;
+    // Tickets: open email detail but ensure canonical wallet exists for linked navigation
+    if(item.kind==='ticket'||item.inboxBucket==='tickets'||item.category==='ticket'){
+      const Data=window.DaylightData;
+      const travel=Data?.travelRecordForMail?.(item.mailId,{threadId:item.threadId,recordKey:item.recordKey});
+      if(item.mailId&&!travel?.wallet){
+        openTravelRecord({mailId:item.mailId,threadId:item.threadId,recordKey:item.recordKey,title:item.title,href:item.href,ensurePass:true,preferEmail:true,surface:'email'});
+        return;
+      }
+      openLoopSheet({...inboxToDetail(item),walletId:travel?.walletId||null,recordKey:item.recordKey||travel?.recordKey||''});
+      return;
+    }
     openLoopSheet(inboxToDetail(item));
   });
   (function bindInboxSwipe(){
@@ -4590,6 +4697,73 @@
     if(Nav.topView()==='pass'||Nav.stack.some(x=>x.view==='pass')){Nav.back();return}
     dismissPassSheet();
   }
+  /**
+   * Phase 14 — single navigator: Inbox / Wallet / Timeline resolve the same travel record.
+   * Prefer Wallet pass when present; always can jump to source email via mailId.
+   */
+  function openTravelRecord(opts){
+    const o=opts||{};
+    const Data=window.DaylightData;
+    feel.select();
+    let walletId=o.walletId||null;
+    let mailId=o.mailId||null;
+    let childKey=o.childKey||null;
+    if(!mailId&&walletId){
+      const parts=Data?.parseWalletIdParts?.(walletId);
+      mailId=parts?.mailId||readWallet().find(w=>w.id===walletId)?.mailId||null;
+      childKey=childKey||parts?.childKey||null;
+    }
+    // Ensure canonical pass exists before any surface open so Inbox↔Wallet↔Timeline share one id
+    if(mailId&&o.ensurePass&&!readWallet().some(w=>w.mailId===mailId&&(!childKey||w.childKey===childKey))){
+      let list=readWallet();
+      const r=upsertWalletFromBooking({
+        mailId,threadId:o.threadId||mailId,kind:'train',subject:o.title||'Ticket',
+        from:{name:''},dest:'',flight:null,whenMs:null,receivedMs:Date.now(),travelReliable:false,
+        childKey,href:o.href||gmailLink(o.threadId||mailId),
+        recordKey:o.recordKey||null,entityKey:o.entityKey||null,cancelled:false
+      },list);
+      if(r.added||r.updated)saveWallet(list);
+      walletId=r.walletId||walletId;
+    }
+    const travel=mailId&&Data?.travelRecordForMail
+      ?Data.travelRecordForMail(mailId,{walletId,childKey,threadId:o.threadId,recordKey:o.recordKey,entityKey:o.entityKey,ensureStub:!!o.ensureStub})
+      :null;
+    if(travel?.walletId)walletId=travel.walletId;
+    if(travel?.mailId)mailId=travel.mailId;
+    if(o.surface==='email'||o.preferEmail){
+      const inboxItem=(typeof inboxUniverse==='function'?inboxUniverse():[]).find(i=>i.mailId===mailId||i.id===mailId||i.threadId===o.threadId);
+      if(inboxItem){openLoopSheet(inboxToDetail(inboxItem));return travel}
+      if(mailId){
+        openLoopSheet(inboxToDetail({
+          id:o.threadId||mailId,mailId,threadId:o.threadId||mailId,
+          title:travel?.wallet?.title||'Travel email',subject:travel?.wallet?.title||'',
+          kind:'ticket',tag:'Ticket',href:travel?.wallet?.href||gmailLink(o.threadId||mailId),
+          whenMs:Date.now(),color:'#2f8fb0',snippet:''
+        }));
+        return travel;
+      }
+    }
+    if(walletId&&readWallet().some(w=>w.id===walletId)){
+      if(mTab!=='wallet')setTab('wallet',{soft:true});
+      openPassSheet(walletId,{history:o.history});
+      return travel;
+    }
+    // Ensure thin pass so navigation still lands on one canonical id
+    if(mailId&&o.ensurePass!==false){
+      let list=readWallet();
+      const r=upsertWalletFromBooking({
+        mailId,threadId:o.threadId||mailId,kind:'train',subject:o.title||'Ticket',
+        from:{name:''},dest:'',flight:null,whenMs:null,receivedMs:Date.now(),travelReliable:false,
+        childKey,href:o.href||gmailLink(o.threadId||mailId),
+        recordKey:o.recordKey||null,entityKey:o.entityKey||null,cancelled:false
+      },list);
+      if(r.added||r.updated)saveWallet(list);
+      walletId=r.walletId||walletId;
+      if(walletId){if(mTab!=='wallet')setTab('wallet',{soft:true});openPassSheet(walletId,{history:o.history});return travel||Data?.travelRecordForMail?.(mailId,{walletId})}
+    }
+    if(o.href)window.open(o.href,'_blank','noopener');
+    return travel;
+  }
   function openPassSheet(id,opts){
     const item=ensurePassCodes(readWallet().find(i=>i.id===id));if(!item)return;
     mWalletOpen=id;
@@ -4618,6 +4792,12 @@
         }
         if(e.target.closest('[data-pass-del]')){
           saveWallet(readWallet().filter(i=>i.id!==mWalletOpen));closePassSheet();renderWallet();toast('Removed from Wallet',{type:'warn',haptic:'warning'});return;
+        }
+        if(e.target.closest('[data-pass-email]')){
+          const it=readWallet().find(i=>i.id===mWalletOpen);if(!it?.mailId){toast('No source email for this pass',{type:'warn'});return}
+          closePassSheet();
+          openTravelRecord({mailId:it.mailId,threadId:it.threadId,walletId:it.id,childKey:it.childKey,recordKey:it.recordKey,entityKey:it.entityKey,preferEmail:true,surface:'email'});
+          return;
         }
       });
     }
@@ -4674,7 +4854,8 @@
         <div><span>Expiry</span><b>${esc(expiry||walletExpiryLabel(item)||'—')}</b></div>
       </div>
       <div class="pass-actions">
-        <button type="button" class="connect primary" data-pass-cal>Add to Calendar</button>
+        ${item.mailId?`<button type="button" class="connect primary" data-pass-email>View email</button>`:`<button type="button" class="connect primary" data-pass-cal>Add to Calendar</button>`}
+        ${item.mailId?`<button type="button" class="connect ghost" data-pass-cal>Add to Calendar</button>`:''}
         <button type="button" class="connect ghost" data-pass-del>Remove</button>
       </div>`;
     const wasOpen=sheet.classList.contains('show');
@@ -4984,15 +5165,17 @@
       push({id:'task:'+(t.id||t.title),kind:/pay|bill|invoice/i.test(t.src||'')||t.project==='Payments'?'bill':'task',title:t.title,start:s,end:s,allDay:!t.hasTime,meta:t.src||'Task',href:t.href||''});
     });
     try{
-      // Wallet/travel: only with a reliable event date (travelAt/eventAt) — never email received `at`
+      // Wallet/travel: strict eventAt only — missing travel dates never invent Timeline rows
       (Data?.walletItems?Data.walletItems({filter:'tickets'}):readWallet()).forEach(w=>{
-        const ev=Data?.eventAt?.(w)||(w.travelAt?new Date(w.travelAt):null);
+        const ev=Data?.eventAt?.(w);
         if(!ev||isNaN(ev)||dayKey(ev)!==dayKey(start))return;
-        if(w.walletStatus==='cancelled'||/cancel/i.test(w.status||''))return;
+        if(w.walletStatus==='cancelled'||w.status==='cancelled'||/cancel/i.test(w.status||''))return;
         push({
           id:'wallet:'+w.id,kind:'travel',title:w.title,start:ev,end:ev,allDay:!w.flight?.depart,
           meta:[w.typeLabel||WALLET_LABEL[w.kind]||'Ticket',w.tripId?'Trip linked':''].filter(Boolean).join(' · '),
-          href:w.href||'',walletId:w.id,relatedMail:w.mailId?{mailId:w.mailId}:null
+          href:w.href||'',walletId:w.id,mailId:w.mailId||null,threadId:w.threadId||null,
+          recordKey:w.recordKey||null,entityKey:w.entityKey||null,childKey:w.childKey||null,
+          relatedMail:w.mailId?{mailId:w.mailId,threadId:w.threadId}:null
         });
       });
       // AI orders with delivery on this local day
@@ -5018,7 +5201,10 @@
   function tlCard(item){
     const time=item.allDay?'All day':`${hm(item.start)}${item.flight?.depart?'' :(item.end&&item.end-item.start>60*1000?' – '+hm(item.end):'')}`;
     const thumb=`<span class="tl-thumb kind-${esc(item.kind)}" aria-hidden="true">${svg(tlIcon(item.kind),18)}</span>`;
-    const open=item.loopId?`data-open-loop="${esc(item.loopId)}"`:(item.walletId?`data-open-wallet="${esc(item.walletId)}"`:(item.href?`data-tl-href="${esc(item.href)}"`:''));
+    const open=item.loopId?`data-open-loop="${esc(item.loopId)}"`
+      :(item.walletId||item.mailId
+        ?`data-open-travel="1" data-wallet-id="${esc(item.walletId||'')}" data-mail-id="${esc(item.mailId||'')}" data-thread-id="${esc(item.threadId||'')}" data-child-key="${esc(item.childKey||'')}" data-record-key="${esc(item.recordKey||'')}"`
+        :(item.href?`data-tl-href="${esc(item.href)}"`:''));
     return `<article class="tl-card" ${open}>
       <span class="tl-node" aria-hidden="true">${svg(tlIcon(item.kind),16)}</span>
       <div class="tl-card-body">
@@ -5072,7 +5258,16 @@
   $('#tl-ask-mini')?.addEventListener('click',toggleAsk);
   $('#tl-list')?.addEventListener('click',e=>{
     const loop=e.target.closest('[data-open-loop]');if(loop){openLoopSheet(loop.dataset.openLoop);return}
-    const w=e.target.closest('[data-open-wallet]');if(w){feel.select();setTab('wallet');openPassSheet(w.dataset.openWallet);return}
+    const tr=e.target.closest('[data-open-travel]');
+    if(tr){
+      openTravelRecord({
+        walletId:tr.dataset.walletId||null,mailId:tr.dataset.mailId||null,
+        threadId:tr.dataset.threadId||null,childKey:tr.dataset.childKey||null,
+        recordKey:tr.dataset.recordKey||null
+      });
+      return;
+    }
+    const w=e.target.closest('[data-open-wallet]');if(w){openTravelRecord({walletId:w.dataset.openWallet});return}
     const a=e.target.closest('[data-tl-href]');if(a)window.open(a.dataset.tlHref,'_blank','noopener');
   });
   // Health (Statistics tab) — Apple Health–style overview
