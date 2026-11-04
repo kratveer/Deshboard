@@ -22,9 +22,13 @@ function serve(dir, port) {
 }
 
 // ---------- mocks ----------
+const fetchedIds = new Set();
 function makeGmail() {
   const g = createMockGmail({ now: S.NOW, extraHeaders: 2 });
   [...S.GMAIL, ...S.SENT].forEach((x) => g.add(Object.assign({}, x, { labelIds: x.labelIds.slice() })));
+  const req = g.request, bs = g.batchSend;
+  g.request = async (url) => { const mm = /\/messages\/([^/?]+)/.exec(url); if (mm) fetchedIds.add(decodeURIComponent(mm[1])); return req(url); };
+  g.batchSend = async (b) => { (b.body.match(/\/messages\/([^/?\s]+)/g) || []).forEach((x) => fetchedIds.add(decodeURIComponent(x.split('/').pop()))); return bs(b); };
   return g;
 }
 const calStore = { primary: S.CALENDAR, 'family@group.calendar.google.com': S.SECONDARY };
@@ -127,6 +131,12 @@ const clickTab = async (page, t) => { await page.evaluate((x) => document.queryS
       seeAll: !document.querySelector('#m-loops-see')?.hidden
     }));
     // full priority list via "See All"
+    out.mobile.priorityByChip = {};
+    for (const chip of ['week', 'tasks', 'payments', 'meetings']) {
+      out.mobile.priorityByChip[chip] = await page.evaluate(async (c) => { document.querySelector(`#m-prio-tabs [data-prio="${c}"]`)?.click(); await new Promise((r) => setTimeout(r, 400)); const b = document.querySelector('#m-loops-see'); const cards = [...document.querySelectorAll('#m-loop-grid [data-loop]')].map((x) => ({ id: x.dataset.loop, text: x.innerText.replace(/\s+/g, ' ') })); return { on: document.querySelector('#m-prio-tabs .on')?.dataset.prio, total: document.querySelector('#m-loop-total')?.textContent || '', cards, empty: document.querySelector('#m-loop-grid .m-empty')?.innerText || '' }; }, chip);
+    }
+    await page.evaluate(() => document.querySelector('#m-prio-tabs [data-prio="week"]')?.click());
+    out.mobile.fetchedIds = [...fetchedIds];
     out.mobile.priorityAll = await page.evaluate(async () => { const b = document.querySelector('#m-loops-see'); if (b && !b.hidden) { b.click(); await new Promise((r) => setTimeout(r, 800)); } return [...document.querySelectorAll('#loops-pop-body [data-loop], #loops-pop-body [data-open-loop]')].map((c) => ({ id: c.dataset.loop || c.dataset.openLoop, text: c.innerText.replace(/\s+/g, ' ') })); });
     await page.evaluate(() => document.querySelector('[data-loops-close]')?.click());
     out.mobile.money = await page.evaluate(() => { window.DaylightMoneyUI.open(); const o = {}; document.querySelectorAll('#fin-body .fin-sec').forEach((s) => { o[s.querySelector('h4 span')?.textContent] = [...s.querySelectorAll('.fin-row')].map((r) => r.innerText.replace(/\s+/g, ' ').slice(0, 90)); }); window.DaylightMoneyUI.close(); return o; });

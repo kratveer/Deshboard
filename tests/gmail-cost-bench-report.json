@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T07:41:24.498Z",
+  "generatedAt": "2026-11-04T09:51:44.879Z",
   "note": "SYNTHETIC/MOCKED Gmail only. Quota units = what the mock charges with Google's 2026 unit table. AI cost uses the config price table (gemini-3.5-flash-lite $0.10/$0.40 per 1M tokens; free tier = $0 actual). Network time is modelled (90 ms per HTTP request, 6 in parallel).",
   "assumptions": {
     "aiOn": true,
@@ -28,7 +28,7 @@
           "aiInTok": 17619,
           "aiOutTok": 4200,
           "usd": 0.00344,
-          "cpuMs": 40,
+          "cpuMs": 38,
           "netMs": 1260
         },
         "backfillTotal": {
@@ -45,7 +45,7 @@
           "aiInTok": 17619,
           "aiOutTok": 4200,
           "usd": 0.00344,
-          "cpuMs": 40,
+          "cpuMs": 38,
           "netMs": 1260
         },
         "drainSyncs": 0,
@@ -219,7 +219,7 @@
           "aiInTok": 4427,
           "aiOutTok": 1250,
           "usd": 0.00094,
-          "cpuMs": 97,
+          "cpuMs": 168,
           "netMs": 180
         },
         "backfillTotal": {
@@ -236,7 +236,7 @@
           "aiInTok": 4427,
           "aiOutTok": 1250,
           "usd": 0.00094,
-          "cpuMs": 150,
+          "cpuMs": 261,
           "netMs": 360
         },
         "drainSyncs": 2,
@@ -396,7 +396,7 @@
           "aiInTok": 17556,
           "aiOutTok": 4200,
           "usd": 0.00344,
-          "cpuMs": 28,
+          "cpuMs": 68,
           "netMs": 1710
         },
         "backfillTotal": {
@@ -413,7 +413,7 @@
           "aiInTok": 17556,
           "aiOutTok": 4200,
           "usd": 0.00344,
-          "cpuMs": 28,
+          "cpuMs": 68,
           "netMs": 1710
         },
         "drainSyncs": 0,
@@ -601,40 +601,40 @@
       },
       "optimised": {
         "cost": {
-          "http": 13,
-          "units": 4676,
+          "http": 11,
+          "units": 4751,
           "bodies": 0,
-          "getMeta": 214,
+          "getMeta": 236,
           "getFull": 0,
-          "list": 5,
+          "list": 4,
           "history": 0,
-          "threadsGet": 9,
-          "batchPosts": 6,
+          "threadsGet": 0,
+          "batchPosts": 5,
           "aiCalls": 0,
           "aiInTok": 0,
           "aiOutTok": 0,
           "usd": 0,
-          "cpuMs": 50,
-          "netMs": 270
+          "cpuMs": 60,
+          "netMs": 180
         },
         "backfillTotal": {
-          "http": 55,
-          "units": 32797,
-          "bodies": 368,
-          "getMeta": 514,
-          "getFull": 368,
-          "list": 11,
+          "http": 48,
+          "units": 30746,
+          "bodies": 360,
+          "getMeta": 436,
+          "getFull": 360,
+          "list": 7,
           "history": 0,
           "threadsGet": 9,
-          "batchPosts": 31,
+          "batchPosts": 28,
           "aiCalls": 25,
-          "aiInTok": 22134,
+          "aiInTok": 22132,
           "aiOutTok": 6250,
           "usd": 0.00471,
-          "cpuMs": 650,
-          "netMs": 1440
+          "cpuMs": 462,
+          "netMs": 1170
         },
-        "drainSyncs": 11,
+        "drainSyncs": 10,
         "quality": {
           "per": {
             "bill": {
@@ -686,12 +686,12 @@
               "recall": 1
             },
             "receipt": {
-              "tp": 36,
+              "tp": 28,
               "fp": 12,
-              "fn": 0,
+              "fn": 8,
               "support": 36,
-              "precision": 0.75,
-              "recall": 1
+              "precision": 0.7,
+              "recall": 0.778
             },
             "document": {
               "tp": 20,
@@ -710,28 +710,28 @@
               "recall": 1
             },
             "promotion": {
-              "tp": 48,
+              "tp": 4,
               "fp": 0,
-              "fn": 0,
+              "fn": 44,
               "support": 48,
               "precision": 1,
-              "recall": 1
+              "recall": 0.083
             },
             "newsletter": {
-              "tp": 28,
+              "tp": 22,
               "fp": 0,
-              "fn": 0,
+              "fn": 6,
               "support": 28,
               "precision": 1,
-              "recall": 1
+              "recall": 0.786
             },
             "social": {
-              "tp": 20,
+              "tp": 0,
               "fp": 0,
-              "fn": 0,
+              "fn": 20,
               "support": 20,
-              "precision": 1,
-              "recall": 1
+              "precision": null,
+              "recall": 0
             },
             "personal": {
               "tp": 24,
@@ -765,7 +765,8 @@
               "subscription": 38
             },
             "receipt": {
-              "receipt": 36
+              "receipt": 28,
+              "unseen": 8
             },
             "document": {
               "document": 20
@@ -774,26 +775,28 @@
               "security": 16
             },
             "promotion": {
-              "promotion": 48
+              "unseen": 44,
+              "promotion": 4
             },
             "newsletter": {
-              "newsletter": 28
+              "newsletter": 22,
+              "unseen": 6
             },
             "social": {
-              "social": 20
+              "unseen": 20
             },
             "personal": {
               "personal": 24
             }
           },
-          "accuracy": 0.97,
-          "seen": 500,
+          "accuracy": 0.814,
+          "seen": 422,
           "total": 500
         },
-        "seenOfRecent": 500,
+        "seenOfRecent": 422,
         "recent": 500,
         "oldFetched": 0,
-        "summary": "Gmail partly synced · 300 waiting for quota"
+        "summary": "Gmail partly synced · 200 waiting for quota"
       }
     },
     "1000": {
@@ -812,7 +815,7 @@
           "aiInTok": 17566,
           "aiOutTok": 4200,
           "usd": 0.00344,
-          "cpuMs": 51,
+          "cpuMs": 36,
           "netMs": 1800
         },
         "backfillTotal": {
@@ -829,7 +832,7 @@
           "aiInTok": 17566,
           "aiOutTok": 4200,
           "usd": 0.00344,
-          "cpuMs": 51,
+          "cpuMs": 36,
           "netMs": 1800
         },
         "drainSyncs": 0,
@@ -1022,49 +1025,49 @@
       },
       "optimised": {
         "cost": {
-          "http": 12,
-          "units": 4396,
+          "http": 13,
+          "units": 4776,
           "bodies": 0,
-          "getMeta": 200,
+          "getMeta": 219,
           "getFull": 0,
           "list": 5,
           "history": 0,
           "threadsGet": 9,
-          "batchPosts": 5,
+          "batchPosts": 6,
           "aiCalls": 0,
           "aiInTok": 0,
           "aiOutTok": 0,
           "usd": 0,
-          "cpuMs": 44,
-          "netMs": 180
+          "cpuMs": 53,
+          "netMs": 270
         },
         "backfillTotal": {
-          "http": 92,
-          "units": 58876,
-          "bodies": 640,
-          "getMeta": 1000,
-          "getFull": 640,
-          "list": 17,
+          "http": 87,
+          "units": 55901,
+          "bodies": 651,
+          "getMeta": 819,
+          "getFull": 651,
+          "list": 14,
           "history": 0,
           "threadsGet": 9,
-          "batchPosts": 53,
+          "batchPosts": 51,
           "aiCalls": 25,
           "aiInTok": 22143,
           "aiOutTok": 6250,
           "usd": 0.00471,
-          "cpuMs": 1145,
+          "cpuMs": 1002,
           "netMs": 2340
         },
         "drainSyncs": 20,
         "quality": {
           "per": {
             "bill": {
-              "tp": 108,
+              "tp": 110,
               "fp": 0,
-              "fn": 2,
+              "fn": 0,
               "support": 110,
               "precision": 1,
-              "recall": 0.982
+              "recall": 1
             },
             "payment": {
               "tp": 80,
@@ -1075,12 +1078,12 @@
               "recall": 0.8
             },
             "refund": {
-              "tp": 69,
+              "tp": 70,
               "fp": 0,
-              "fn": 1,
+              "fn": 0,
               "support": 70,
               "precision": 1,
-              "recall": 0.986
+              "recall": 1
             },
             "travel": {
               "tp": 110,
@@ -1091,12 +1094,12 @@
               "recall": 1
             },
             "food": {
-              "tp": 54,
+              "tp": 55,
               "fp": 0,
-              "fn": 6,
+              "fn": 5,
               "support": 60,
               "precision": 1,
-              "recall": 0.9
+              "recall": 0.917
             },
             "subscription": {
               "tp": 70,
@@ -1107,12 +1110,12 @@
               "recall": 1
             },
             "receipt": {
-              "tp": 84,
-              "fp": 19,
-              "fn": 6,
+              "tp": 70,
+              "fp": 20,
+              "fn": 20,
               "support": 90,
-              "precision": 0.816,
-              "recall": 0.933
+              "precision": 0.778,
+              "recall": 0.778
             },
             "document": {
               "tp": 50,
@@ -1123,110 +1126,102 @@
               "recall": 1
             },
             "security": {
-              "tp": 38,
-              "fp": 0,
-              "fn": 2,
-              "support": 40,
-              "precision": 1,
-              "recall": 0.95
-            },
-            "promotion": {
-              "tp": 118,
-              "fp": 0,
-              "fn": 2,
-              "support": 120,
-              "precision": 1,
-              "recall": 0.983
-            },
-            "newsletter": {
-              "tp": 68,
-              "fp": 0,
-              "fn": 2,
-              "support": 70,
-              "precision": 1,
-              "recall": 0.971
-            },
-            "social": {
-              "tp": 50,
+              "tp": 40,
               "fp": 0,
               "fn": 0,
-              "support": 50,
+              "support": 40,
               "precision": 1,
               "recall": 1
             },
+            "promotion": {
+              "tp": 10,
+              "fp": 0,
+              "fn": 110,
+              "support": 120,
+              "precision": 1,
+              "recall": 0.083
+            },
+            "newsletter": {
+              "tp": 55,
+              "fp": 0,
+              "fn": 15,
+              "support": 70,
+              "precision": 1,
+              "recall": 0.786
+            },
+            "social": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 50,
+              "support": 50,
+              "precision": null,
+              "recall": 0
+            },
             "personal": {
-              "tp": 57,
-              "fp": 2,
-              "fn": 3,
+              "tp": 59,
+              "fp": 0,
+              "fn": 1,
               "support": 60,
-              "precision": 0.966,
-              "recall": 0.95
+              "precision": 1,
+              "recall": 0.983
             }
           },
           "confusion": {
             "bill": {
-              "bill": 108,
-              "personal": 1,
-              "unseen": 1
+              "bill": 110
             },
             "payment": {
               "payment": 80,
               "other": 5,
-              "receipt": 14,
-              "personal": 1
+              "receipt": 15
             },
             "refund": {
-              "refund": 69,
-              "unseen": 1
+              "refund": 70
             },
             "travel": {
               "travel": 110
             },
             "food": {
-              "food": 54,
-              "receipt": 5,
-              "unseen": 1
+              "food": 55,
+              "receipt": 5
             },
             "subscription": {
               "subscription": 70
             },
             "receipt": {
-              "receipt": 84,
-              "other": 3,
-              "unseen": 3
+              "receipt": 70,
+              "unseen": 20
             },
             "document": {
               "document": 50
             },
             "security": {
-              "security": 38,
-              "unseen": 2
+              "security": 40
             },
             "promotion": {
-              "promotion": 118,
-              "unseen": 2
+              "unseen": 110,
+              "promotion": 10
             },
             "newsletter": {
-              "newsletter": 68,
-              "unseen": 2
+              "newsletter": 55,
+              "unseen": 15
             },
             "social": {
-              "social": 50
+              "unseen": 50
             },
             "personal": {
-              "personal": 57,
-              "unseen": 2,
+              "personal": 59,
               "travel": 1
             }
           },
-          "accuracy": 0.956,
-          "seen": 986,
+          "accuracy": 0.779,
+          "seen": 805,
           "total": 1000
         },
-        "seenOfRecent": 986,
+        "seenOfRecent": 805,
         "recent": 1000,
         "oldFetched": 0,
-        "summary": "Gmail partly synced · 800 waiting for quota"
+        "summary": "Gmail partly synced · 600 waiting for quota"
       }
     }
   },
@@ -1246,7 +1241,7 @@
         "aiInTok": 17619,
         "aiOutTok": 4200,
         "usd": 0.00344,
-        "cpuMs": 81,
+        "cpuMs": 64,
         "netMs": 1440
       },
       "backfillTotal": {
@@ -1263,7 +1258,7 @@
         "aiInTok": 17619,
         "aiOutTok": 4200,
         "usd": 0.00344,
-        "cpuMs": 81,
+        "cpuMs": 64,
         "netMs": 1440
       },
       "drainSyncs": 0,
@@ -1437,7 +1432,7 @@
         "aiInTok": 4427,
         "aiOutTok": 1250,
         "usd": 0.00094,
-        "cpuMs": 74,
+        "cpuMs": 68,
         "netMs": 180
       },
       "backfillTotal": {
@@ -1454,7 +1449,7 @@
         "aiInTok": 4427,
         "aiOutTok": 1250,
         "usd": 0.00094,
-        "cpuMs": 123,
+        "cpuMs": 112,
         "netMs": 360
       },
       "drainSyncs": 2,
@@ -1615,7 +1610,7 @@
         "aiInTok": 87768,
         "aiOutTok": 21000,
         "usd": 0.01718,
-        "cpuMs": 65,
+        "cpuMs": 62,
         "netMs": 8010
       },
       "perSync": [
@@ -1666,7 +1661,7 @@
         "aiInTok": 1765,
         "aiOutTok": 500,
         "usd": 0.00038,
-        "cpuMs": 85,
+        "cpuMs": 109,
         "netMs": 900
       },
       "perSync": [
@@ -1719,7 +1714,7 @@
         "aiInTok": 87768,
         "aiOutTok": 21000,
         "usd": 0.01718,
-        "cpuMs": 58,
+        "cpuMs": 77,
         "netMs": 1800
       },
       "perSync": [
@@ -1770,7 +1765,7 @@
         "aiInTok": 1765,
         "aiOutTok": 500,
         "usd": 0.00038,
-        "cpuMs": 91,
+        "cpuMs": 61,
         "netMs": 900
       },
       "perSync": [
@@ -1874,7 +1869,7 @@
         "aiInTok": 0,
         "aiOutTok": 0,
         "usd": 0,
-        "cpuMs": 29,
+        "cpuMs": 26,
         "netMs": 450
       },
       "perSync": [
@@ -1927,7 +1922,7 @@
         "aiInTok": 87810,
         "aiOutTok": 21000,
         "usd": 0.01718,
-        "cpuMs": 59,
+        "cpuMs": 82,
         "netMs": 1350
       },
       "perSync": [
@@ -1978,7 +1973,7 @@
         "aiInTok": 0,
         "aiOutTok": 0,
         "usd": 0,
-        "cpuMs": 36,
+        "cpuMs": 38,
         "netMs": 450
       },
       "perSync": [
@@ -2031,7 +2026,7 @@
         "aiInTok": 17551,
         "aiOutTok": 4200,
         "usd": 0.00344,
-        "cpuMs": 14,
+        "cpuMs": 18,
         "netMs": 1800
       },
       "summary": "Gmail synced · 98 messages (98 fetched, 0 unchanged, 32 full texts queued)",
@@ -2052,7 +2047,7 @@
         "aiInTok": 0,
         "aiOutTok": 0,
         "usd": 0,
-        "cpuMs": 9,
+        "cpuMs": 8,
         "netMs": 90
       },
       "summary": "Gmail synced · no new mail, 30 label updates",
@@ -2079,7 +2074,7 @@
         "aiInTok": 17562,
         "aiOutTok": 4200,
         "usd": 0.00344,
-        "cpuMs": 16,
+        "cpuMs": 14,
         "netMs": 1800
       },
       "summary": "Gmail synced · 98 messages (98 fetched, 0 unchanged, 32 full texts queued)",
@@ -2100,7 +2095,7 @@
         "aiInTok": 0,
         "aiOutTok": 0,
         "usd": 0,
-        "cpuMs": 9,
+        "cpuMs": 10,
         "netMs": 90
       },
       "summary": "Gmail synced · no new mail",
@@ -2126,7 +2121,7 @@
         "aiInTok": 17565,
         "aiOutTok": 4200,
         "usd": 0.00344,
-        "cpuMs": 14,
+        "cpuMs": 19,
         "netMs": 1800
       },
       "summary": "Gmail synced · 97 messages (97 fetched, 0 unchanged, 34 full texts queued)",
@@ -2135,9 +2130,9 @@
     "optimised": {
       "cost": {
         "http": 11,
-        "units": 723,
+        "units": 683,
         "bodies": 8,
-        "getMeta": 10,
+        "getMeta": 8,
         "getFull": 8,
         "list": 6,
         "history": 1,
@@ -2150,12 +2145,12 @@
         "cpuMs": 24,
         "netMs": 180
       },
-      "summary": "Gmail synced · 10 new",
+      "summary": "Gmail synced · 8 new",
       "mode": "expired-recovery",
       "markedDeleted": 6,
       "financialFactsKept": 2,
       "labelOnlyUpdates": 0,
-      "newFound": 10
+      "newFound": 8
     }
   },
   "accounts": {
@@ -2174,7 +2169,7 @@
         "aiInTok": 105417,
         "aiOutTok": 25200,
         "usd": 0.02062,
-        "cpuMs": 80,
+        "cpuMs": 75,
         "netMs": 10260
       },
       "backlogDrain": null,
@@ -2182,60 +2177,60 @@
     },
     "optimised": {
       "cost": {
-        "http": 60,
-        "units": 15357,
-        "bodies": 15,
-        "getMeta": 660,
-        "getFull": 15,
+        "http": 57,
+        "units": 15537,
+        "bodies": 75,
+        "getMeta": 543,
+        "getFull": 75,
         "list": 21,
         "history": 3,
-        "threadsGet": 27,
-        "batchPosts": 24,
-        "aiCalls": 3,
-        "aiInTok": 2643,
-        "aiOutTok": 750,
-        "usd": 0.00056,
-        "cpuMs": 104,
+        "threadsGet": 0,
+        "batchPosts": 21,
+        "aiCalls": 12,
+        "aiInTok": 10605,
+        "aiOutTok": 3000,
+        "usd": 0.00226,
+        "cpuMs": 140,
         "netMs": 1080
       },
       "backlogDrain": {
         "http": 33,
-        "units": 24312,
-        "bodies": 405,
+        "units": 21099,
+        "bodies": 333,
         "getMeta": 0,
-        "getFull": 405,
+        "getFull": 333,
         "list": 0,
         "history": 0,
-        "threadsGet": 0,
+        "threadsGet": 27,
         "batchPosts": 21,
-        "aiCalls": 30,
-        "aiInTok": 26535,
-        "aiOutTok": 7500,
-        "usd": 0.00565,
-        "cpuMs": 314,
-        "netMs": 1080
+        "aiCalls": 15,
+        "aiInTok": 13275,
+        "aiOutTok": 3750,
+        "usd": 0.00283,
+        "cpuMs": 271,
+        "netMs": 810
       },
       "isolation": {
         "rowsPerAccount": [
-          220,
-          220,
-          220
+          181,
+          181,
+          181
         ],
         "crossAccountRows": 0
       }
     }
   },
   "failures": {
-    "injected429": 37,
-    "recordsKept": 214,
+    "injected429": 28,
+    "recordsKept": 175,
     "expected": 200,
     "failed": 0,
-    "deferred": 13,
-    "summary": "Gmail partly synced · 13 waiting for quota",
+    "deferred": 0,
+    "summary": "Gmail synced · 175 new, 91 full texts queued",
     "transportFallback": {
-      "batchFallbacks": 5,
-      "recordsKept": 214,
-      "summary": "Gmail synced · 214 new, 87 full texts queued"
+      "batchFallbacks": 4,
+      "recordsKept": 175,
+      "summary": "Gmail synced · 175 new, 70 full texts queued"
     }
   },
   "quality": {
@@ -2254,7 +2249,7 @@
         "aiInTok": 17574,
         "aiOutTok": 4200,
         "usd": 0.00344,
-        "cpuMs": 9,
+        "cpuMs": 15,
         "netMs": 1530
       },
       "backfillTotal": {
@@ -2271,7 +2266,7 @@
         "aiInTok": 17574,
         "aiOutTok": 4200,
         "usd": 0.00344,
-        "cpuMs": 9,
+        "cpuMs": 15,
         "netMs": 1530
       },
       "drainSyncs": 0,
@@ -2462,40 +2457,40 @@
     },
     "optimised": {
       "cost": {
-        "http": 12,
-        "units": 4671,
-        "bodies": 0,
-        "getMeta": 214,
-        "getFull": 0,
+        "http": 11,
+        "units": 4731,
+        "bodies": 20,
+        "getMeta": 175,
+        "getFull": 20,
         "list": 4,
         "history": 0,
-        "threadsGet": 9,
-        "batchPosts": 6,
-        "aiCalls": 0,
-        "aiInTok": 0,
-        "aiOutTok": 0,
-        "usd": 0,
-        "cpuMs": 34,
+        "threadsGet": 0,
+        "batchPosts": 5,
+        "aiCalls": 4,
+        "aiInTok": 3541,
+        "aiOutTok": 1000,
+        "usd": 0.00075,
+        "cpuMs": 53,
         "netMs": 180
       },
       "backfillTotal": {
-        "http": 23,
-        "units": 12775,
-        "bodies": 135,
-        "getMeta": 214,
-        "getFull": 135,
+        "http": 22,
+        "units": 11764,
+        "bodies": 131,
+        "getMeta": 175,
+        "getFull": 131,
         "list": 4,
         "history": 0,
         "threadsGet": 9,
-        "batchPosts": 13,
-        "aiCalls": 10,
-        "aiInTok": 8840,
-        "aiOutTok": 2500,
-        "usd": 0.00188,
-        "cpuMs": 185,
-        "netMs": 540
+        "batchPosts": 12,
+        "aiCalls": 8,
+        "aiInTok": 7079,
+        "aiOutTok": 2000,
+        "usd": 0.00151,
+        "cpuMs": 154,
+        "netMs": 450
       },
-      "drainSyncs": 4,
+      "drainSyncs": 3,
       "quality": {
         "per": {
           "bill": {
@@ -2547,12 +2542,12 @@
             "recall": 1
           },
           "receipt": {
-            "tp": 18,
+            "tp": 14,
             "fp": 4,
-            "fn": 0,
+            "fn": 4,
             "support": 18,
-            "precision": 0.818,
-            "recall": 1
+            "precision": 0.778,
+            "recall": 0.778
           },
           "document": {
             "tp": 10,
@@ -2571,28 +2566,28 @@
             "recall": 1
           },
           "promotion": {
-            "tp": 24,
+            "tp": 2,
             "fp": 0,
-            "fn": 0,
+            "fn": 22,
             "support": 24,
             "precision": 1,
-            "recall": 1
+            "recall": 0.083
           },
           "newsletter": {
-            "tp": 14,
+            "tp": 11,
             "fp": 0,
-            "fn": 0,
+            "fn": 3,
             "support": 14,
             "precision": 1,
-            "recall": 1
+            "recall": 0.786
           },
           "social": {
-            "tp": 10,
+            "tp": 0,
             "fp": 0,
-            "fn": 0,
+            "fn": 10,
             "support": 10,
-            "precision": 1,
-            "recall": 1
+            "precision": null,
+            "recall": 0
           },
           "personal": {
             "tp": 11,
@@ -2626,7 +2621,8 @@
             "subscription": 14
           },
           "receipt": {
-            "receipt": 18
+            "receipt": 14,
+            "unseen": 4
           },
           "document": {
             "document": 10
@@ -2635,27 +2631,29 @@
             "security": 8
           },
           "promotion": {
-            "promotion": 24
+            "unseen": 22,
+            "promotion": 2
           },
           "newsletter": {
-            "newsletter": 14
+            "newsletter": 11,
+            "unseen": 3
           },
           "social": {
-            "social": 10
+            "unseen": 10
           },
           "personal": {
             "personal": 11,
             "travel": 1
           }
         },
-        "accuracy": 0.97,
-        "seen": 200,
+        "accuracy": 0.775,
+        "seen": 161,
         "total": 200
       },
-      "seenOfRecent": 200,
+      "seenOfRecent": 161,
       "recent": 200,
       "oldFetched": 0,
-      "summary": "Gmail synced · 214 new, 95 full texts queued"
+      "summary": "Gmail synced · 175 new, 71 full texts queued"
     }
   },
   "holdout": {
@@ -2674,7 +2672,7 @@
         "aiInTok": 17542,
         "aiOutTok": 4200,
         "usd": 0.00343,
-        "cpuMs": 11,
+        "cpuMs": 5,
         "netMs": 1080
       },
       "backfillTotal": {
@@ -2691,7 +2689,7 @@
         "aiInTok": 17542,
         "aiOutTok": 4200,
         "usd": 0.00343,
-        "cpuMs": 11,
+        "cpuMs": 5,
         "netMs": 1080
       },
       "drainSyncs": 0,
@@ -2870,9 +2868,9 @@
     "optimised": {
       "cost": {
         "http": 11,
-        "units": 4271,
+        "units": 4091,
         "bodies": 40,
-        "getMeta": 74,
+        "getMeta": 65,
         "getFull": 40,
         "list": 4,
         "history": 0,
@@ -2882,15 +2880,15 @@
         "aiInTok": 2649,
         "aiOutTok": 750,
         "usd": 0.00056,
-        "cpuMs": 39,
+        "cpuMs": 38,
         "netMs": 180
       },
       "backfillTotal": {
         "http": 13,
-        "units": 4392,
-        "bodies": 42,
-        "getMeta": 74,
-        "getFull": 42,
+        "units": 4152,
+        "bodies": 41,
+        "getMeta": 65,
+        "getFull": 41,
         "list": 4,
         "history": 0,
         "threadsGet": 9,
@@ -2899,7 +2897,7 @@
         "aiInTok": 2649,
         "aiOutTok": 750,
         "usd": 0.00056,
-        "cpuMs": 44,
+        "cpuMs": 43,
         "netMs": 270
       },
       "drainSyncs": 1,
@@ -2954,12 +2952,12 @@
             "recall": 1
           },
           "receipt": {
-            "tp": 5,
+            "tp": 4,
             "fp": 2,
-            "fn": 0,
+            "fn": 1,
             "support": 5,
-            "precision": 0.714,
-            "recall": 1
+            "precision": 0.667,
+            "recall": 0.8
           },
           "document": {
             "tp": 2,
@@ -2978,28 +2976,28 @@
             "recall": 1
           },
           "promotion": {
-            "tp": 5,
+            "tp": 0,
             "fp": 0,
-            "fn": 1,
+            "fn": 6,
             "support": 6,
-            "precision": 1,
-            "recall": 0.833
+            "precision": null,
+            "recall": 0
           },
           "newsletter": {
-            "tp": 3,
+            "tp": 2,
             "fp": 1,
-            "fn": 0,
+            "fn": 1,
             "support": 3,
-            "precision": 0.75,
-            "recall": 1
+            "precision": 0.667,
+            "recall": 0.667
           },
           "social": {
-            "tp": 2,
+            "tp": 0,
             "fp": 0,
-            "fn": 0,
+            "fn": 2,
             "support": 2,
-            "precision": 1,
-            "recall": 1
+            "precision": null,
+            "recall": 0
           },
           "personal": {
             "tp": 2,
@@ -3033,7 +3031,8 @@
             "subscription": 4
           },
           "receipt": {
-            "receipt": 5
+            "receipt": 4,
+            "unseen": 1
           },
           "document": {
             "other": 1,
@@ -3043,28 +3042,29 @@
             "security": 3
           },
           "promotion": {
-            "promotion": 5,
+            "unseen": 5,
             "newsletter": 1
           },
           "newsletter": {
-            "newsletter": 3
+            "newsletter": 2,
+            "unseen": 1
           },
           "social": {
-            "social": 2
+            "unseen": 2
           },
           "personal": {
             "personal": 2,
             "travel": 1
           }
         },
-        "accuracy": 0.9,
-        "seen": 60,
+        "accuracy": 0.75,
+        "seen": 51,
         "total": 60
       },
-      "seenOfRecent": 60,
+      "seenOfRecent": 51,
       "recent": 60,
       "oldFetched": 0,
-      "summary": "Gmail synced · 74 new"
+      "summary": "Gmail synced · 65 new"
     }
   },
   "holdoutBlind": {
@@ -3396,7 +3396,7 @@
       "total": 60
     }
   },
-  "durationMs": 5447,
+  "durationMs": 5343,
   "criticalRecall": {
     "bill": {
       "current": 0.364,
@@ -3422,7 +3422,7 @@
   "criticalRecallAtVolume": {
     "bill": {
       "current": 0.109,
-      "optimised": 0.982,
+      "optimised": 1,
       "ok": true
     },
     "travel": {
@@ -3437,7 +3437,7 @@
     },
     "refund": {
       "current": 0.014,
-      "optimised": 0.986,
+      "optimised": 1,
       "ok": true
     }
   }

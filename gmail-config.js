@@ -40,6 +40,9 @@
       batchFallbackAfterFailures: 2, // after N batch transport failures in a session, use single GETs
       // Cheap recall net: Gmail full-text searches return only IDs (5 units/page) but match words in the BODY,
       // so a bill whose subject and snippet look harmless still gets its body read. Run only when there is new mail.
+      // Gmail categories that are never listed, downloaded or classified (0 quota). You chose: Promotions, Social, Forums.
+      // Gmail sometimes files a receipt or booking under Promotions; those stay in Gmail and are not seen by Daylight.
+      excludeLabels: Object.freeze(['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS']),
       searches: Object.freeze({
         money: '(invoice OR receipt OR refund OR payment OR paid OR charged OR "amount due" OR "due date" OR bill OR billing OR subscription OR renewal OR renew OR transaction OR faktura OR vyúčtování OR platba OR splatnost OR "k úhradě" OR předplatné OR vrácení OR rechnung OR zahlung OR erstattung OR रसीद OR भुगतान OR बिल)',
         travel: '(flight OR "boarding pass" OR itinerary OR e-ticket OR ticket OR booking OR reservation OR hotel OR check-in OR PNR OR train OR "your order from" OR restaurant OR letenka OR jízdenka OR rezervace OR ubytování OR buchung OR टिकट OR यात्रा)',

@@ -22,6 +22,8 @@
   }
 
   const PL_CLS = CLS_MAP;
+  /** Gmail search fragment that leaves out the excluded categories (e.g. "-category:promotions -category:social"). */
+  function excludeQuery(labels) { return (labels || []).map((l) => '-category:' + String(l).replace(/^CATEGORY_/, '').toLowerCase()).join(' '); }
   function createMailPipeline(o) {
     const engine = o.engine, cache = o.cache, R = o.rules, cfgAll = o.config, cfg = cfgAll.pipeline, win = cfgAll.window;
     const now = o.now || (() => Date.now());
@@ -30,6 +32,9 @@
     let batchFailures = 0;
     const derive = typeof o.derive === 'function' ? o.derive : null;
     const session = new Map(); // messageId → full message fetched in THIS session (memory only; never persisted)
+    const EXCL = new Set(cfg.excludeLabels || []);
+    const EXQ = excludeQuery(cfg.excludeLabels);
+    const isExcluded = (labels) => (labels || []).some((l) => EXCL.has(l));
 
     const metaPath = (id) => `${GP}/messages/${encodeURIComponent(id)}?format=metadata&${cfg.metadataHeaders.map((h) => 'metadataHeaders=' + encodeURIComponent(h)).join('&')}&fields=${encodeURIComponent('id,threadId,labelIds,snippet,internalDate,historyId,payload/mimeType,payload/headers')}`;
     const fullPath = (id) => `${GP}/messages/${encodeURIComponent(id)}?format=full&fields=${encodeURIComponent(o.fullFields || (root.DaylightGmailSync && root.DaylightGmailSync.FULL_FIELDS) || 'id,threadId,labelIds,snippet,internalDate,historyId,payload')}`;
@@ -138,7 +143,7 @@
     }
 
     async function buildPools(acct) {
-      const live = (await cache.all(acct)).filter((r) => r.status !== 'deleted' && r.status !== 'meta-pending').sort((a, b) => b.internalDate - a.internalDate);
+      const live = (await cache.all(acct)).filter((r) => r.status !== 'deleted' && r.status !== 'meta-pending' && !isExcluded(r.labels)).sort((a, b) => b.internalDate - a.internalDate);
       const facts = await cache.getFacts(acct, live.map((r) => r.messageId));
       const msgOf = (r) => toMsg(r, facts.get(r.messageId));
       const inbox = live.filter((r) => (r.labels || []).includes('INBOX')).slice(0, win.inboxPoolMax).map(msgOf);
@@ -180,14 +185,14 @@
       let deletedIds = new Set(), labelUpdates = new Map(), listError = null, historyInfo = { mode };
       if (mode === 'incremental') {
         const h = await readHistory(ctx, cp.historyId, C);
-        if (h.ok) { h.added.forEach((m, id) => discovered.set(id, m)); deletedIds = h.deleted; labelUpdates = h.labels; historyInfo = { mode, ok: true, added: h.added.size, deleted: h.deleted.size, labelChanges: h.labels.size, pages: h.pages }; }
+        if (h.ok) { h.added.forEach((m, id) => { if (isExcluded(m.labelIds)) { C.excludedByCategory = (C.excludedByCategory || 0) + 1; return; } discovered.set(id, m); }); deletedIds = h.deleted; labelUpdates = h.labels; historyInfo = { mode, ok: true, added: h.added.size, deleted: h.deleted.size, labelChanges: h.labels.size, pages: h.pages }; }
         else { mode = h.expired ? 'expired-recovery' : (h.overflow ? 'overflow-recovery' : 'error-recovery'); historyInfo = { mode, ok: false, error: h.error }; }
       }
       const windowDays = (opts.windowDays || win.backfillDays);
       const recovering = mode === 'backfill' || /recovery$/.test(mode);
       let cachedMap = null;
       if (recovering && !ctx.fatal) {
-        const q = 'q=' + encodeURIComponent(`newer_than:${windowDays}d -in:chats`);
+        const q = 'q=' + encodeURIComponent(`newer_than:${windowDays}d -in:chats ${EXQ}`.trim());
         const l = await listAll(ctx, q, win.backfillMax, C);
         listError = l.error;
         const all = await cache.all(acct);
@@ -201,7 +206,7 @@
           const inSet = new Set(inbox.ids.map((m) => m.id)), unSet = new Set(unread.ids.map((m) => m.id));
           const cutoff = now() - windowDays * DAY;
           all.forEach((r) => {
-            if (r.status === 'deleted') return;
+            if (r.status === 'deleted' || isExcluded(r.labels)) return; // excluded categories are not listed, so absence ≠ deletion
             if (listed.has(r.messageId)) {
               if (inbox.error || unread.error) return;
               let labels = (r.labels || []).filter((x) => x !== 'INBOX' && x !== 'UNREAD');
@@ -214,7 +219,7 @@
         historyInfo = Object.assign({}, historyInfo, { mode, listed: l.ids.length, complete: l.complete });
       }
       if (opts.olderScan && !ctx.fatal) {
-        const q = 'q=' + encodeURIComponent(`newer_than:${win.olderScanDays}d older_than:${windowDays}d ${cfg.searches.money}`);
+        const q = 'q=' + encodeURIComponent(`newer_than:${win.olderScanDays}d older_than:${windowDays}d ${cfg.searches.money} ${EXQ}`.trim());
         const l = await listAll(ctx, q, win.olderScanMax, C);
         const cur = await cache.getMany(acct, l.ids.map((m) => m.id));
         l.ids.forEach((m) => { if (!cur.has(m.id)) discovered.set(m.id, m); });
@@ -229,6 +234,7 @@
       const newIds = [];
       discovered.forEach((m, id) => {
         if ((m.labelIds || []).some((l) => l === 'DRAFT' || l === 'CHAT')) return;
+        if (isExcluded(m.labelIds) && !(existing.get(id) && existing.get(id).status !== 'meta-pending')) { C.excludedByCategory = (C.excludedByCategory || 0) + 1; return; }
         const c = existing.get(id);
         if (c && c.status !== 'deleted' && c.status !== 'meta-pending') { if (m.labelIds) labelUpdates.set(id, m.labelIds); C.cachedUnchanged = (C.cachedUnchanged || 0) + 1; }
         else newIds.push(id);
@@ -245,7 +251,7 @@
         const since = cold || recovering ? windowDays : Math.min(windowDays, Math.max(1, Math.ceil((now() - (cp.lastSyncAt || 0)) / DAY) + 1));
         const want = new Set(newIds);
         for (const [k, query] of Object.entries(cfg.searches)) {
-          const l = await listAll(ctx, 'q=' + encodeURIComponent(`newer_than:${since}d ${query}`), win.backfillMax, C);
+          const l = await listAll(ctx, 'q=' + encodeURIComponent(`newer_than:${since}d ${query} ${EXQ}`.trim()), win.backfillMax, C);
           l.ids.forEach((m) => { if (!want.has(m.id)) return; const s = hints.get(m.id) || new Set(); s.add(cfg.searchHintCategory[k] || k); hints.set(m.id, s); });
         }
       }
@@ -289,7 +295,7 @@
       const aiCredits = Math.min(cfgAll.ai?.maxCredits ?? 25, (cp?.aiCredits || 0) + newIds.length * share);
       const aiSlots = opts.aiEnabled ? Math.max(0, Math.floor(aiCredits) - 0) : 0;
       const aiQueued = all.filter((r) => r.aiPending && r.status !== 'deleted' && r.status !== 'body-queued').sort((a, b) => b.internalDate - a.internalDate).slice(0, aiSlots);
-      const queue = [...all.filter((r) => r.status === 'body-queued').sort((a, b) => prio(b) - prio(a) || b.internalDate - a.internalDate), ...aiQueued];
+      const queue = [...all.filter((r) => r.status === 'body-queued' && !isExcluded(r.labels)).sort((a, b) => prio(b) - prio(a) || b.internalDate - a.internalDate), ...aiQueued];
       const take = queue.slice(0, cfg.maxFullPerSync);
       const takenBodies = take.filter((r) => r.status === 'body-queued').length;
       const bodies = await fetchMany(ctx, take.map((r) => ({ id: r.messageId, path: fullPath(r.messageId) })), 60, 'getFull', C);
@@ -442,7 +448,7 @@
     return { run, runAi, resolveReview, fromCache, buildPools, setBatchSender: (fn) => { batchSend = fn; }, batchDisabled: () => batchFailures >= cfg.batchFallbackAfterFailures, session };
   }
 
-  const api = { createMailPipeline, mapDerived, FIN_MAP, CLS_MAP };
+  const api = { createMailPipeline, mapDerived, excludeQuery, FIN_MAP, CLS_MAP };
   root.DaylightMailPipeline = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

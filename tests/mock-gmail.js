@@ -50,6 +50,7 @@ function createMockGmail(opts) {
     for (const d of take(/\solder_than:(\d+)d/g)) if (m.internalDate >= now - Number(d) * DAY) return false;
     if (take(/\s(has:attachment)/g).length && !(m.attachments || []).length) return false;
     take(/\s(-in:chats)/g);
+    for (const c of take(/\s-category:(\w+)/g)) if (m.labelIds.includes('CATEGORY_' + c.toUpperCase())) return false;
     for (const c of take(/\scategory:(\w+)/g)) if (!m.labelIds.includes('CATEGORY_' + c.toUpperCase())) return false;
     // OR groups
     const groups = take(/\(([^()]*)\)/g);

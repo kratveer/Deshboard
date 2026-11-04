@@ -90,6 +90,15 @@ GMAIL.push(
   m('w07', 'Booking.com <deals@booking.com>', 'Last-minute deals for this weekend', 'Getaway deals: up to 25% off stays this weekend.', '2026-11-03T12:00:00+01:00', [...IN], { listUnsubscribe: true }),
   m('w08', 'Ticketportal <eticket@ticketportal.cz>', 'Vaše e-vstupenky: Česká filharmonie', 'E-vstupenky: Česká filharmonie, Rudolfinum, 28. 11. 2026 v 19:30, objednávka 77812, řada 7, místa 11–12.', '2026-10-29T14:00:00+01:00', [...IN, 'CATEGORY_UPDATES'], { attachments: [{ name: 'vstupenky.pdf', mimeType: 'application/pdf', size: 90000 }] })
 );
+// Marketing mail like the live screenshot (4 Nov): some in Promotions, some in Updates/Primary with an unsubscribe link
+GMAIL.push(
+  m('p01', 'Google Play <googleplay-noreply@google.com>', "We've done it again!", 'Our best deals of the year are back. Tap to see what is new.', '2026-11-03T23:15:00+01:00', [...U, 'CATEGORY_PROMOTIONS'], { listUnsubscribe: true }),
+  m('p02', 'Myntra <news@myntra.com>', 'Summer full of discounts and joy', 'Up to 70% off on top brands. Shop now.', '2026-11-04T00:15:00+01:00', [...U, 'CATEGORY_PROMOTIONS'], { listUnsubscribe: true }),
+  m('p03', 'Naukri Job Alerts <jobalerts@naukri.com>', 'PGCIL Engineer Trainee Job Notification 2026', 'New jobs matching your profile. Apply before 30 Nov 2026.', '2026-11-04T01:15:00+01:00', [...U, 'CATEGORY_UPDATES'], { listUnsubscribe: true }),
+  m('p04', 'MakeMyTrip <offers@makemytrip.com>', 'Make Your Diwali Travel More Rewarding', 'Flat 12% off on flights and hotels this Diwali. Book now.', '2026-11-04T05:15:00+01:00', [...U], { listUnsubscribe: true }),
+  m('p05', 'Acme Robotics <hello@acmerobotics.io>', "Big News: We're Award Winners!", 'Thank you for being part of our journey.', '2026-11-04T06:15:00+01:00', [...U, 'CATEGORY_PERSONAL'], { listUnsubscribe: true }),
+  m('p06', 'Notion Team <team@makenotion.com>', 'Thanks for checking us out! 😎', 'Here is how to get started with your workspace.', '2026-11-04T06:20:00+01:00', [...U, 'CATEGORY_SOCIAL'])
+);
 const SENT = [
   { id: 's01', threadId: 't-landlord-q', from: 'Me <me@example.com>', to: 'Lisbon Host <host@lisbonflats.pt>', subject: 'Question about the apartment', body: 'Hi, is late check-in possible?', snippet: 'Hi, is late check-in possible?', internalDate: at('2026-10-30T10:00:00+01:00'), labelIds: ['SENT'] }
 ];
@@ -117,7 +126,7 @@ const TRUTH = {
   priority: {
     must: ['g07', 'g09', 'g10', 'g01', 'g03'],
     should: ['g08', 'g19', 'g18'],
-    mustNot: ['g04', 'g05', 'g06', 'g11', 'g12', 'g13', 'g14', 'g15', 'g16', 'g17', 'g02'],
+    mustNot: ['g04', 'g05', 'g06', 'g11', 'g12', 'g13', 'g14', 'g15', 'g16', 'g17', 'g02', 'p01', 'p02', 'p03', 'p04', 'p05', 'p06'],
     oneOf: [['g07', 'g07b']]
   }
 };

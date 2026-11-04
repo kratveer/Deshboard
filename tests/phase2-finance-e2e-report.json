@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-04T07:36:19.729Z",
-  "gmailCalls": 229,
+  "generatedAt": "2026-11-04T09:47:49.739Z",
+  "gmailCalls": 226,
   "expectedObligations": [
     "inv:studiopixel:INV2041",
     "mail:f009",
@@ -13,7 +13,7 @@
     "sub:cursor",
     "sub:netflix"
   ],
-  "homeMobile": "Pull to refresh Daylight T Wednesday, Nov 4 Good morning, Test Daily brief Wednesday, November 4 1 need attention You have 1 payment to manage today. One payment is overdue. Your calendar is clear today. 0 tasks 1 payment No events Today’s Schedule View Calendar Nothing on the calendar for today — enjoy the open block. Priority Actions 1 Next 7 Days Tasks Payments Meetings SP Studio Pixel Gmail · Nov 1 Due Today’s Health Open Health score 94/100 +7 vs last week 8,862 Steps 2,468 kcal 7h 19m Sleep Home Inbox Wallet Timeline Health",
+  "homeMobile": "Pull to refresh Daylight T Wednesday, Nov 4 Good morning, Test Daily brief Wednesday, November 4 1 need attention You have 1 payment to manage today. One payment is overdue. Your calendar is clear today. 0 tasks 1 payment No events Today’s Schedule View Calendar Nothing on the calendar for today — enjoy the open block. Priority Actions 1 Next 7 Days Tasks Payments Meetings SP Studio Pixel Gmail · Nov 1 Priority Due Today’s Health Open Health score 94/100 +7 vs last week 8,862 Steps 2,468 kcal 7h 19m Sleep Home Inbox Wallet Timeline Health",
   "checks": [
     {
       "name": "App fetched most fixtures (mail window)",
@@ -183,7 +183,6 @@
         "Vodafone Unpaid bill · Email 1 d ago 499 Kč 40% sure",
         "Studio Pixel Unpaid bill · Email 1 d ago €1,200 40% sure",
         "Acme Hosting Unpaid bill · No due date in the email $80 80% sure",
-        "Uber Purchase receipt · Email 1 d ago 245 Kč 53% sure",
         "Stripe Payment failed · Email 1 d ago $12 90% sure",
         "Trading 212 Payment failed · Email 1 d ago — 82% sure",
         "Netlify Payment failed · Email 1 d ago €49 90% sure"
@@ -192,13 +191,13 @@
     {
       "name": "Home briefing does not lead with or count old automatic Pay tasks",
       "ok": true,
-      "detail": "Good morning, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 11 money emails need a quick check. 1 trip on the radar. Quiet window for focus: 08:36 AM–08:00 PM."
+      "detail": "Good morning, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 10 money emails need a quick check. Quiet window for focus: 10:47 AM–08:00 PM."
     },
     {
       "name": "Home briefing counts only real payments to make this week",
       "ok": true,
       "detail": {
-        "brief": "Good morning, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 11 money emails need a quick check. 1 trip on the radar. Quiet window for focus: 08:36 AM–08:00 PM.",
+        "brief": "Good morning, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 10 money emails need a quick check. Quiet window for focus: 10:47 AM–08:00 PM.",
         "expected": 2
       }
     },
@@ -208,7 +207,7 @@
       "detail": {
         "f010": {
           "category": "paid_invoice",
-          "at": 1793777766737
+          "at": 1793785656208
         }
       }
     },
@@ -217,7 +216,7 @@
       "ok": true,
       "detail": [
         {
-          "id": "4bad3050-e9d3-480d-9d4c-b882f11a2781",
+          "id": "991d0477-8313-4e18-b0dc-0bfc062309db",
           "title": "Pay British Gas · £84.20",
           "suggested": false,
           "financeConfirmed": true
@@ -252,8 +251,8 @@
       "name": "Repeated refreshes keep the same number of financial records",
       "ok": true,
       "detail": {
-        "before": 42,
-        "after": 42
+        "before": 41,
+        "after": 41
       }
     },
     {
@@ -308,7 +307,7 @@
       "ok": true,
       "detail": {
         "badTags": [],
-        "n": 50
+        "n": 48
       }
     },
     {

@@ -2,7 +2,7 @@
   "now": "2026-11-04T08:15:00.000Z",
   "mobile": {
     "home": {
-      "brief": "Daily brief\nWednesday 4 November\n6 need attention\n\nYou have 7 tasks and 3 payments to manage today. Two payments and four tasks are overdue, one more is due today, and three tasks are due today. You have 11 events today, starting at 00:00.\n\n7 tasks\n3 payments\n11 events",
+      "brief": "Daily brief\nWednesday 4 November\n6 need attention\n\nYou have 6 tasks and 3 payments to manage today. Two payments and four tasks are overdue, one more is due today, and two tasks are due today. You have 11 events today, starting at 00:00.\n\n6 tasks\n3 payments\n11 events",
       "briefRows": [],
       "scheduleProse": "You have 9 events today, starting with Gym at 07:30. You’re in Daily standup until 09:30. Next is Lab meeting – Fock state data at 10:00. two events overlap today.",
       "schedule": [
@@ -67,119 +67,242 @@
           "link": false
         }
       ],
-      "priorityTotal": "21",
+      "priorityTotal": "18",
       "priority": [
         {
           "id": "pay:t-g03",
-          "text": "SP Studio Pixel Gmail · 1 Nov Due"
+          "text": "SP Studio Pixel Gmail · 1 Nov Priority Due"
         },
         {
-          "id": "prio:g06",
-          "text": "BF Black Friday: slevy až 50 % Gmail · 3 h ago Priority Reply"
+          "id": "pay:task-money:gt076",
+          "text": "RP Renew passport photos Google Tasks · 3 Nov Priority Due"
         },
         {
-          "id": "prio:w01",
-          "text": "YB Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Priority Trip"
+          "id": "pay:t-g01",
+          "text": "ČP ČEZ Prodej Gmail · 4 Nov Priority Due"
         },
         {
-          "id": "inbox-prio:w01",
-          "text": "R Reply to Ryanair Gmail · 3 h ago Reply"
+          "id": "overdue:Water plants9",
+          "text": "RW Reschedule: Water plants Daylight Priority Reschedule"
         },
         {
-          "id": "travel:t-w01",
-          "text": "R Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Trip"
+          "id": "overdue:Renew passport photos6",
+          "text": "RR Reschedule: Renew passport photos Google Tasks Priority Reschedule"
         },
         {
-          "id": "prio:g16",
-          "text": "AT Arriving today: your package Gmail · 3 h ago Priority Reply"
+          "id": "deadline:Prepare seminar slides8",
+          "text": "PS Prepare seminar slides Daylight Due"
         }
       ],
       "seeAll": true
     },
+    "priorityByChip": {
+      "week": {
+        "on": "week",
+        "total": "18",
+        "cards": [
+          {
+            "id": "pay:t-g03",
+            "text": "SP Studio Pixel Gmail · 1 Nov Priority Due"
+          },
+          {
+            "id": "pay:task-money:gt076",
+            "text": "RP Renew passport photos Google Tasks · 3 Nov Priority Due"
+          },
+          {
+            "id": "pay:t-g01",
+            "text": "ČP ČEZ Prodej Gmail · 4 Nov Priority Due"
+          },
+          {
+            "id": "overdue:Water plants9",
+            "text": "RW Reschedule: Water plants Daylight Priority Reschedule"
+          },
+          {
+            "id": "overdue:Renew passport photos6",
+            "text": "RR Reschedule: Renew passport photos Google Tasks Priority Reschedule"
+          },
+          {
+            "id": "deadline:Prepare seminar slides8",
+            "text": "PS Prepare seminar slides Daylight Due"
+          }
+        ],
+        "empty": ""
+      },
+      "tasks": {
+        "on": "tasks",
+        "total": "4",
+        "cards": [
+          {
+            "id": "overdue:Water plants9",
+            "text": "RW Reschedule: Water plants Daylight Priority Reschedule"
+          },
+          {
+            "id": "overdue:Renew passport photos6",
+            "text": "RR Reschedule: Renew passport photos Google Tasks Priority Reschedule"
+          },
+          {
+            "id": "deadline:Prepare seminar slides8",
+            "text": "PS Prepare seminar slides Daylight Due"
+          },
+          {
+            "id": "deadline:Book Diwali train tickets7",
+            "text": "BD Book Diwali train tickets Google Tasks Due"
+          }
+        ],
+        "empty": ""
+      },
+      "payments": {
+        "on": "payments",
+        "total": "3",
+        "cards": [
+          {
+            "id": "pay:t-g03",
+            "text": "SP Studio Pixel Gmail · 1 Nov Priority Due"
+          },
+          {
+            "id": "pay:task-money:gt076",
+            "text": "RP Renew passport photos Google Tasks · 3 Nov Priority Due"
+          },
+          {
+            "id": "pay:t-g01",
+            "text": "ČP ČEZ Prodej Gmail · 4 Nov Priority Due"
+          }
+        ],
+        "empty": ""
+      },
+      "meetings": {
+        "on": "meetings",
+        "total": "5",
+        "cards": [
+          {
+            "id": "prepare:e03",
+            "text": "PF Prepare for Lab meeting – Fock state data Daylight · Today · 10:00 Prepare"
+          },
+          {
+            "id": "prepare:e04",
+            "text": "PF Prepare for Call with Anita Daylight · Today · 10:30 Prepare"
+          },
+          {
+            "id": "prepare:e05",
+            "text": "PF Prepare for Call with Bangalore team Daylight · Today · 11:00 Prepare"
+          },
+          {
+            "id": "prepare:e10",
+            "text": "PF Prepare for Seminar: quantum optics Daylight · Today · 16:30 Prepare"
+          },
+          {
+            "id": "prepare:e20",
+            "text": "PF Prepare for Lab safety training Daylight · Tomorrow · 10:00 Prepare"
+          }
+        ],
+        "empty": ""
+      }
+    },
+    "fetchedIds": [
+      "g18",
+      "g15",
+      "g07b",
+      "g13",
+      "g17",
+      "g07",
+      "g04",
+      "g05",
+      "g12",
+      "g16",
+      "p05",
+      "w01",
+      "p04",
+      "p03",
+      "g19",
+      "g08",
+      "w07",
+      "w04",
+      "w02c",
+      "g02",
+      "w03",
+      "g11",
+      "w05c",
+      "s01",
+      "w08",
+      "g09",
+      "g01",
+      "g10",
+      "g03",
+      "w02",
+      "w05"
+    ],
     "priorityAll": [
       {
         "id": "pay:t-g03",
-        "text": "SP Studio Pixel Gmail · 1 Nov Due"
+        "text": "SP Studio Pixel Gmail · 1 Nov Priority Due"
       },
       {
-        "id": "prio:g06",
-        "text": "BF Black Friday: slevy až 50 % Gmail · 3 h ago Priority Reply"
+        "id": "pay:task-money:gt076",
+        "text": "RP Renew passport photos Google Tasks · 3 Nov Priority Due"
       },
       {
-        "id": "prio:w01",
-        "text": "YB Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Priority Trip"
+        "id": "pay:t-g01",
+        "text": "ČP ČEZ Prodej Gmail · 4 Nov Priority Due"
       },
       {
-        "id": "inbox-prio:w01",
-        "text": "R Reply to Ryanair Gmail · 3 h ago Reply"
+        "id": "overdue:Water plants9",
+        "text": "RW Reschedule: Water plants Daylight Priority Reschedule"
+      },
+      {
+        "id": "overdue:Renew passport photos6",
+        "text": "RR Reschedule: Renew passport photos Google Tasks Priority Reschedule"
+      },
+      {
+        "id": "deadline:Prepare seminar slides8",
+        "text": "PS Prepare seminar slides Daylight Due"
       },
       {
         "id": "travel:t-w01",
         "text": "R Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Trip"
       },
       {
-        "id": "prio:g16",
-        "text": "AT Arriving today: your package Gmail · 3 h ago Priority Reply"
+        "id": "travel:e13",
+        "text": "FT Flight to Dublin (FR 1234) Daylight Trip"
       },
       {
-        "id": "inbox-prio:g16",
-        "text": "A Reply to Amazon.de Gmail · 3 h ago Reply"
+        "id": "prepare:e03",
+        "text": "PF Prepare for Lab meeting – Fock state data Daylight · Today · 10:00 Prepare"
       },
       {
-        "id": "prio:g12",
-        "text": "TW This week in AI Gmail · 2 h ago Priority Reply"
+        "id": "prepare:e04",
+        "text": "PF Prepare for Call with Anita Daylight · Today · 10:30 Prepare"
       },
       {
-        "id": "reply:t-g12",
-        "text": "SA Reply to Substack AI Weekly Gmail · waiting 2 h Reply"
+        "id": "prepare:e05",
+        "text": "PF Prepare for Call with Bangalore team Daylight · Today · 11:00 Prepare"
       },
       {
-        "id": "inbox-prio:g12",
-        "text": "SA Reply to Substack AI Weekly Gmail · 2 h ago Reply"
+        "id": "prepare:e10",
+        "text": "PF Prepare for Seminar: quantum optics Daylight · Today · 16:30 Prepare"
       },
       {
-        "id": "prio:g14",
-        "text": "AW Anita wants to connect Gmail · 2 h ago Priority Reply"
+        "id": "reply:t-g08",
+        "text": "LW Reply to Li Wei Gmail · waiting 17 h Priority Reply"
       },
       {
-        "id": "prio:g05",
-        "text": "YR Your refund has been processed Gmail · 2 h ago Priority Trip"
-      },
-      {
-        "id": "prio:g04",
-        "text": "PO Potvrzení objednávky 554433 Gmail · 1 h ago Priority Reply"
-      },
-      {
-        "id": "inbox-prio:g04",
-        "text": "A Reply to Alza.cz Gmail · 1 h ago Reply"
-      },
-      {
-        "id": "prio:g07",
-        "text": "MO Meeting on Thursday? Gmail · 1 h ago Priority Reply"
-      },
-      {
-        "id": "inbox-prio:g07",
-        "text": "PJ Reply to Prof. Jan Novák Gmail · 1 h ago Priority Reply"
-      },
-      {
-        "id": "prio:g07b",
-        "text": "RM Re: Meeting on Thursday? Gmail · 35 min ago Priority Reply"
-      },
-      {
-        "id": "inbox-prio:g07b",
+        "id": "reply:t-novak",
         "text": "PJ Reply to Prof. Jan Novák Gmail · 35 min ago Priority Reply"
       },
       {
-        "id": "prio:g18",
-        "text": "PA Position at QuantumTech Gmail · 20 min ago Priority Reply"
+        "id": "reply:t-g19",
+        "text": "PN Reply to Petr Novák Gmail · waiting 14 h Reply"
       },
       {
-        "id": "inbox-prio:g18",
+        "id": "reply:t-g18",
         "text": "EH Reply to Eva Horáková Gmail · 20 min ago Reply"
       },
       {
-        "id": "pay:t-g01",
-        "text": "ČP ČEZ Prodej Gmail · 4 Nov Due"
+        "id": "prepare:e20",
+        "text": "PF Prepare for Lab safety training Daylight · Tomorrow · 10:00 Prepare"
+      },
+      {
+        "id": "deadline:Book Diwali train tickets7",
+        "text": "BD Book Diwali train tickets Google Tasks Due"
       }
     ],
     "money": {
@@ -295,19 +418,28 @@
         },
         {
           "section": "Needs Attention",
-          "id": "t-g12",
-          "title": "Substack AI Weekly",
-          "time": "2 h ago",
-          "snippet": "The biggest stories of the week in AI research and products.",
+          "id": "t-p03",
+          "title": "Naukri Job Alerts",
+          "time": "8 h ago",
+          "snippet": "New jobs matching your profile. Apply before 30 Nov 2026.",
           "tag": "Needs review",
           "unreadMark": false
         },
         {
           "section": "Needs Attention",
-          "id": "t-g14",
-          "title": "LinkedIn",
+          "id": "t-p05",
+          "title": "Acme Robotics",
+          "time": "3 h ago",
+          "snippet": "Thank you for being part of our journey.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g12",
+          "title": "Substack AI Weekly",
           "time": "2 h ago",
-          "snippet": "Anita Sharma would like to join your network.",
+          "snippet": "The biggest stories of the week in AI research and products.",
           "tag": "Needs review",
           "unreadMark": false
         },
@@ -666,19 +798,28 @@
         },
         {
           "section": "Needs Attention",
-          "id": "t-g12",
-          "title": "Substack AI Weekly",
-          "time": "2 h ago",
-          "snippet": "The biggest stories of the week in AI research and products.",
+          "id": "t-p03",
+          "title": "Naukri Job Alerts",
+          "time": "8 h ago",
+          "snippet": "New jobs matching your profile. Apply before 30 Nov 2026.",
           "tag": "Needs review",
           "unreadMark": false
         },
         {
           "section": "Needs Attention",
-          "id": "t-g14",
-          "title": "LinkedIn",
+          "id": "t-p05",
+          "title": "Acme Robotics",
+          "time": "3 h ago",
+          "snippet": "Thank you for being part of our journey.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g12",
+          "title": "Substack AI Weekly",
           "time": "2 h ago",
-          "snippet": "Anita Sharma would like to join your network.",
+          "snippet": "The biggest stories of the week in AI research and products.",
           "tag": "Needs review",
           "unreadMark": false
         },
@@ -740,15 +881,6 @@
       "promotions": [
         {
           "section": "Recent",
-          "id": "t-w06",
-          "title": "Ryanair",
-          "time": "23 h ago",
-          "snippet": "Grab a seat sale: flights to Rome, Milan and Malta from €19.99. Book by ",
-          "tag": "Promotion",
-          "unreadMark": false
-        },
-        {
-          "section": "Recent",
           "id": "t-w07",
           "title": "Booking.com",
           "time": "21 h ago",
@@ -758,10 +890,10 @@
         },
         {
           "section": "Recent",
-          "id": "t-g06",
-          "title": "Alza.cz",
-          "time": "3 h ago",
-          "snippet": "Výprodej elektroniky: slevy až 50 %. Akce platí do neděle.",
+          "id": "t-p04",
+          "title": "MakeMyTrip",
+          "time": "4 h ago",
+          "snippet": "Flat 12% off on flights and hotels this Diwali. Book now.",
           "tag": "Promotion",
           "unreadMark": false
         }
@@ -769,21 +901,21 @@
     },
     "inboxHasSearch": false,
     "inboxDetail": {
-      "id": "t-w06",
+      "id": "t-w07",
       "gmailLinks": [],
       "openButtons": [
-        "SP\n      Studio PixelGmail · 1 NovDue",
-        "BF\n      Black Friday: slevy až 50 %Gmail · 3 h agoPriorityReply",
-        "YB\n      Your boarding pass FR1234 PRG–DUBGmail · 3 h agoPriorityTrip",
-        "R\n      Reply to RyanairGmail · 3 h agoReply",
-        "R\n      Your boarding pass FR1234 PRG–DUBGmail · 3 h agoTrip"
+        "SP\n      Studio PixelGmail · 1 NovPriorityDue",
+        "ČP\n      ČEZ ProdejGmail · 4 NovPriorityDue",
+        "R\n      Your boarding pass FR1234 PRG–DUBGmail · 3 h agoTrip",
+        "LW\n      Reply to Li WeiGmail · waiting 17 hPriorityReply",
+        "PJ\n      Reply to Prof. Jan NovákGmail · 35 min agoPriorityReply"
       ],
-      "sheetText": "‹ Email ☆ ⋯ R Ryanair Gmail 23 h ago Details Notes Activity R Ryanair Flights from €19.99 — this weekend only 3 Nov, 10:00 Grab a seat sale: flights to Rome, Milan and Malta from €19.99. Book by Sunday. Suggested Daylight reads this as: Promotion (80% sure). Nothing to pay. Linked records Flights from €19.99 — this weekend only Flight ticket Money · Promotion Daylight reads this as: Promotion (80%"
+      "sheetText": "‹ Email ☆ ⋯ B Booking.com Gmail 21 h ago Details Notes Activity B Booking.com Last-minute deals for this weekend 3 Nov, 12:00 Getaway deals: up to 25% off stays this weekend. Suggested Daylight reads this as: Promotion (90% sure). Nothing to pay. Linked records Last-minute deals for this weekend Hotel booking Money · Promotion Daylight reads this as: Promotion (90% sure). Nothing to pay. See evide"
     },
     "wallet": {
       "dom": [
         {
-          "section": "Upcoming 3",
+          "section": "Upcoming 2",
           "passes": [
             {
               "wid": "mail:g05",
@@ -792,15 +924,11 @@
             {
               "wid": "mail:w02",
               "text": "DOCUMENT Upcoming Your booking is confirmed at Hotel Lisboa Booking.com · → tal price"
-            },
-            {
-              "wid": "mail:w06",
-              "text": "TICKET Upcoming — → ROME Flights from €19.99 — this weekend only"
             }
           ]
         },
         {
-          "section": "Active 8",
+          "section": "Active 9",
           "passes": [
             {
               "wid": "mail:s01",
@@ -813,6 +941,10 @@
             {
               "wid": "mail:w07",
               "text": "Last-minute deals for this weekend Document · Booking.com"
+            },
+            {
+              "wid": "mail:p04",
+              "text": "Make Your Diwali Travel More Rewarding Ticket · MakeMyTrip"
             },
             {
               "wid": "mail:w05",
@@ -935,6 +1067,11 @@
           "_bookingFp": "|||||||0|",
           "tripMates": [
             {
+              "id": "mail:p04",
+              "title": "Make Your Diwali Travel More Rewarding",
+              "kind": "tickets"
+            },
+            {
               "id": "mail:w05c",
               "title": "Flight schedule change EWQ7Z1",
               "kind": "tickets"
@@ -1020,70 +1157,6 @@
           "rescheduled": false
         },
         {
-          "id": "mail:w06",
-          "childKey": null,
-          "mailId": "w06",
-          "sourceId": "w06",
-          "threadId": "t-w06",
-          "tripId": "trip:rome:2034-03-12",
-          "title": "Flights from €19.99 — this weekend only",
-          "kind": "tickets",
-          "note": "Ryanair · → ROME",
-          "org": "Ryanair",
-          "typeLabel": "Flight ticket",
-          "number": "",
-          "date": "19 Mar 2034",
-          "travelAt": "2034-03-18T23:00:00.000Z",
-          "eventAt": "2034-03-18T23:00:00.000Z",
-          "at": "2026-11-04T08:15:00.000Z",
-          "color": [
-            "#1f6feb",
-            "#0b3d91"
-          ],
-          "href": "https://mail.google.com/mail/u/0/#all/t-w06",
-          "flight": {
-            "flight": "",
-            "from": "",
-            "to": "ROME",
-            "seat": "",
-            "gate": "",
-            "coach": "",
-            "pnr": "",
-            "depart": "",
-            "arrive": ""
-          },
-          "bookingRef": null,
-          "recordKey": "ticket:t-w06",
-          "entityKey": null,
-          "qrAuthentic": false,
-          "barcodeAuthentic": false,
-          "status": "active",
-          "cancelled": false,
-          "legacyIds": [],
-          "sourceRefs": {
-            "mailId": "w06",
-            "threadId": "t-w06",
-            "recordKey": "ticket:t-w06",
-            "entityKey": null
-          },
-          "_bookingFp": "|2026335600000||||||0|ROME",
-          "lastChange": {
-            "kind": "updated",
-            "field": "booking",
-            "from": "|2026335600000||||||0|ROME",
-            "to": "|||||||0|"
-          },
-          "updatedAt": "2026-11-04T08:15:00.000Z",
-          "exactQr": false,
-          "scanSource": false,
-          "attachmentId": null,
-          "attachmentIds": [],
-          "attachments": [],
-          "image": "",
-          "ocr": "",
-          "rescheduled": false
-        },
-        {
           "id": "mail:w07",
           "childKey": null,
           "mailId": "w07",
@@ -1138,6 +1211,71 @@
           "lastChange": null,
           "rescheduled": false,
           "linkedMailId": "w01"
+        },
+        {
+          "id": "mail:p04",
+          "childKey": null,
+          "mailId": "p04",
+          "sourceId": "p04",
+          "threadId": "t-p04",
+          "tripId": "trip:ticketportal:2026-10-25",
+          "title": "Make Your Diwali Travel More Rewarding",
+          "kind": "tickets",
+          "note": "MakeMyTrip",
+          "org": "MakeMyTrip",
+          "typeLabel": "Flight ticket",
+          "number": "",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-p04",
+          "flight": null,
+          "bookingRef": null,
+          "recordKey": null,
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "p04",
+            "threadId": "t-p04",
+            "recordKey": null,
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "tripMates": [
+            {
+              "id": "mail:w08",
+              "title": "Vaše e-vstupenky: Česká filharmonie",
+              "kind": "tickets"
+            },
+            {
+              "id": "mail:w05c",
+              "title": "Flight schedule change EWQ7Z1",
+              "kind": "tickets"
+            },
+            {
+              "id": "mail:w03",
+              "title": "Reservation confirmed at Field",
+              "kind": "tickets"
+            }
+          ],
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "lastChange": null,
+          "rescheduled": false
         },
         {
           "id": "mail:g05",
@@ -1450,6 +1588,11 @@
               "kind": "tickets"
             },
             {
+              "id": "mail:p04",
+              "title": "Make Your Diwali Travel More Rewarding",
+              "kind": "tickets"
+            },
+            {
               "id": "mail:w03",
               "title": "Reservation confirmed at Field",
               "kind": "tickets"
@@ -1523,6 +1666,11 @@
             {
               "id": "mail:w08",
               "title": "Vaše e-vstupenky: Česká filharmonie",
+              "kind": "tickets"
+            },
+            {
+              "id": "mail:p04",
+              "title": "Make Your Diwali Travel More Rewarding",
               "kind": "tickets"
             },
             {
@@ -1687,7 +1835,7 @@
       {
         "time": "10:30 – 11:15",
         "title": "Call with Anita",
-        "meta": "Google Calendar · Mail: Anita wants to connect",
+        "meta": "Google Calendar · Mail: Position at QuantumTech",
         "href": "https://www.google.com/calendar/event?eid=e04",
         "walletId": "",
         "mailId": "",
@@ -1916,12 +2064,12 @@
         "All day · Klára's birthday"
       ],
       "timeline": [],
-      "inboxAllCount": 29
+      "inboxAllCount": 30
     },
     "pageErrors": []
   },
   "desktop": {
-    "summary": "Good morning, Ravi. Daily standup is happening now · 7 more after that. You’ve got 4 things asking for you today — starting with Renew passport photos. 3 people are waiting on a reply. And 2 overdue tasks could use a reschedule. 3 payments to make this week — next: Studio Pixel, 1 later. 1 money email needs a quick check. 8 trips on the radar. Quiet window for focus: 15:45–20:00.",
+    "summary": "Good morning, Ravi. Daily standup is happening now · 7 more after that. You’ve got 4 things asking for you today — starting with Renew passport photos. 2 people are waiting on a reply. And 2 overdue tasks could use a reschedule. 3 payments to make this week — next: Studio Pixel, 1 later. 1 money email needs a quick check. 7 trips on the radar. Quiet window for focus: 15:45–20:00.",
     "chips": [
       {
         "text": "Studio Pixel",
@@ -2024,11 +2172,11 @@
         "href": ""
       },
       {
-        "text": "Reply to Substack AI Weekly Gmail · waiting 2 h This week in AI Suggested action Expand Snooze Done",
+        "text": "Reply to Petr Novák Gmail · waiting 14 h Nájem listopad Suggested action Expand Snooze Done",
         "href": ""
       }
     ],
-    "headline": "Today: 12 events · 11 pending · 32 money · 22 loops",
+    "headline": "Today: 12 events · 11 pending · 32 money · 18 loops",
     "calendarRequests": [
       {
         "calId": "primary",

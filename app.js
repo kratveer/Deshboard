@@ -554,7 +554,7 @@
     let res=null;
     if(v2Enabled()&&v2InboxWait){const pools=await v2InboxWait.promise;if(pools)res={msgs:(pools.inbox||[]).slice(0,10),failed:[],partial:false,error:null}}
     // Shares cache, quota budget and retries with the Gmail sync engine (no duplicate fetches of the same inbox mail)
-    if(!res)res=await gmailEngine().fetchList('labelIds=INBOX',10,'metadata');
+    if(!res)res=await gmailEngine().fetchList('labelIds=INBOX&q='+encodeURIComponent(gmailExcludeQ()),10,'metadata');
     if(res.error&&!res.msgs.length){const e=new Error('Mail: '+(res.error.message||res.error.kind||'Gmail unavailable'));e.status=res.error.status;throw e}
     const msgs=res.msgs;
     providerData.google.mailsNote=res.partial?`Mail: ${res.failed.length||'some'} of ${res.msgs.length+res.failed.filter(f=>!f.stale).length} inbox messages could not refresh`:'';
@@ -901,7 +901,21 @@
     deadline:{label:'Due soon',cls:'t-deadline',icon:'<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'},
     renewal:{label:'Renewal',cls:'t-renewal',icon:'<path d="M20 12a8 8 0 1 1-2.3-5.6L20 9"/><path d="M20 4v5h-5"/>'},
     travel:{label:'Trip',cls:'t-travel',icon:'<path d="M3 13h18M6 13l2-6h8l2 6M6 17h.01M18 17h.01"/><rect x="3" y="13" width="18" height="5" rx="2"/>'}};
-  const AUTOMATED=/(no-?reply|do-?not-?reply|notification|newsletter|mailer|bounce|^updates?@|^news@|^info@|marketing|^hello@|^team@|^support@|^billing@|^receipts?@|^account@|^alerts?@)/i;
+  const AUTOMATED=/(no-?reply|do-?not-?reply|notification|newsletter|mailer|bounce|^updates?@|^news@|^info@|marketing|^hello@|^team@|^support@|^billing@|^receipts?@|^account@|^alerts?@|^offers?@|^deals?@|promo|campaign|digest|jobalerts?|^careers?@|^welcome@|^contact@|^community@)/i;
+  // Bulk / marketing mail is never a priority: Gmail Promotions/Social/Forums, any List-Unsubscribe or bulk header,
+  // the v2 rules' promotion/newsletter/social/security categories, or an automated sender.
+  const PAY_TASK=/(^\s*(pay|zaplat|uhra[dď]|bezahl)|\b(invoice|bill|rent|fee|fees|tuition|installment|instal?ment|emi|loan|faktur\p{L}*|nájem|nájm\p{L}*|poplat\p{L}*|školn\p{L}*|splátk\p{L}*|záloh\p{L}*|miete|rechnung)\b)/iu;
+  const BULK_LABELS=/^CATEGORY_(PROMOTIONS|SOCIAL|FORUMS)$/;
+  function isBulkMail(m){
+    if(!m)return true;
+    if((m.labelIds||[]).some(l=>BULK_LABELS.test(l)))return true;
+    const h=m.payload?.headers||[];
+    if(header(h,'List-Unsubscribe')||header(h,'List-Id')||/^(bulk|list|junk)$/i.test(header(h,'Precedence')))return true;
+    const cc=m._cache?.category;if(cc&&['promotion','newsletter','social','security'].includes(cc))return true;
+    return AUTOMATED.test(parseFrom(header(h,'From')).email||'');
+  }
+  /** Gmail search fragment for the categories Daylight never downloads (from gmail-config.js). */
+  function gmailExcludeQ(){try{const W=window.DaylightGmailConfig,P=window.DaylightMailPipeline;const l=W?.load?.().pipeline?.excludeLabels||[];return P?.excludeQuery?P.excludeQuery(l):l.map(x=>'-category:'+x.replace(/^CATEGORY_/,'').toLowerCase()).join(' ')}catch{return '-category:promotions -category:social -category:forums'}}
   const RENEWAL=/\b(renew(al|s|ing)?|subscription|subscribed|membership|trial (ends|ending|expires)|expir(es|ing|ation)|auto-?renew)\b/i;
   const PENDING_PAY=/\b(payment (due|failed|reminder|declined)|past due|overdue (bill|payment)|action required.*(pay|bill)|unpaid|failed payment|pay now|outstanding balance|dlužn|nezaplacen|platba (po|je) splatnosti)\b/i;
   const BILL=/\b(invoice|bill(ing)?|statement|utilities?|electric|gas bill|water bill|internet bill|phone bill|faktura|vyúčtování|inkaso|složenka|předpis)\b/i;
@@ -1096,12 +1110,12 @@
     // Gmail: list every search first, de-duplicate IDs, then fetch each message once.
     // Finance/travel/document searches need bodies (amounts, dates, attachments) → format=full (capped per sync);
     // inbox-only mail uses format=metadata unless it looks like money/travel/documents.
-    const qp=q=>'q='+encodeURIComponent(q);
+    const qp=q=>'q='+encodeURIComponent((q+' '+gmailExcludeQ()).trim()); // Promotions / Social / Forums are never listed
     const gmailPlan={
       cursor:syncPrev?.gmail?.cursor||null,
       sentThreads:12,
       queries:[
-        {key:'inbox',params:'labelIds=INBOX',max:50,pages:2,body:'auto'},
+        {key:'inbox',params:'labelIds=INBOX&'+qp(''),max:50,pages:2,body:'auto'},
         {key:'moneyA',params:qp(moneyQ[0]),max:30,pages:2,body:'full'},
         {key:'moneyB',params:qp(moneyQ[1]),max:20,pages:1,body:'full'},
         {key:'moneyC',params:qp(moneyQ[2]),max:25,pages:1,body:'full'},
@@ -1654,6 +1668,7 @@
         const mailExtra={mailId:m.id,threadId:m.threadId,fromName:from.name,fromEmail:from.email,whenMs:when.getTime(),snippet:m.snippet||'',subject};
         const finC=loopsData.finance?.byMailClass?.[m.id];
         if(RENEWAL.test(subject)&&age<30*day&&(!finC||finC.category==='subscription_renewal')){add('renewal',m.threadId,`Review: ${subject}`,`From ${from.name}`,ago(when),gmailLink(m.threadId),{...mailExtra,category:'Renewal / Billing'});return}
+        if(isBulkMail(m))return; // offers, newsletters, social and automated mail never become loops
         if(TRAVEL.test(subject)&&age<21*day){
           const booking=(loopsData.bookings||[]).find(b=>b.mailId===m.id||b.threadId===m.threadId);
           const tripBits=booking?[booking.kind==='hotel'?'Hotel':booking.kind==='train'?'Train':'Flight',booking.dest,booking.tripId&&'linked trip'].filter(Boolean).join(' · '):'check dates, tickets and where you’re staying';
@@ -1781,7 +1796,7 @@
     const legacy=[];
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
     [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks].forEach((t,i)=>{
-      const title=t.title||'';if(!MONEY.test(title)&&!PENDING_PAY.test(title)&&!/\b(fee|tuition|rent|školn|nájem|poplat)/i.test(title)&&!/^pay\b/i.test(title))return;
+      const title=t.title||'';if(!PAY_TASK.test(title))return; // only tasks that are clearly about paying (not "Renew passport photos")
       const id='task-money:'+(t.id||title)+i;if(seen.has(id))return;seen.add(id);
       const d=t.dueDate?dueDay(t.dueDate):null;
       const base={id,taskId:t.id,mailId:t.mailId||null,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':(t.href||''),color:brandColor(title),received:false,amount:t.amount||''};
@@ -1819,7 +1834,7 @@
     });
     const dueDay=v=>{const d=new Date(v);return /T00:00:00(\.000)?Z$/.test(v)?new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()):new Date(d.getFullYear(),d.getMonth(),d.getDate())};
     [...(providerData.google.tasks||[]),...(providerData.microsoft.tasks||[]),...personalTasks].forEach((t,i)=>{
-      const title=t.title||'';if(!MONEY.test(title)&&!PENDING_PAY.test(title)&&!/\b(fee|tuition|rent|školn|nájem|poplat)/i.test(title))return;
+      const title=t.title||'';if(!PAY_TASK.test(title))return; // only tasks that are clearly about paying (not "Renew passport photos")
       const id='task-money:'+(t.id||title)+i;if(seen.has(id))return;seen.add(id);
       const d=t.dueDate?dueDay(t.dueDate):null,urgent=!d||d<=new Date(localMidnight.getTime()+7*day);
       const item={id,title:title.replace(/^(pay|reschedule:)\s*/i,'').trim()||title,subject:title,detail:t.listName||t.source||'Task',from:t.listName||'Task',meta:d?d.toLocaleDateString(undefined,{day:'numeric',month:'short'}):(t.due||'Open'),href:t.source==='Microsoft To Do'?'https://to-do.office.com/':t.source==='Google Tasks'?'https://tasks.google.com/':'',when:d?d.getTime():now,kind:'pending',category:'payment',tag:'Payment',urgent,amount:'',color:brandColor(title),received:false};
@@ -2791,7 +2806,7 @@
     const fromLoops=computeLoops().find(l=>l.id===id);
     if(fromLoops)return fromLoops;
     try{
-      const prio=collectPriorityActionsToday().find(l=>l.id===id);
+      const prio=findPriorityItem(id);
       if(prio)return prio;
     }catch{}
     return null;
@@ -4856,97 +4871,88 @@
     return sentences.filter(Boolean).slice(0,3).join(' ');
   }
   /**
-   * Priority Actions — same calendar day, Gmail-sourced only, chronological.
-   * Important/unread mail received today surfaces immediately.
+   * Priority Actions — attention first. Sources: Phase 2 obligations (bills due), tasks, replies owed to real people,
+   * meetings and travel. Never bulk mail (offers, newsletters, social, automated). One entry per email thread.
+   * range: 'week' (next 7 days, default) | 'tasks' | 'payments' | 'meetings'
    */
-  function collectPriorityActionsToday(){
-    const Data=window.DaylightData;
+  let mPrioRange=(()=>{try{return localStorage.getItem('daylight-prio-range')||'week'}catch{return 'week'}})();
+  function collectPriorityActions(range){
+    const r=range||mPrioRange||'week',Data=window.DaylightData;
+    const now=Date.now(),dayMs=86400000,today0=localMidnight.getTime(),horizon=today0+8*dayMs;
     const items=[],seen=new Set();
-    const push=(it)=>{
-      if(!it||!it.id||seen.has(it.id))return;
-      // Gmail-only gate: must have mailId or gmail href
-      const gmail=!!(it.mailId||(it.href&&/mail\.google/i.test(it.href)));
-      if(!gmail)return;
-      seen.add(it.id);items.push(it);
-    };
-    const loops=(token||DEMO)?computeLoops():[];
-    loops.forEach(l=>{
-      if(!(l.mailId||(l.href&&/mail\.google/i.test(l.href))))return;
-      if(l.type==='reply'&&(isHomeToday(l.whenMs)||l.weight>=2&&isHomeToday(l.whenMs))){
-        push({...l,_prio:'reply'});return;
-      }
-      if(l.type==='overdue'){push({...l,_prio:'overdue'});return}
-      if(l.type==='deadline'&&isHomeToday(l.whenMs)&&l.mailId){push({...l,_prio:'deadline'});return}
-      if(l.type==='travel'&&isHomeToday(l.travelWhenMs||l.whenMs)&&l.mailId){push({...l,_prio:'travel'});return}
-      if(l.type==='renewal'&&isHomeToday(l.whenMs)&&l.mailId){push({...l,_prio:'renewal'});return}
-    });
-    // Important Gmail not yet loop-shaped: classified important / inbox IMPORTANT today
-    try{
-      const byId=loopsData?.classified?.byMailId||{};
-      Object.values(byId).forEach(c=>{
-        if(!c?.mailId||c.category==='promotions'||c.category==='newsletters')return;
-        const when=c.whenMs||0;if(!isHomeToday(when))return;
-        // money mail is prioritised only through the obligations block below (never receipts / promos as deadlines)
-        if(['bill','payment','subscription'].includes(c.category))return;
-        const important=c.needsReview||c.category==='ticket'||c.category==='shopping';
-        if(!important)return;
-        push({
-          type:c.category==='ticket'?'travel':c.category==='bill'||c.category==='payment'?'deadline':'reply',
-          id:'prio:'+c.mailId,title:c.subject||c.title||'Important email',
-          detail:c.fromName||c.domain||'',meta:ago(new Date(when)),
-          href:c.href||gmailLink(c.threadId||c.mailId),mailId:c.mailId,threadId:c.threadId,
-          whenMs:when,weight:2,_prio:'important',category:c.category
-        });
+    const keyOf=it=>it.threadId?'t:'+it.threadId:it.mailId?'m:'+it.mailId:'i:'+it.id;
+    const push=(it,src)=>{if(!it||!it.id)return;const k=keyOf(it);if(seen.has(k))return;seen.add(k);items.push({...it,_src:src})};
+    const loops=(token||microsoftAccount||DEMO)?computeLoops():[];
+    if(r==='week'||r==='payments'){
+      try{(computeMoney().obligations||[]).forEach(p=>{
+        const when=+(p.when||p.whenMs||0);if(when&&when>=horizon)return;
+        push({type:'deadline',id:'pay:'+(p.id||p.mailId),title:p.title||p.subject||'Payment due',detail:[p.amount,p.meta].filter(Boolean).join(' · '),meta:p.meta||'Payment',
+          href:p.href||(p.mailId?gmailLink(p.mailId):''),mailId:p.mailId||null,threadId:p.threadId||null,whenMs:when,amount:p.amount,_prio:'pay',weight:2},'payments');
+      })}catch{}
+    }
+    if(r==='week'||r==='tasks'){
+      loops.filter(l=>l.type==='overdue'||l.type==='deadline').forEach(l=>{if(l.whenMs&&l.whenMs>=horizon)return;push({...l,_prio:l.type},'tasks')});
+      [...personalTasks.map(t=>({...t,src:'Daylight'})),...(providerData.google.tasks||[]).map(t=>({...t,src:'Google Tasks'})),...(providerData.microsoft.tasks||[]).map(t=>({...t,src:'To Do'}))].forEach(t=>{
+        if(!t?.title||!t.dueDate||isLegacyPayTask(t))return;
+        const d=dueDayLocal(t.dueDate);if(!d)return;const ms=d.getTime();
+        if(ms<today0+2*dayMs||ms>=horizon)return; // overdue / today / tomorrow already come from the loops above
+        push({type:'deadline',id:'task7:'+(t.id||t.title),title:t.title,detail:t.listName||t.src,meta:'Due '+d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}),
+          href:t.src==='Google Tasks'?'https://tasks.google.com/':t.src==='To Do'?'https://to-do.office.com/':'',whenMs:ms,_prio:'task',category:'Task'},'tasks');
       });
-    }catch{}
-    // Raw IMPORTANT / UNREAD inbox mail received today
-    try{
+    }
+    if(r==='week'||r==='meetings'){
+      (loopsData?.upcoming||[]).forEach(e=>{
+        if(!e?.start?.dateTime||e.status==='cancelled')return;
+        const att=e.attendees||[],self=att.find(a=>a.self);if(att.length<2||self?.responseStatus==='declined')return;
+        const st=new Date(e.start.dateTime).getTime();if(st<now||st>=horizon)return;
+        if(r==='week'&&st>=today0+2*dayMs)return; // the 7-day view keeps meetings for today and tomorrow; the Meetings chip shows the whole week
+        const d=new Date(st),days=Math.floor((st-today0)/dayMs);
+        push({type:'prepare',id:'prepare:'+e.id,title:`Prepare for ${e.summary||'(No title)'}`,detail:`${att.length} people`,meta:(days===0?'Today':days===1?'Tomorrow':d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}))+' · '+hm(d),
+          href:e.htmlLink||'',whenMs:st,_prio:'meeting',category:'Calendar'},'meetings');
+      });
+    }
+    if(r==='week'){
+      try{(Data?.walletItems?Data.walletItems({filter:'tickets'}):[]).forEach(w=>{
+        const ev=Data.eventAt(w);if(!ev||isNaN(ev))return;const ms=ev.getTime();if(ms<today0||ms>=horizon)return;
+        if(w.status==='cancelled'||w.walletStatus==='cancelled')return;
+        push({type:'travel',id:'wallet-prio:'+w.id,title:w.title,detail:w.typeLabel||'Ticket',meta:ev.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})+' · '+hm(ev),
+          href:w.href||(w.mailId?gmailLink(w.mailId):''),mailId:w.mailId||null,threadId:w.threadId||null,walletId:w.id,whenMs:ms,_prio:'ticket'},'travel');
+      })}catch{}
+      loops.filter(l=>l.type==='travel'&&(l.travelWhenMs||l.whenMs)>=today0&&(l.travelWhenMs||l.whenMs)<horizon).forEach(l=>push({...l,whenMs:l.travelWhenMs||l.whenMs,_prio:'travel'},'travel'));
+      // replies you owe to real people (bulk mail never reaches the loops); up to 7 days old
+      loops.filter(l=>l.type==='reply'&&(!l.whenMs||now-l.whenMs<=7*dayMs)).forEach(l=>push({...l,_prio:'reply'},'replies'));
+      // unread mail from people received in the last 2 h (not yet a reply loop)
       (loopsData?.inbox||[]).forEach(m=>{
-        if(!m?.id)return;
-        const labels=m.labelIds||[];
-        const when=new Date(header(m.payload?.headers||[],'Date')||m.internalDate*1).getTime();
-        if(!isHomeToday(when))return;
-        const important=labels.includes('IMPORTANT')||labels.includes('STARRED')||labels.includes('UNREAD');
-        if(!important)return;
-        if(labels.some(l=>/CATEGORY_PROMOTIONS|CATEGORY_SOCIAL|CATEGORY_FORUMS/i.test(l)))return;
-        const h=m.payload?.headers||[],from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)';
-        if(AUTOMATED.test(from.email)&&!labels.includes('IMPORTANT'))return;
-        push({
-          type:'reply',id:'inbox-prio:'+m.id,title:labels.includes('UNREAD')?`Reply to ${from.name}`:subject,
-          detail:subject,meta:ago(new Date(when)),href:gmailLink(m.threadId||m.id),
-          mailId:m.id,threadId:m.threadId,fromName:from.name,fromEmail:from.email,
-          whenMs:when,weight:labels.includes('IMPORTANT')||labels.includes('STARRED')?2:1,_prio:'gmail'
-        });
+        if(!m?.id||isBulkMail(m))return;
+        const labels=m.labelIds||[];if(!labels.includes('UNREAD')&&!labels.includes('IMPORTANT')&&!labels.includes('STARRED'))return;
+        const cc=m._cache?.category;if(cc&&!['personal','other'].includes(cc))return; // bills, receipts, travel… are handled by their own sections
+        const h=m.payload?.headers||[],when=new Date(header(h,'Date')||m.internalDate*1).getTime();if(!isHomeToday(when))return;
+        const from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)';
+        push({type:'reply',id:'reply:'+(m.threadId||m.id),title:`Reply to ${from.name}`,detail:subject,subject,meta:ago(new Date(when)),href:gmailLink(m.threadId||m.id),
+          mailId:m.id,threadId:m.threadId,fromName:from.name,fromEmail:from.email,whenMs:when,weight:labels.includes('IMPORTANT')||labels.includes('STARRED')?2:1,_prio:'reply',category:'Reply / Email'},'replies');
       });
-    }catch{}
-    // Payments pending for today (mail-linked)
-    try{
-      const money=computeMoney();
-      (money.obligations||[]).forEach(p=>{
-        if(!p.mailId)return;
-        const when=p.when||p.whenMs;if(!(isHomeToday(when)||(when&&when<localMidnight.getTime())))return;
-        push({
-          type:'deadline',id:'pay:'+(p.id||p.mailId),title:p.title||p.subject||'Payment due',
-          detail:[p.amount,p.meta].filter(Boolean).join(' · '),meta:p.meta||'Payment',
-          href:p.href||gmailLink(p.mailId),mailId:p.mailId,whenMs:+when,amount:p.amount,_prio:'pay'
-        });
-      });
-    }catch{}
-    // Tickets traveling today (wallet with mailId)
-    try{
-      (Data?.walletItems?Data.walletItems({filter:'tickets'}):[]).forEach(w=>{
-        if(!w.mailId)return;
-        const ev=Data.eventAt(w);if(!ev||!isHomeToday(ev))return;
-        if(w.status==='cancelled')return;
-        push({
-          type:'travel',id:'wallet-prio:'+w.id,title:w.title,detail:w.typeLabel||'Ticket',
-          meta:hm(ev),href:w.href||gmailLink(w.mailId),mailId:w.mailId,walletId:w.id,
-          whenMs:ev.getTime(),_prio:'ticket'
-        });
-      });
-    }catch{}
-    return items.sort((a,b)=>(a.whenMs||0)-(b.whenMs||0)||((b.weight||0)-(a.weight||0)));
+    }
+    // attention first: overdue / due-today payments, overdue tasks, today's deadlines and travel, meetings, replies, then the rest of the week
+    const rank=it=>{const t=it.whenMs||0,od=!!t&&t<today0,td=isHomeToday(t);
+      if(it._prio==='pay')return od?0:td?1:6;
+      if(it._prio==='overdue')return 1.5;
+      if(it._prio==='deadline'||it._prio==='task')return td?2:7;
+      if(it._prio==='ticket'||it._prio==='travel')return td?2.5:8;
+      if(it._prio==='meeting')return td?3:5;
+      if(it._prio==='reply')return (it.weight||0)>=2?3.5:4;
+      return 9};
+    return items.sort((a,b)=>rank(a)-rank(b)||(a.whenMs||0)-(b.whenMs||0));
   }
+  // kept for callers that look items up by id (open sheet, desktop ordering)
+  function collectPriorityActionsToday(){return collectPriorityActions(mPrioRange)}
+  function findPriorityItem(id){for(const r of ['week','tasks','payments','meetings']){const hit=collectPriorityActions(r).find(l=>l.id===id);if(hit)return hit}return null}
+  document.addEventListener('click',e=>{
+    const b=e.target.closest?.('#m-prio-tabs [data-prio]');if(!b)return;
+    mPrioRange=b.dataset.prio||'week';try{localStorage.setItem('daylight-prio-range',mPrioRange)}catch{}
+    $$('#m-prio-tabs [data-prio]').forEach(x=>{const on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false')});
+    try{feel.select()}catch{}
+    renderHome();
+  });
   function orderedHomeLoops(loops){
     // Prefer today Gmail priority list when available
     const today=collectPriorityActionsToday();
@@ -5066,7 +5072,9 @@
     if(!token&&!microsoftAccount&&!DEMO&&!ordered.length){grid.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Your day is quiet</b><p>Connect Google to surface today’s important mail.</p></div>';if(see)see.hidden=true;renderHomeHealth();return}
     if(!loopsData&&token){grid.innerHTML=skelRows(4);if(see)see.hidden=true;renderHomeHealth();return}
     const shown=ordered.slice(0,6);
-    grid.innerHTML=ordered.length?shown.map(mobileLoopCard).join(''):'<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>You’re clear today</b><p>No Gmail priorities for this day yet.</p></div>';
+    $$('#m-prio-tabs [data-prio]').forEach(x=>{const on=x.dataset.prio===mPrioRange;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false')});
+    const emptyMsg={week:'Nothing needs you in the next 7 days.',tasks:'No tasks due in the next 7 days.',payments:'No bills due in the next 7 days.',meetings:'No meetings with others in the next 7 days.'}[mPrioRange]||'Nothing needs you right now.';
+    grid.innerHTML=ordered.length?shown.map(mobileLoopCard).join(''):`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>You’re clear</b><p>${esc(emptyMsg)}</p></div>`;
     if(see){
       see.hidden=ordered.length<=6;
       see.innerHTML=`See All ${svg(ICON.chevron,14)}`;
@@ -5135,10 +5143,10 @@
     const ordered=collectPriorityActionsToday();
     const el=ensureLoopsPop();
     const body=$('#loops-pop-body'),sub=$('#loops-pop-sub');
-    if(sub)sub.textContent=ordered.length?`${ordered.length} today · time order`:'Nothing for today';
+    if(sub)sub.textContent=ordered.length?`${ordered.length} · most urgent first`:'Nothing needs you right now';
     if(body)body.innerHTML=ordered.length
       ?`<div class="m-loop-list loops-pop-list">${ordered.map(mobileLoopCard).join('')}</div>`
-      :`<div class="brief-empty">No Gmail priorities for this day.</div>`;
+      :`<div class="brief-empty">Nothing needs you right now.</div>`;
     el.classList.add('show');el.setAttribute('aria-hidden','false');
     document.body.classList.add('loops-open');
     if(Nav.topView()!=='loops')Nav.push('loops');
@@ -5501,7 +5509,7 @@
     if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Connect to fill Inbox</b><p>Classified mail appears in Subscriptions, Payments, Receipts, Bills, Tickets and Important. Promotions stay in a separate tab.</p></div>';return}
     if(!loopsData&&token){el.innerHTML=skelRows(5);return}
     const items=inboxItems(mInboxFilter);
-    if(!items.length){el.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Inbox is clear</b><p>${mInboxFilter==='all'?'Nothing needs attention right now.':'Nothing in this category.'}</p></div>`;return}
+    if(!items.length){el.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Inbox is clear</b><p>${mInboxFilter==='all'?'Nothing needs attention right now.':mInboxFilter==='promotions'?'Daylight no longer downloads Gmail Promotions, Social or Forums mail. They are still in Gmail.':'Nothing in this category.'}</p></div>`;return}
     const needs=items.filter(i=>i.needsReview||i.kind==='pending'||i.urgent||(i.kind==='bill'&&!i.received)||i.status==='failed'||i.status==='unpaid');
     const needsIds=new Set(needs.map(i=>i.id));
     const week=items.filter(i=>!needsIds.has(i.id)&&!i.received&&i.when&&(i.when-localMidnight.getTime())<=14*86400000);

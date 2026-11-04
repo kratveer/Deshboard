@@ -1,33 +1,33 @@
 {
-  "generatedAt": "2026-11-04T07:36:23.489Z",
+  "generatedAt": "2026-11-04T09:47:52.048Z",
   "checks": [
     {
       "name": "V1 cold open: 30-day backfill into the persistent cache, batch used",
       "ok": true,
       "detail": {
-        "rows": 206,
-        "http": 13,
-        "units": 6791,
+        "rows": 167,
+        "http": 12,
+        "units": 6011,
         "byStatus": {
           "done": 37,
-          "body-queued": 95,
+          "body-queued": 91,
           "review": 3,
-          "classified": 71
+          "classified": 36
         }
       }
     },
     {
       "name": "V1 metadata requests trimmed (metadataHeaders + fields)",
       "ok": true,
-      "detail": "--batch_daylight_hbx5lhnhf7\r\nContent-Type: application/http\r\nContent-ID: <item-sent-0>\r\n\r\nGET /gmail/v1/users/me/messages/sent-0?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=List-Unsubscribe&metadataHeaders=Content-Type&fields=i"
+      "detail": "--batch_daylight_w3436f06xy\r\nContent-Type: application/http\r\nContent-ID: <item-sent-0>\r\n\r\nGET /gmail/v1/users/me/messages/sent-0?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=List-Unsubscribe&metadataHeaders=Content-Type&fields=i"
     },
     {
       "name": "Backlog drained: no bodies or metadata waiting",
       "ok": true,
       "detail": {
-        "done": 105,
+        "done": 101,
         "review": 30,
-        "classified": 71
+        "classified": 36
       }
     },
     {
@@ -68,10 +68,7 @@
           "mail:m0018",
           "mail:m0022",
           "mail:m0035",
-          "mail:m0102",
-          "ord:decathlon:7781121",
-          "ord:gog:88123301",
-          "ord:lidl:3311990"
+          "mail:m0102"
         ],
         "Paid": [
           "inv:stripe:INV2041",
@@ -164,10 +161,7 @@
             "mail:m0018",
             "mail:m0022",
             "mail:m0035",
-            "mail:m0102",
-            "ord:decathlon:7781121",
-            "ord:gog:88123301",
-            "ord:lidl:3311990"
+            "mail:m0102"
           ],
           "Paid": [
             "inv:stripe:INV2041",
@@ -255,10 +249,7 @@
             "mail:m0018",
             "mail:m0022",
             "mail:m0035",
-            "mail:m0102",
-            "ord:decathlon:7781121",
-            "ord:gog:88123301",
-            "ord:lidl:3311990"
+            "mail:m0102"
           ],
           "Paid": [
             "inv:stripe:INV2041",
@@ -321,7 +312,7 @@
     {
       "name": "V2 status line is truthful (not \"partial\")",
       "ok": true,
-      "detail": "Connected to Google · updated 8:36 AM"
+      "detail": "Connected to Google · updated 10:47 AM"
     },
     {
       "name": "V3 manual refresh with no new mail: 1 Gmail request (profile), 1 quota unit",
@@ -361,8 +352,8 @@
       "name": "V4 new bill is in the index with a rule reason",
       "ok": true,
       "detail": {
-        "before": 206,
-        "after": 207
+        "before": 167,
+        "after": 168
       }
     },
     {
@@ -381,9 +372,9 @@
         "flagged": true,
         "byStatus": {
           "deleted": 1,
-          "done": 105,
+          "done": 101,
           "review": 30,
-          "classified": 71
+          "classified": 36
         },
         "billKey": "mail:m0020"
       }
@@ -411,8 +402,8 @@
       "name": "V9 batch endpoint fails: falls back to single GETs, no mail lost",
       "ok": true,
       "detail": {
-        "before": 207,
-        "after": 210
+        "before": 168,
+        "after": 171
       }
     },
     {
@@ -431,7 +422,7 @@
           "active": true,
           "category": "bill",
           "source": "user",
-          "at": 1793777783066
+          "at": 1793785671628
         }
       }
     },
@@ -441,7 +432,7 @@
       "detail": {
         "hasBodyData": false,
         "hasPayloadParts": false,
-        "bytes": 415126
+        "bytes": 379865
       }
     },
     {
@@ -454,27 +445,26 @@
         "req_list": 10,
         "labelOnly": 1,
         "deleted": 1,
-        "req_batch": 14,
-        "batchedParts": 349,
-        "req_getMeta": 210,
-        "domainLookups": 210,
+        "req_batch": 13,
+        "batchedParts": 306,
+        "req_getMeta": 171,
+        "domainLookups": 171,
         "stage_fallback": 24,
-        "noBodyNeeded": 71,
-        "domainHits": 65,
-        "stage_keywords": 134,
-        "bodyQueued": 139,
-        "stage_gmail-category": 35,
+        "noBodyNeeded": 36,
+        "domainHits": 48,
+        "stage_keywords": 130,
+        "bodyQueued": 135,
         "stage_best-effort": 4,
         "stage_list-unsubscribe": 13,
         "escalated": 6,
-        "req_getFull": 139,
+        "req_getFull": 135,
         "req_threadsList": 5,
         "req_threadsGet": 6,
-        "units": 12659,
+        "units": 11639,
         "failed": 0,
         "deferred": 0,
         "aiDeferred": 0,
-        "aiSkipped": 139,
+        "aiSkipped": 135,
         "sync_manual": 9,
         "req_history": 4,
         "batchFallback": 2
@@ -488,6 +478,6 @@
   ],
   "passed": 19,
   "total": 19,
-  "coldUnits": 6791,
-  "coldHttp": 13
+  "coldUnits": 6011,
+  "coldHttp": 12
 }
