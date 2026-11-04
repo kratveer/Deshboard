@@ -93,6 +93,12 @@
   $('#headline-note').innerHTML='Connect your apps to see your day';
   $('#connections').setAttribute('aria-label','Connect your apps');
   document.addEventListener('click',e=>{if(e.target.closest('.js-open-connect')){e.preventDefault();connectDialog({setup:true,focusId:true})}});
+  document.addEventListener('load',e=>{
+    const img=e.target;if(!img||img.tagName!=='IMG'||!img.classList.contains('m-brand-img'))return;
+    // Google's favicon service answers unknown domains with a 16px globe: treat that as "no logo" (initials stay)
+    if(img.naturalWidth&&img.naturalWidth<=16&&/s2\/favicons/.test(img.src)){const next=img.dataset.fallback;img.dataset.fallback='';if(next){img.src=next;return}img.remove();return}
+    img.classList.toggle('is-small',img.naturalWidth>0&&img.naturalWidth<64);
+  },true);
   document.addEventListener('error',e=>{
     const img=e.target;if(!img||img.tagName!=='IMG'||!img.classList.contains('m-brand-img'))return;
     const next=img.dataset.fallback;img.dataset.fallback='';
@@ -2166,7 +2172,7 @@
   };
   $('#menu-btn')?.addEventListener('click',()=>openMenu(!document.body.classList.contains('menu-open')));
   $('#drawer-close')?.addEventListener('click',()=>openMenu(false));scrim?.addEventListener('click',()=>openMenu(false));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(window.DaylightNav?.anyOpen()){window.DaylightNav.back();return}openMenu(false);$('#overlay').classList.remove('show')}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.querySelector('.wstack.has-sel')){try{walletStack().exit()}catch{}return}if(window.DaylightNav?.anyOpen()){window.DaylightNav.back();return}openMenu(false);$('#overlay').classList.remove('show')}});
   ['#connections','#customize'].forEach(s=>$(s)?.addEventListener('click',()=>openMenu(false)));
   function currentPlan(){
     const stored=(getLS('daylight-plan')||'').toLowerCase();
@@ -3356,6 +3362,7 @@
     clock:'<path fill-rule="evenodd" d="M12 3.2a8.8 8.8 0 1 0 0 17.6 8.8 8.8 0 0 0 0-17.6Zm.95 4.4a.95.95 0 1 0-1.9 0v4.2c0 .3.15.58.4.76l2.85 1.95a.95.95 0 0 0 1.06-1.58L12.95 11.3V7.6Z"/>',
     phone:'<path d="M8.2 2.8h7.6A2.2 2.2 0 0 1 18 5v14a2.2 2.2 0 0 1-2.2 2.2H8.2A2.2 2.2 0 0 1 6 19V5A2.2 2.2 0 0 1 8.2 2.8Zm2.6 15.4h2.4a.8.8 0 0 1 0 1.6h-2.4a.8.8 0 0 1 0-1.6Z"/>',
     chevron:'<path d="M9.15 5.25a1.1 1.1 0 0 1 1.56 0l5.5 5.5a1.1 1.1 0 0 1 0 1.56l-5.5 5.5a1.1 1.1 0 1 1-1.56-1.56L13.9 12 9.15 7.25a1.1 1.1 0 0 1 0-2Z"/>',
+    sunFill:'<circle cx="12" cy="12" r="4.9"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(0 12 12)"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(45 12 12)"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(90 12 12)"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(135 12 12)"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(180 12 12)"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(225 12 12)"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(270 12 12)"/><rect x="11" y="1.6" width="2" height="4.2" rx="1" transform="rotate(315 12 12)"/>',
     spark:'<path d="M12 2.6 13.4 8.4l5.8.5-4.45 3.9 1.25 5.7L12 15.4 7.99 18.5l1.26-5.7-4.45-3.9 5.8-.5L12 2.6Z"/>',
     scan:'<path d="M6.4 3.6h2.2a1 1 0 0 1 0 2H6.4A1.4 1.4 0 0 0 5 7v2.2a1 1 0 0 1-2 0V7A3.4 3.4 0 0 1 6.4 3.6Zm9 0h2.2A3.4 3.4 0 0 1 21 7v2.2a1 1 0 0 1-2 0V7a1.4 1.4 0 0 0-1.4-1.4h-2.2a1 1 0 0 1 0-2ZM4 14.8a1 1 0 0 1 1 1V17a1.4 1.4 0 0 0 1.4 1.4h2.2a1 1 0 0 1 0 2H6.4A3.4 3.4 0 0 1 3 17v-1.2a1 1 0 0 1 1-1Zm16 0a1 1 0 0 1 1 1V17a3.4 3.4 0 0 1-3.4 3.4h-2.2a1 1 0 0 1 0-2h2.2A1.4 1.4 0 0 0 19 17v-1.2a1 1 0 0 1 1-1ZM7.2 11a1 1 0 0 1 1-1h7.6a1 1 0 0 1 0 2H8.2a1 1 0 0 1-1-1Z"/>',
     chat:'<path d="M6.6 4.4h10.8A2.6 2.6 0 0 1 20 7v6.2a2.6 2.6 0 0 1-2.6 2.6h-5.3L7.2 19.6v-3.8H6.6A2.6 2.6 0 0 1 4 13.2V7a2.6 2.6 0 0 1 2.6-2.6Z"/>',
@@ -4315,6 +4322,7 @@
     },
     back(){
       if(this.backing)return true;
+      if(document.querySelector('.wstack.has-sel')&&!this.stack.length&&!this.anyOpen()){try{walletStack().exit()}catch{}return true}
       if(this.stack.length){this.backing=true;history.back();return true}
       if(this.anyOpen()){this.dismissTop();this.restoreTab();return true}
       return false;
@@ -4642,7 +4650,7 @@
     // tab screens scroll inside .m-screen, so listen in the capture phase (scroll events do not bubble)
     document.addEventListener('scroll',e=>{const t=e.target;if(t===document||t===Nav.scrollEl())onScroll()},{passive:true,capture:true});
     document.addEventListener('touchstart',()=>{if(canHide()){lastY=y();acc=0}},{passive:true});
-    window.addEventListener('daylight:tab',()=>{lastY=y();acc=0;setTabsHidden(false)});
+    window.addEventListener('daylight:tab',()=>{lastY=y();acc=0;setTabsHidden(false);try{if(mTab!=='wallet')walletStack().exit(true)}catch{}const g=$('#m-loop-grid');if(g&&mTab!=='home')g.style.minHeight=''});
     deskMq.addEventListener?.('change',()=>{setTabsHidden(false);requestAnimationFrame(()=>syncTabThumb(false))});
     addEventListener('resize',()=>requestAnimationFrame(()=>syncTabThumb(false)),{passive:true});
   })();
@@ -4655,6 +4663,7 @@
     document.addEventListener('touchstart',e=>{
       if(!mq.matches||Nav.anyOpen()||busy||!atTop())return;
       if(mTab!=='home'&&mTab!=='inbox'&&mTab!=='wallet')return;
+      if(e.target.closest?.('.wstack'))return;
       startY=e.touches[0].clientY;pulling=true;armed=false;
     },{passive:true});
     document.addEventListener('touchmove',e=>{
@@ -4897,6 +4906,7 @@
   }
   // ======== Home v3: Daily Brief (today, linked coloured chips) · Today's Schedule (day timeline) · Priority Actions (mail, 7 days) ========
   const HOME_KIND={task:'Task',reply:'Reply',pay:'Payment',travel:'Travel',deadline:'Deadline',reminder:'Reminder',event:'Event',renewal:'Renewal'};
+  setTimeout(()=>{try{ensureHomeV3Styles()}catch{}},0); // shared tile styles are needed even if the app opens on Inbox
   function ensureHomeV3Styles(){
     if($('#home-v3-css'))return;
     const st=document.createElement('style');st.id='home-v3-css';st.textContent=`
@@ -4906,17 +4916,19 @@
       body.dark{--k-task:#a9c7ff;--k-task-bg:rgba(96,140,255,.2);--k-pay:#ffd48a;--k-pay-bg:rgba(245,158,11,.22);--k-travel:#7fe3d6;--k-travel-bg:rgba(20,184,166,.22);
         --k-deadline:#ffb4ab;--k-deadline-bg:rgba(239,68,68,.22);--k-reminder:#d4bcff;--k-reminder-bg:rgba(139,92,246,.24);--k-event:#c7c9ff;--k-event-bg:rgba(99,102,241,.24);
         --k-renewal:#cbd5e1;--k-renewal-bg:rgba(148,163,184,.22);--k-reply:#ffb0d4;--k-reply-bg:rgba(236,72,153,.22)}
-      .bchip{display:inline-flex;align-items:center;gap:4px;max-width:100%;vertical-align:baseline;border:0;margin:2px 3px 2px 0;padding:1px 8px 2px;border-radius:8px;
-        font:650 13.5px/1.45 var(--font,system-ui);cursor:pointer;text-align:left;white-space:normal;word-break:break-word;text-decoration:none}
+      .bchip{display:inline;border:0;margin:0;padding:0;background:none!important;border-radius:3px;
+        font:inherit;font-weight:600;cursor:pointer;text-align:left;white-space:normal;text-decoration:none}
+      @media(hover:hover){.bchip:hover{opacity:.8}}.bchip{padding:6px 0;margin:-6px 0;-webkit-box-decoration-break:clone;box-decoration-break:clone}
       .bchip:focus-visible{outline:2px solid currentColor;outline-offset:1px}
-      .bchip small{font-weight:600;opacity:.82;font-size:12px}
+      .bchip small{font-weight:500;opacity:.85;font-size:inherit}
       .bchip.k-task{color:var(--k-task);background:var(--k-task-bg)}.bchip.k-reply{color:var(--k-reply);background:var(--k-reply-bg)}
       .bchip.k-pay{color:var(--k-pay);background:var(--k-pay-bg)}.bchip.k-travel{color:var(--k-travel);background:var(--k-travel-bg)}
-      .bchip.k-deadline{color:var(--k-deadline);background:var(--k-deadline-bg)}.bchip.k-more{color:var(--muted);background:var(--card2)}
+      .bchip.k-deadline{color:var(--k-deadline);background:var(--k-deadline-bg)}.bchip.k-event{color:var(--k-event)}.bchip.past{opacity:.55}.bchip.k-more{color:var(--muted);background:var(--card2)}
       .bchip .bdot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
-      body.m .m-brief-prose.v3{color:var(--ink);font:500 14.5px/1.75 var(--font)}
-      body.m .m-brief-prose.v3 b.lbl{font-weight:750;margin-right:6px}
-      .bline{display:block;margin:0 0 6px}.bline.bnote{color:var(--muted);font-size:13px;margin-top:2px}
+      body.m .m-schedule-prose.v3{font:450 14.5px/1.7 var(--font);color:var(--ink)}body.m .m-schedule-prose.v3 b.lbl{font-weight:650}
+      body.m .m-brief-prose.v3{color:color-mix(in srgb,var(--ink) 62%,var(--card));font:450 14.5px/1.7 var(--font);word-spacing:normal;letter-spacing:0}
+      body.m .m-brief-prose.v3 .bs{display:inline}body.m .m-brief-prose.v3 .bnote{color:var(--muted)}
+      body.m .m-brief-prose.v3 b.lbl{font-weight:650;color:color-mix(in srgb,var(--ink) 72%,var(--card))}
       .m-brief-legend{display:flex;flex-wrap:wrap;gap:6px 12px;font:600 11.5px/1 var(--font);color:var(--muted)}
       .m-brief-legend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:-1px}
       /* day timeline */
@@ -4936,6 +4948,11 @@
       .dl-now{position:absolute;left:38px;right:0;height:0;border-top:2px solid #ef4444;z-index:3}
       .dl-now::before{content:'';position:absolute;left:-5px;top:-5px;width:8px;height:8px;border-radius:50%;background:#ef4444}
       /* priority list */
+      /* Priority Actions tiles = Inbox tiles (same padding, radius and logo size) */
+      body.m .m-inbox-card.pa-row{width:100%;margin:0}
+      body.m .m-loop-list:has(.pa-row){gap:6px}
+      body.m .m-swipe>.m-inbox-card{width:100%;position:relative;z-index:1}body.m .m-swipe{border-radius:18px}body.m .m-swipe:not(.open):not(.dragging) .m-swipe-actions{visibility:hidden}
+      body.m .m-inbox-card .m-inbox-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:4px;margin:0;padding:0}body.m .m-inbox-card.pa-row .m-inbox-top time{white-space:nowrap}
       .pa-day{font:750 12px/1 var(--font);letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin:14px 2px 6px}
       .pa-day.is-overdue{color:var(--k-deadline)}
       .pa-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--line);background:var(--card);color:inherit;border-radius:16px;padding:10px 12px;margin:0 0 8px;cursor:pointer;font:inherit}
@@ -5080,29 +5097,30 @@
   function chipTime(it){if(!it.whenMs)return '';if(it.overdue)return 'overdue';if(it.hasTime)return hm(new Date(it.whenMs));return ''}
   function briefChip(it){
     const kind=it.kind==='reminder'||it.kind==='event'?'task':it.kind;
-    const extra=[it.amount,chipTime(it)].filter(Boolean).join(' · ');
-    return `<button type="button" class="bchip k-${esc(kind)}" data-brief-kind="${esc(it.kind)}" data-brief-id="${esc(it.id||'')}" ${it.href?`data-brief-href="${esc(it.href)}"`:''} ${it.mailId?`data-brief-mail="${esc(it.mailId)}"`:''} ${it.finKey?`data-brief-fin="${esc(it.finKey)}"`:''} ${it.loopId?`data-brief-loop="${esc(it.loopId)}"`:''} title="${esc((HOME_KIND[it.kind]||'')+' · '+(it.source||''))}"><span class="bdot" aria-hidden="true"></span>${esc(it.title)}${extra?` <small>${esc(extra)}</small>`:''}</button>`;
+    const t=chipTime(it),tt=t&&t!=='overdue'?`${it.kind==='deadline'?'by':'at'} ${t}`:'';
+    const extra=[it.amount,it.kind==='pay'&&t==='overdue'?'overdue':''].filter(Boolean).join(', ');
+    return `<span role="button" tabindex="0" class="bchip k-${esc(kind)}" data-brief-kind="${esc(it.kind)}" data-brief-id="${esc(it.id||'')}" ${it.href?`data-brief-href="${esc(it.href)}"`:''} ${it.mailId?`data-brief-mail="${esc(it.mailId)}"`:''} ${it.finKey?`data-brief-fin="${esc(it.finKey)}"`:''} ${it.loopId?`data-brief-loop="${esc(it.loopId)}"`:''} title="${esc((HOME_KIND[it.kind]||'')+' · '+(it.source||''))}">${esc(it.title)}${extra?` <small>(${esc(extra)})</small>`:''}${tt?` <small>${esc(tt)}</small>`:''}</span>`;
   }
   function chipList(list,max){
     const shown=list.slice(0,max||4).map(briefChip),more=list.length-(max||4);
-    if(more>0)shown.push(`<button type="button" class="bchip k-more" data-brief-kind="more">+${more} more</button>`);
-    return shown.join(' ');
+    if(more>0)shown.push(`<span role="button" tabindex="0" class="bchip k-more" data-brief-kind="more">${more} more</span>`);
+    return shown.length>1?shown.slice(0,-1).join(', ')+' and '+shown.at(-1):(shown[0]||'');
   }
   function composeBriefV3(b){
     if(!b.connected)return esc('Connect Google to brief today’s mail, calendar and tasks.');
     const s=[];
     const todo=b.tasks.filter(t=>!t.overdue),late=b.tasks.filter(t=>t.overdue);
-    const line=(lbl,html)=>`<span class="bline"><b class="lbl">${esc(lbl)}</b>${html}</span>`;
-    if(todo.length)s.push(line('To do today',chipList(todo)));
-    if(late.length)s.push(line('Overdue',chipList(late)));
+    const line=(lbl,html)=>`<span class="bs"><b class="lbl">${esc(lbl)}</b> ${html}.</span>`;
+    if(todo.length)s.push(line('To do today:',chipList(todo)));
+    if(late.length)s.push(line('Overdue:',chipList(late)));
     const payToday=b.pays.filter(p=>!p.overdue),payLate=b.pays.filter(p=>p.overdue);
     if(payToday.length||payLate.length)s.push(line('Pay',chipList([...payLate,...payToday])));
-    if(b.travel.length)s.push(line('Travel',chipList(b.travel)));
+    if(b.travel.length)s.push(line('Travel:',chipList(b.travel)));
     if(b.replies.length)s.push(line('Reply to',chipList(b.replies,3)));
     const now=new Date(),next=b.events.find(e=>e.end>now);
-    if(b.events.length)s.push(`<span class="bline bnote">${b.events.length} ${b.events.length===1?'event':'events'} on your calendar${next?` · next ${esc(next.title)} at ${hm(next.start)}`:''}</span>`);
+    // calendar summary lives in Today's Schedule, not in the brief
     if(!s.length)return esc('Nothing due today — a clear day.');
-    return s.join('');
+    return s.join(' ');
   }
   function renderBriefV3(){
     const brief=$('#m-brief');if(!brief)return;
@@ -5110,10 +5128,11 @@
     const b=collectBriefToday();
     const attention=b.tasks.filter(t=>t.overdue).length+b.pays.filter(p=>p.overdue).length;
     const dateLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
-    const status=b.connected?(attention?`<span class="m-brief-status is-hot">${attention} overdue</span>`:'<span class="m-brief-status">On track</span>'):'';
+    const actions=b.tasks.length+b.pays.length+b.travel.length+b.replies.length;
+    const status=b.connected?(actions?`<span class="m-brief-status${attention?' is-hot':''}" title="${attention?esc(attention+' overdue'):''}">${actions} ${actions===1?'Action':'Actions'}</span>`:'<span class="m-brief-status">On track</span>'):'';
     const n=b.tasks.length+b.replies.length;
     brief.innerHTML=`<div class="m-brief-head">
-        <span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span>
+        <span class="m-brief-ico" aria-hidden="true">${svg(ICON.sunFill,28)}</span>
         <div class="m-brief-copy"><b>Daily brief</b><small>${esc(dateLabel)}</small></div>${status}
       </div>
       <p class="m-brief-prose v3">${composeBriefV3(b)}</p>
@@ -5134,8 +5153,9 @@
     const allDayItems=todayEvents.allDayItems||[];
     const d0=localMidnight.getTime(),d1=d0+86400000;
     const items=timed.filter(e=>e.end.getTime()>d0&&e.start.getTime()<d1);
-    if(proseEl)proseEl.textContent=composeScheduleProse({timed:items.filter(e=>isHomeToday(e.start)),allDay,connected});
-    if(!connected&&!DEMO){rail.innerHTML='';rail.hidden=true;return}
+    if(proseEl){proseEl.classList.add('v3');proseEl.innerHTML=composeScheduleSentence(items.filter(e=>isHomeToday(e.start)),allDayItems,connected)}
+    // the day timeline is no longer shown on Home — the sentence above lists every event (Timeline tab has the full calendar)
+    rail.innerHTML='';rail.hidden=true;return;
     if(!items.length&&!allDay.length){rail.innerHTML='';rail.hidden=true;return}
     rail.hidden=false;
     const PX=46,hOf=t=>(Math.max(d0,Math.min(d1,t))-d0)/3600000;
@@ -5180,21 +5200,33 @@
   }
   function collectPriorityActionsToday(){return collectPriorityActions(mPrioRange)}
   function findPriorityItem(id){for(const r of ['week']){const hit=collectPriorityActions(r).find(l=>l.id===id);if(hit)return hit}return null}
+  function prioritySender(it){
+    if(it.fromEmail)return {name:it.from||'',email:it.fromEmail};
+    const m=it.mailId&&mailPool().find(x=>x.id===it.mailId);
+    if(m){const f=parseFrom(header(m.payload?.headers||[],'From'));return {name:it.from||f.name||'',email:f.email||''}}
+    return {name:it.from||'',email:''};
+  }
+  // Priority Actions use the same row as the Inbox: sender logo · title + detail · when / amount + tag
   function priorityCard(it){
-    const t=it.hasTime&&!(it.overdue&&it.kind!=='travel')?hm(new Date(it.whenMs)):(it.kind==='pay'?(it.overdue?'Overdue':'Due'):it.kind==='renewal'?'Renews':it.kind==='deadline'?'By':'Day');
-    const sub=(it.kind==='pay'||it.kind==='renewal')?[it.subject&&it.subject!==it.title?it.subject:'',it.from&&it.from!==it.title?it.from:''].filter(Boolean).join(' · '):[it.from,it.quote].filter(Boolean).join(' · ');
-    return `<button type="button" class="pa-card" data-loop="${esc(it.id)}" data-open-loop="${esc(it.id)}">
-      <span class="pa-time">${esc(t)}${it.amount?`<small>${esc(it.amount)}</small>`:''}</span>
-      <span class="pa-main"><b>${esc(it.title)}</b><small>${esc(sub||'Gmail')}</small></span>
-      <span class="pa-pill k-${esc(it.kind)}">${esc(HOME_KIND[it.kind]||'')}</span>
-    </button>`;
+    const dt=new Date(it.whenMs),day=`${dt.toLocaleDateString('en-GB',{weekday:'short'})}, ${dt.getDate()} ${dt.toLocaleDateString('en-GB',{month:'short'})}`;
+    const when=it.overdue&&it.kind!=='travel'?'Overdue':it.hasTime?`${day}, ${hm(dt)}`:day;
+    const snd=prioritySender(it);
+    const name=(it.kind==='pay'||it.kind==='renewal')?it.title:(snd.name||it.title);
+    const line2=(it.kind==='pay'||it.kind==='renewal')?(it.subject&&it.subject!==it.title?it.subject:snd.name):it.title;
+    const line3=(it.kind==='pay'||it.kind==='renewal')?'':(it.quote&&it.quote!==it.title?it.quote:'');
+    const logoItem={title:name,fromEmail:snd.email,from:snd.name,fromName:snd.name};
+    const tagCls={pay:' is-urgent',deadline:' is-review',travel:' is-ticket',renewal:' is-sub',reminder:' is-bill',event:' is-bill'}[it.kind]||'';
+    return `<button type="button" class="m-inbox-card pa-row${it.overdue?' is-urgent':''}" data-loop="${esc(it.id)}" data-open-loop="${esc(it.id)}">
+        <span class="m-inbox-logo m-brand" style="--a1:${esc(brandColor(name))};--a2:${esc(brandColor(name))}" aria-hidden="true">${brandLogoHTML(logoItem,name.trim().slice(0,2).toUpperCase())}</span>
+        <span class="m-inbox-copy"><span class="m-inbox-top"><b>${esc(name)}</b><time>${esc(when)}</time></span>
+        <small>${esc(decodeEntities([line2,line3].filter(Boolean).join(' — '))||'Gmail')}</small></span>
+        <span class="m-inbox-side">${it.amount?`<span class="m-inbox-amt">${esc(it.amount)}</span>`:''}<span class="m-pill-tag${tagCls}">${esc(HOME_KIND[it.kind]||'')}</span></span>
+      </button>`;
   }
   function priorityGroupsHTML(items,limit){
     let out='',last='',n=0;
     for(const it of items){
       if(limit&&n>=limit)break;
-      const lbl=it.overdue&&it.kind!=='travel'?'Overdue':fmtDayLabel(it.whenMs);
-      if(lbl!==last){out+=`<div class="pa-day${lbl==='Overdue'?' is-overdue':''}">${esc(lbl)}</div>`;last=lbl}
       out+=priorityCard(it);n++;
     }
     return out;
@@ -5203,7 +5235,11 @@
     const b=e.target.closest?.('#m-prio-tabs [data-prio]');if(!b)return;
     mPrioRange=b.dataset.prio||'week';try{localStorage.setItem('daylight-prio-range',mPrioRange)}catch{}
     try{feel.select()}catch{}
+    // keep the Priority section where it is: hold the list's height so a shorter list cannot pull the page up
+    const grid=$('#m-loop-grid'),sc=Nav.scrollEl(),y=sc?.scrollTop||0;
+    if(grid){const h=grid.offsetHeight;grid.style.minHeight=Math.max(h,parseFloat(grid.style.minHeight)||0)+'px'}
     renderHome();
+    if(sc)sc.scrollTop=y;
   });
   function orderedHomeLoops(loops){
     // Prefer today Gmail priority list when available
@@ -5219,6 +5255,28 @@
     if(/\b(project|build|design|laptop|studio|work block)\b/.test(t))return {tone:'purple',icon:ICON.laptop};
     if(/\b(meet|call|sync|standup|1:?1|interview|research)\b/.test(t))return {tone:'blue',icon:ICON.calendar};
     return {tone:'blue',icon:ICON.calendar};
+  }
+  // Today's Schedule as one paragraph, same format as the Daily brief: label + coloured, linked event names
+  function composeScheduleSentence(items,allDayItems,connected){
+    if(!connected&&!DEMO)return esc('Connect Google Calendar to see today’s events here.');
+    const now=new Date();
+    if(!items.length&&!allDayItems.length)return esc('Nothing on the calendar for today — enjoy the open block.');
+    const chip=(e,timeTxt)=>{
+      const k=scheduleKind(e)==='t-travel'?'travel':'event',past=e.end&&e.end<=now,cur=e.start<=now&&e.end>now;
+      return `<span role="button" tabindex="0" class="bchip k-${k}${past?' past':''}" data-sched-href="${esc(e.href||'')}" title="${esc([e.title,e.location].filter(Boolean).join(' · '))}">${esc(e.title)}${timeTxt?` <small>${esc(timeTxt)}</small>`:''}${cur?' <small>(now)</small>':''}</span>`;
+    };
+    const list=a=>a.length>1?a.slice(0,-1).join(', ')+' and '+a.at(-1):(a[0]||'');
+    const s=[];
+    const parts=[['Morning',0,12],['Afternoon',12,17],['Evening',17,24]];
+    parts.forEach(([lbl,h0,h1])=>{
+      const g=items.filter(e=>{const h=e.start.getHours();return h>=h0&&h<h1});
+      if(g.length)s.push(`<span class="bs"><b class="lbl">${lbl}:</b> ${list(g.map(e=>chip(e,'at '+hm(e.start))))}.</span>`);
+    });
+    if(allDayItems.length){
+      const ad=allDayItems.map(e=>({title:e.summary||e.title||'Event',href:e.htmlLink||e.href||'',start:new Date(0),end:new Date(8.64e15)}));
+      s.push(`<span class="bs"><b class="lbl">All day:</b> ${list(ad.map(e=>chip(e,'').replace(' <small>(now)</small>','')))}.</span>`);
+    }
+    return s.join(' ');
   }
   function composeScheduleProse({timed,allDay,connected}){
     if(!connected&&!DEMO)return 'Connect Google Calendar to see today’s timeline here.';
@@ -5376,6 +5434,9 @@
     if(j==='events'){setTab('assistant');return}
     if(j==='todo'||j==='waiting'){openLoopsPop();return}
   });
+  document.addEventListener('click',e=>{const c=e.target.closest?.('#m-schedule-prose [data-sched-href]');if(!c)return;const h=c.dataset.schedHref;feel.select();if(h)window.open(h,'_blank','noopener');else setTab('assistant')});
+  document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest?.('#m-schedule-prose .bchip')){e.preventDefault();e.target.click()}});
+  $('#m-brief')?.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.closest?.('.bchip')){e.preventDefault();e.target.click()}});
   $('#m-brief')?.addEventListener('click',e=>{
     const row=e.target.closest('[data-brief-kind]');if(!row)return;
     const kind=row.dataset.briefKind,id=row.dataset.briefId,href=row.dataset.briefHref,mail=row.dataset.briefMail;
@@ -5670,11 +5731,12 @@
     if(item.whenMs||item.when){try{return ago(new Date(item.whenMs||item.when))}catch{}}
     return inboxDateLabel(item)||'';
   }
+  function decodeEntities(t){t=String(t||'');if(!/&(#\d+|#x[\da-f]+|[a-z]+);/i.test(t))return t;const ta=decodeEntities.el||(decodeEntities.el=document.createElement('textarea'));ta.innerHTML=t;return ta.value}
   function inboxCard(item){
     const initial=(item.title||'?').trim().slice(0,2).toUpperCase();
     const tag=item.fin?item.tag:item.needsReview?'Needs review':item.kind==='pending'||item.urgent?inboxDaysLabel(item):(item.tag||MONEY_LABEL[item.kind]||inboxDaysLabel(item)||'');
     const tagCls=item.fin?({outstanding:' is-urgent',review:' is-review',upcoming:' is-bill'}[item.fin.bucket]||(item.kind==='subscription'?' is-sub':'')):item.needsReview?' is-review':item.urgent?' is-urgent':item.kind==='pending'?' is-review':item.kind==='subscription'?' is-sub':item.kind==='bill'?' is-bill':item.kind==='ticket'?' is-ticket':item.kind==='shopping'?' is-shop':'';
-    const snip=(item.snippet||item.subject||item.detail||'').replace(/\s+/g,' ').trim().slice(0,72);
+    const snip=decodeEntities(item.snippet||item.subject||item.detail||'').replace(/\s+/g,' ').trim().slice(0,72);
     const amt=item.amount?`<span class="m-inbox-amt">${esc(item.amount)}</span>`:'';
     return `<div class="m-swipe" data-swipe-id="${esc(item.id)}">
       <div class="m-swipe-actions" aria-hidden="true">
@@ -5775,17 +5837,18 @@
     host.addEventListener('touchmove',e=>{
       if(!s)return;
       const t=e.touches[0],dx=t.clientX-s.x0,dy=Math.abs(t.clientY-s.y0);
-      if(!s.active){if(dy>12&&dy>Math.abs(dx)){s=null;return}if(Math.abs(dx)<8)return;s.active=true;$$('#m-inbox .m-swipe.open').forEach(r=>{if(r!==s.row)r.classList.remove('open')})}
+      if(!s.active){if(dy>12&&dy>Math.abs(dx)){s=null;return}if(Math.abs(dx)<8)return;s.active=true;s.row.classList.add('dragging');$$('#m-inbox .m-swipe.open').forEach(r=>{if(r!==s.row)r.classList.remove('open')})}
       if(e.cancelable)e.preventDefault();
       const x=Math.min(0,Math.max(-108,s.start+dx));
       s.row.style.transition='none';
-      const card=s.row.querySelector('.m-inbox-card');if(card)card.style.transform=`translate3d(${x}px,0,0)`;
+      const card=s.row.querySelector('.m-inbox-card');if(card){card.style.transition='none';card.style.transform=`translate3d(${x}px,0,0)`}
       s.x=x;
     },{passive:false});
     const end=()=>{
       if(!s)return;
       const row=s.row,x=s.x||0,card=row.querySelector('.m-inbox-card');
       row.style.transition='';if(card){card.style.transition='transform .22s var(--ease-out,cubic-bezier(.22,.9,.28,1))';card.style.transform=''}
+      row.classList.remove('dragging');
       if(x<-54){row.classList.add('open');feel.select()}else row.classList.remove('open');
       s=null;
     };
@@ -6069,8 +6132,9 @@
     // Prefer status sections when tickets/travel; otherwise keep compact list
     const useStatus=mWalletFilter==='all'||mWalletFilter==='tickets';
     if(useStatus&&(upcoming.length||expired.length)){
-      const sec=(title,list,mode)=>!list.length?'':`<div class="m-wallet-sec"><h3 class="m-inbox-sec-h">${esc(title)} <em>${list.length}</em></h3><div class="${mode==='card'?'m-wallet-list':'m-wallet-rows'}">${list.map(i=>walletPassHTML(i,mode)).join('')}</div></div>`;
-      el.innerHTML=`${sec('Upcoming',upcoming,'card')}${sec('Active',active.filter(i=>!upcoming.includes(i)),upcoming.length?'row':'card')}${sec('Expired',expired,'row')}`;
+      const sec=(title,list,mode)=>!list.length?'':`<div class="m-wallet-sec"><h3 class="m-inbox-sec-h m-wallet-sec-h">${esc(title)} <span class="m-count-pill">${list.length}</span></h3><div class="${mode==='card'?'m-wallet-list':'m-wallet-rows'}">${list.map(i=>walletPassHTML(i,mode)).join('')}</div></div>`;
+      el.innerHTML=`${sec('Upcoming',upcoming,'card')}${sec('Active',active.filter(i=>!upcoming.includes(i)),'card')}${sec('Expired',expired,'row')}`;
+      walletStack().mount(el);
       return;
     }
     const pinned=items.filter(i=>i.kind==='tickets'||i.flight).slice(0,3);
@@ -6078,8 +6142,118 @@
     const recent=items.filter(i=>!pinnedIds.has(i.id));
     el.innerHTML=`
       ${pinned.length?`<div class="m-wallet-sec"><h3 class="m-inbox-sec-h">Upcoming</h3><div class="m-wallet-list">${pinned.map(i=>walletPassHTML(i,'card')).join('')}</div></div>`:''}
-      <div class="m-wallet-sec"><h3 class="m-inbox-sec-h">${pinned.length?'All':'Passes'}</h3><div class="m-wallet-rows">${(pinned.length?recent:items).map(i=>walletPassHTML(i,pinned.length?'row':'card')).join('')||'<div class="m-empty">No other items.</div>'}</div></div>`;
+      <div class="m-wallet-sec"><h3 class="m-inbox-sec-h">${pinned.length?'All':'Passes'}</h3><div class="${pinned.length?'m-wallet-rows':'m-wallet-list'}">${(pinned.length?recent:items).map(i=>walletPassHTML(i,pinned.length?'row':'card')).join('')||'<div class="m-empty">No other items.</div>'}</div></div>`;
+    walletStack().mount(el);
   }
+  /* ---- Wallet card stack (Apple Wallet style) ----
+     Collapsed: cards overlap, each showing its header strip. Tap a card → it rises to the top and the others
+     drop into a pile below. Tap the raised card → details. Swipe it down, or tap the pile → back to the stack.
+     Pulling down on the stack fans the cards out a little (rubber band). */
+  function walletStack(){return walletStack.o||(walletStack.o={
+    /* Apple Wallet behaviour.
+       Stack: cards overlap, each showing its top strip; pulling down at the top fans them out.
+       Tap a card → focus: it glides to the top, a details panel fades in under it, the other cards drop to the
+       bottom of the screen as a thin pile of edges, and the rest of the Wallet page fades out.
+       Back: tap the pile, press Done, or swipe the raised card down. Tap the raised card → full pass sheet. */
+    PEEK:70,EDGE:10,PILE_MAX:6,EASE:'cubic-bezier(.32,.72,0,1)',
+    cardsOf(list){return [...list.querySelectorAll(':scope > .m-wallet-pass')]},
+    mount(root){
+      this.exit(true);
+      [...root.querySelectorAll('.m-wallet-list')].forEach(list=>{
+        const cards=this.cardsOf(list);
+        if(!cards.length){list.classList.remove('wstack');return}
+        list.classList.add('wstack');list.dataset.sel='';
+        cards.forEach((c,i)=>{c.dataset.si=String(i)});
+        this.layout(list,{live:true});
+        if(!list._ws){list._ws=1;this.bind(list)}
+      });
+      if(!this._g){this._g=1;addEventListener('resize',()=>{$$('.wstack').forEach(l=>this.layout(l,{live:true}))},{passive:true})}
+    },
+    H(list){const c=list.querySelector('.m-wallet-pass');return c?.offsetHeight||200},
+    set(c,y,s,z,live,i){
+      c.style.transition=live?'none':`transform .55s ${this.EASE} ${Math.min(i,7)*16}ms, box-shadow .3s ease, filter .3s ease`;
+      c.style.transform=`translate3d(0,${y.toFixed(1)}px,0) scale(${s})`;c.style.zIndex=String(z);
+    },
+    layout(list,o={}){
+      const cards=this.cardsOf(list),n=cards.length,H=this.H(list),sel=list.dataset.sel===''?-1:+list.dataset.sel;
+      if(sel<0){
+        const sp=o.spread||0;
+        cards.forEach((c,i)=>this.set(c,i*this.PEEK+sp*i*i*0.04,1,i+1,o.live,i));
+        list.style.height=((n-1)*this.PEEK+H+sp*(n-1)*(n-1)*0.04)+'px';
+        return;
+      }
+      // focus: pile at the bottom of the screen (above the tab bar)
+      const top=list.getBoundingClientRect().top;
+      const bar=$('.m-tabs')?.getBoundingClientRect();const floor=(bar&&bar.top>innerHeight*0.6?bar.top:innerHeight)-14;
+      const others=cards.filter((_,i)=>i!==sel),m=others.length,shown=Math.min(m,this.PILE_MAX);
+      const pileTop=floor-top-shown*this.EDGE-34;
+      this.set(cards[sel],Math.max(0,o.drag||0),1,100,o.live,0);
+      others.forEach((c,k)=>{const d=Math.max(0,k-(m-shown));this.set(c,pileTop+d*this.EDGE+(o.drag||0)*0.2,1-(shown-d)*0.012,10+k,o.live,k+1)});
+      const panel=list.querySelector('.ws-details');if(panel)panel.style.top=(H+14)+'px';
+    },
+    detailsHTML(id){
+      const it=readWallet().find(x=>x.id===id);if(!it)return '';
+      const Data=window.DaylightData,ev=Data?.eventAt?.(it);
+      const when=ev?ev.toLocaleString(undefined,{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+      const st=it.walletStatus||Data?.walletStatus?.(it)||'';
+      const rows=[['Type',WALLET_LABEL[it.kind]||'Pass'],['When',when],['Status',st?st[0].toUpperCase()+st.slice(1):''],['From',it.org||it.pass?.org||it.from||''],['Details',it.note||'']].filter((r,i,a)=>r[1]&&!(r[0]==='Details'&&r[1]===a[3]?.[1]));
+      return `<dl>${rows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+        <div class="ws-actions">${it.mailId?`<button type="button" class="ws-open" data-ws-mail="${esc(id)}">View email</button>`:''}<button type="button" class="ws-done" data-ws-done>Done</button></div>`;
+    },
+    enter(list,i){
+      const cards=this.cardsOf(list),c=cards[i];if(!c)return;
+      const sc=Nav.scrollEl(),scr=list.closest('.m-screen')||sc;
+      list.dataset.sel=String(i);list.classList.add('has-sel');cards.forEach((x,k)=>x.classList.toggle('is-front',k===i));
+      scr?.classList.add('ws-focus');list.closest('.m-wallet-sec')?.classList.add('has-focus');
+      let panel=list.querySelector('.ws-details');if(!panel){panel=document.createElement('div');panel.className='ws-details';list.append(panel)}
+      panel.innerHTML=this.detailsHTML(c.dataset.wid);panel.classList.remove('show');
+      try{feel.select()}catch{}
+      // bring the stack up under the header first, then lift the card
+      const want=(($('#mapp .m-top')?.getBoundingClientRect().bottom)||70)+8,top=list.getBoundingClientRect().top,delta=top-want;
+      const go=()=>{if(sc)sc.style.overflowY='hidden';this.layout(list);requestAnimationFrame(()=>panel.classList.add('show'))};
+      if(sc&&Math.abs(delta)>4){sc.scrollTo({top:sc.scrollTop+delta,behavior:Nav.reduced()?'auto':'smooth'});setTimeout(go,Nav.reduced()?0:300)}else go();
+    },
+    exit(instant){
+      $$('.wstack.has-sel').forEach(list=>{
+        list.dataset.sel='';list.classList.remove('has-sel');this.cardsOf(list).forEach(x=>x.classList.remove('is-front'));
+        list.querySelector('.ws-details')?.classList.remove('show');
+        this.layout(list,{live:!!instant});
+      });
+      $$('.ws-focus').forEach(x=>x.classList.remove('ws-focus'));$$('.m-wallet-sec.has-focus').forEach(x=>x.classList.remove('has-focus'));
+      const sc=Nav.scrollEl();if(sc)sc.style.overflowY='';
+    },
+    bind(list){
+      list.addEventListener('click',e=>{
+        if(list._moved){list._moved=false;e.stopPropagation();e.preventDefault();return}
+        if(e.target.closest('[data-ws-done]')){e.stopPropagation();try{feel.select()}catch{}this.exit();return}
+        const vm=e.target.closest('[data-ws-mail]');if(vm){e.stopPropagation();const it=readWallet().find(x=>x.id===vm.dataset.wsMail);if(it?.mailId)openTravelRecord({mailId:it.mailId,threadId:it.threadId,walletId:it.id,childKey:it.childKey,recordKey:it.recordKey,entityKey:it.entityKey,preferEmail:true,surface:'email'});return}
+        if(e.target.closest('.ws-details')){e.stopPropagation();return}
+        const c=e.target.closest('.m-wallet-pass');if(!c)return;
+        const sel=list.dataset.sel;
+        if(sel===c.dataset.si){e.stopPropagation();e.preventDefault();return} // raised card: no extra sheet
+        e.stopPropagation();e.preventDefault();
+        if(sel!==''){try{feel.select()}catch{}this.exit();return} // tapped the pile
+        this.enter(list,+c.dataset.si);
+      },true);
+      let st=null;
+      const begin=(y,t)=>{st={y0:y,dy:0,front:!!t.closest('.m-wallet-pass.is-front')}};
+      const move=(y,ev)=>{
+        if(!st)return;st.dy=y-st.y0;if(st.dy<=0)return;
+        if(list.dataset.sel!==''){if(!st.front)return;ev?.cancelable&&ev.preventDefault();list._moved=st.dy>6;this.layout(list,{live:true,drag:st.dy*0.9});return}
+        if((Nav.scrollEl()?.scrollTop||0)>2)return;
+        ev?.cancelable&&ev.preventDefault();list._moved=st.dy>6;this.layout(list,{live:true,spread:Math.min(180,st.dy*0.7)});
+      };
+      const end=()=>{
+        if(!st)return;const dy=st.dy,front=st.front;st=null;
+        if(list.dataset.sel!==''&&front&&dy>80){try{feel.select()}catch{}this.exit();return}
+        this.layout(list);setTimeout(()=>{list._moved=false},60);
+      };
+      list.addEventListener('touchstart',e=>begin(e.touches[0].clientY,e.target),{passive:true});
+      list.addEventListener('touchmove',e=>move(e.touches[0].clientY,e),{passive:false});
+      list.addEventListener('touchend',end,{passive:true});list.addEventListener('touchcancel',end,{passive:true});
+      list.addEventListener('mousedown',e=>{if(e.button||e.target.closest('.ws-details'))return;begin(e.clientY,e.target);const mm=ev=>move(ev.clientY,ev),mu=()=>{removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);end()};addEventListener('mousemove',mm);addEventListener('mouseup',mu)});
+    }
+  })}
   $('#m-wallet-tabs')?.addEventListener('click',e=>{
     const b=e.target.closest('[data-wallet]');if(!b||b.dataset.wallet===mWalletFilter)return;
     mWalletFilter=b.dataset.wallet;mWalletOpen='';setLS('daylight-wallet-filter',mWalletFilter);renderWallet();
@@ -6397,7 +6571,8 @@
       :(item.walletId||item.mailId
         ?`data-open-travel="1" data-wallet-id="${esc(item.walletId||'')}" data-mail-id="${esc(item.mailId||'')}" data-thread-id="${esc(item.threadId||'')}" data-child-key="${esc(item.childKey||'')}" data-record-key="${esc(item.recordKey||'')}"`
         :(item.href?`data-tl-href="${esc(item.href)}"`:''));
-    return `<article class="tl-card" ${open}>
+    void open; // tiles are display-only: tapping a Timeline tile does nothing
+    return `<article class="tl-card${item.allDay?' is-allday':''}">
       <span class="tl-node" aria-hidden="true">${svg(tlIcon(item.kind),16)}</span>
       <div class="tl-card-body">
         <time>${esc(time)}</time>
