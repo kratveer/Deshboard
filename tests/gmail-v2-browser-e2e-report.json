@@ -1,0 +1,493 @@
+{
+  "generatedAt": "2026-11-04T07:36:23.489Z",
+  "checks": [
+    {
+      "name": "V1 cold open: 30-day backfill into the persistent cache, batch used",
+      "ok": true,
+      "detail": {
+        "rows": 206,
+        "http": 13,
+        "units": 6791,
+        "byStatus": {
+          "done": 37,
+          "body-queued": 95,
+          "review": 3,
+          "classified": 71
+        }
+      }
+    },
+    {
+      "name": "V1 metadata requests trimmed (metadataHeaders + fields)",
+      "ok": true,
+      "detail": "--batch_daylight_hbx5lhnhf7\r\nContent-Type: application/http\r\nContent-ID: <item-sent-0>\r\n\r\nGET /gmail/v1/users/me/messages/sent-0?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=List-Unsubscribe&metadataHeaders=Content-Type&fields=i"
+    },
+    {
+      "name": "Backlog drained: no bodies or metadata waiting",
+      "ok": true,
+      "detail": {
+        "done": 105,
+        "review": 30,
+        "classified": 71
+      }
+    },
+    {
+      "name": "V2 reload within 15 min: 0 Gmail requests",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "V2 Money view is populated (bills / payments found)",
+      "ok": true,
+      "detail": {
+        "To pay now": [
+          "mail:m0020"
+        ],
+        "Upcoming": [
+          "inv:designlab:FV2026118",
+          "inv:hetzner:R0012345678",
+          "inv:studiopixel:INV2041",
+          "inv:vodafone:2026104455",
+          "mail:m0001",
+          "mail:m0004",
+          "mail:m0006",
+          "mail:m0007",
+          "mail:m0010",
+          "mail:m0011",
+          "mail:m0019",
+          "mail:m0032",
+          "sub:medium",
+          "sub:microsoft",
+          "sub:netflix",
+          "sub:youtube"
+        ],
+        "Needs review": [
+          "mail:m0005",
+          "mail:m0008",
+          "mail:m0009",
+          "mail:m0012",
+          "mail:m0018",
+          "mail:m0022",
+          "mail:m0035",
+          "mail:m0102",
+          "ord:decathlon:7781121",
+          "ord:gog:88123301",
+          "ord:lidl:3311990"
+        ],
+        "Paid": [
+          "inv:stripe:INV2041",
+          "mail:m0023",
+          "mail:m0024",
+          "mail:m0026",
+          "mail:m0027",
+          "mail:m0029",
+          "mail:m0031",
+          "mail:m0033",
+          "mail:m0034",
+          "mail:m0040",
+          "mail:m0041",
+          "mail:m0068",
+          "mail:m0080",
+          "mail:m0092",
+          "mail:m0107",
+          "mail:m0111",
+          "mail:m0112",
+          "mail:m0116",
+          "ord:alza:554433",
+          "ord:amazon:3021188776",
+          "ord:amazon:4057712345",
+          "ord:apple:ML7KX99Z",
+          "ord:apple:W1188221",
+          "ord:co:55120",
+          "ord:ebay:211122344556",
+          "ord:gmail:554120",
+          "ord:gmail:66123",
+          "ord:rohlik:9918822",
+          "ord:swiggy:1188290",
+          "ord:wolt:WT881920",
+          "ord:zalando:10203040",
+          "sub:cursor",
+          "sub:seznam"
+        ],
+        "Refunded": [
+          "mail:m0045",
+          "mail:m0046",
+          "mail:m0048",
+          "mail:m0050",
+          "mail:m0052",
+          "mail:m0054",
+          "mail:m0055",
+          "mail:m0056",
+          "ord:alza:554433:refund",
+          "ord:amazon:3021188776:refund",
+          "ord:decathlon:7781120:refund",
+          "ord:swiggy:1188290:refund"
+        ],
+        "Incoming": [
+          "mail:m0025"
+        ],
+        "Other financial mail": [
+          "mail:m0126"
+        ]
+      }
+    },
+    {
+      "name": "V2 Money view identical after reload (stored results stand in for bodies)",
+      "ok": true,
+      "detail": {
+        "before": {
+          "To pay now": [
+            "mail:m0020"
+          ],
+          "Upcoming": [
+            "inv:designlab:FV2026118",
+            "inv:hetzner:R0012345678",
+            "inv:studiopixel:INV2041",
+            "inv:vodafone:2026104455",
+            "mail:m0001",
+            "mail:m0004",
+            "mail:m0006",
+            "mail:m0007",
+            "mail:m0010",
+            "mail:m0011",
+            "mail:m0019",
+            "mail:m0032",
+            "sub:medium",
+            "sub:microsoft",
+            "sub:netflix",
+            "sub:youtube"
+          ],
+          "Needs review": [
+            "mail:m0005",
+            "mail:m0008",
+            "mail:m0009",
+            "mail:m0012",
+            "mail:m0018",
+            "mail:m0022",
+            "mail:m0035",
+            "mail:m0102",
+            "ord:decathlon:7781121",
+            "ord:gog:88123301",
+            "ord:lidl:3311990"
+          ],
+          "Paid": [
+            "inv:stripe:INV2041",
+            "mail:m0023",
+            "mail:m0024",
+            "mail:m0026",
+            "mail:m0027",
+            "mail:m0029",
+            "mail:m0031",
+            "mail:m0033",
+            "mail:m0034",
+            "mail:m0040",
+            "mail:m0041",
+            "mail:m0068",
+            "mail:m0080",
+            "mail:m0092",
+            "mail:m0107",
+            "mail:m0111",
+            "mail:m0112",
+            "mail:m0116",
+            "ord:alza:554433",
+            "ord:amazon:3021188776",
+            "ord:amazon:4057712345",
+            "ord:apple:ML7KX99Z",
+            "ord:apple:W1188221",
+            "ord:co:55120",
+            "ord:ebay:211122344556",
+            "ord:gmail:554120",
+            "ord:gmail:66123",
+            "ord:rohlik:9918822",
+            "ord:swiggy:1188290",
+            "ord:wolt:WT881920",
+            "ord:zalando:10203040",
+            "sub:cursor",
+            "sub:seznam"
+          ],
+          "Refunded": [
+            "mail:m0045",
+            "mail:m0046",
+            "mail:m0048",
+            "mail:m0050",
+            "mail:m0052",
+            "mail:m0054",
+            "mail:m0055",
+            "mail:m0056",
+            "ord:alza:554433:refund",
+            "ord:amazon:3021188776:refund",
+            "ord:decathlon:7781120:refund",
+            "ord:swiggy:1188290:refund"
+          ],
+          "Incoming": [
+            "mail:m0025"
+          ],
+          "Other financial mail": [
+            "mail:m0126"
+          ]
+        },
+        "after": {
+          "To pay now": [
+            "mail:m0020"
+          ],
+          "Upcoming": [
+            "inv:designlab:FV2026118",
+            "inv:hetzner:R0012345678",
+            "inv:studiopixel:INV2041",
+            "inv:vodafone:2026104455",
+            "mail:m0001",
+            "mail:m0004",
+            "mail:m0006",
+            "mail:m0007",
+            "mail:m0010",
+            "mail:m0011",
+            "mail:m0019",
+            "mail:m0032",
+            "sub:medium",
+            "sub:microsoft",
+            "sub:netflix",
+            "sub:youtube"
+          ],
+          "Needs review": [
+            "mail:m0005",
+            "mail:m0008",
+            "mail:m0009",
+            "mail:m0012",
+            "mail:m0018",
+            "mail:m0022",
+            "mail:m0035",
+            "mail:m0102",
+            "ord:decathlon:7781121",
+            "ord:gog:88123301",
+            "ord:lidl:3311990"
+          ],
+          "Paid": [
+            "inv:stripe:INV2041",
+            "mail:m0023",
+            "mail:m0024",
+            "mail:m0026",
+            "mail:m0027",
+            "mail:m0029",
+            "mail:m0031",
+            "mail:m0033",
+            "mail:m0034",
+            "mail:m0040",
+            "mail:m0041",
+            "mail:m0068",
+            "mail:m0080",
+            "mail:m0092",
+            "mail:m0107",
+            "mail:m0111",
+            "mail:m0112",
+            "mail:m0116",
+            "ord:alza:554433",
+            "ord:amazon:3021188776",
+            "ord:amazon:4057712345",
+            "ord:apple:ML7KX99Z",
+            "ord:apple:W1188221",
+            "ord:co:55120",
+            "ord:ebay:211122344556",
+            "ord:gmail:554120",
+            "ord:gmail:66123",
+            "ord:rohlik:9918822",
+            "ord:swiggy:1188290",
+            "ord:wolt:WT881920",
+            "ord:zalando:10203040",
+            "sub:cursor",
+            "sub:seznam"
+          ],
+          "Refunded": [
+            "mail:m0045",
+            "mail:m0046",
+            "mail:m0048",
+            "mail:m0050",
+            "mail:m0052",
+            "mail:m0054",
+            "mail:m0055",
+            "mail:m0056",
+            "ord:alza:554433:refund",
+            "ord:amazon:3021188776:refund",
+            "ord:decathlon:7781120:refund",
+            "ord:swiggy:1188290:refund"
+          ],
+          "Incoming": [
+            "mail:m0025"
+          ],
+          "Other financial mail": [
+            "mail:m0126"
+          ]
+        }
+      }
+    },
+    {
+      "name": "V2 status line is truthful (not \"partial\")",
+      "ok": true,
+      "detail": "Connected to Google · updated 8:36 AM"
+    },
+    {
+      "name": "V3 manual refresh with no new mail: 1 Gmail request (profile), 1 quota unit",
+      "ok": true,
+      "detail": {
+        "http": [
+          "/profile"
+        ],
+        "units": 1
+      }
+    },
+    {
+      "name": "V4 new mail: found via history.list, only that message fetched",
+      "ok": true,
+      "detail": {
+        "http": [
+          "/profile",
+          "/history",
+          "/messages",
+          "/messages",
+          "/messages",
+          "batch",
+          "batch",
+          "/threads"
+        ],
+        "byKind": {
+          "profile": 1,
+          "history": 1,
+          "list": 3,
+          "getMeta": 1,
+          "getFull": 1,
+          "threadsList": 1
+        }
+      }
+    },
+    {
+      "name": "V4 new bill is in the index with a rule reason",
+      "ok": true,
+      "detail": {
+        "before": 206,
+        "after": 207
+      }
+    },
+    {
+      "name": "V5 label change: labels updated with no message or body GET",
+      "ok": true,
+      "detail": {
+        "profile": 2,
+        "history": 2,
+        "threadsList": 2
+      }
+    },
+    {
+      "name": "V6 deleted bill email: tombstone in cache, finance record kept and flagged",
+      "ok": true,
+      "detail": {
+        "flagged": true,
+        "byStatus": {
+          "deleted": 1,
+          "done": 105,
+          "review": 30,
+          "classified": 71
+        },
+        "billKey": "mail:m0020"
+      }
+    },
+    {
+      "name": "V7 two tabs refreshing together: Gmail profile read once (one sync, no overlap)",
+      "ok": true,
+      "detail": {
+        "profile": 1
+      }
+    },
+    {
+      "name": "V8 open after a day of missed slots: exactly one catch-up sync",
+      "ok": true,
+      "detail": {
+        "profile": 2,
+        "history": 1,
+        "list": 3,
+        "getMeta": 3,
+        "getFull": 3,
+        "threadsList": 1
+      }
+    },
+    {
+      "name": "V9 batch endpoint fails: falls back to single GETs, no mail lost",
+      "ok": true,
+      "detail": {
+        "before": 207,
+        "after": 210
+      }
+    },
+    {
+      "name": "V10 review queue: your choice stored for the sender domain only",
+      "ok": true,
+      "detail": {
+        "rv": {
+          "clicked": true
+        },
+        "userDom": {
+          "accountId": "42",
+          "domain": "umodrekachnicky.cz",
+          "votes": {},
+          "hits": 0,
+          "userCategory": "bill",
+          "active": true,
+          "category": "bill",
+          "source": "user",
+          "at": 1793777783066
+        }
+      }
+    },
+    {
+      "name": "V11 no raw bodies in IndexedDB (only metadata, results and hashes)",
+      "ok": true,
+      "detail": {
+        "hasBodyData": false,
+        "hasPayloadParts": false,
+        "bytes": 415126
+      }
+    },
+    {
+      "name": "V12 efficiency counters recorded (units, batch, rule stages, syncs by trigger)",
+      "ok": true,
+      "detail": {
+        "syncs": 11,
+        "sync_catch-up": 2,
+        "req_profile": 11,
+        "req_list": 10,
+        "labelOnly": 1,
+        "deleted": 1,
+        "req_batch": 14,
+        "batchedParts": 349,
+        "req_getMeta": 210,
+        "domainLookups": 210,
+        "stage_fallback": 24,
+        "noBodyNeeded": 71,
+        "domainHits": 65,
+        "stage_keywords": 134,
+        "bodyQueued": 139,
+        "stage_gmail-category": 35,
+        "stage_best-effort": 4,
+        "stage_list-unsubscribe": 13,
+        "escalated": 6,
+        "req_getFull": 139,
+        "req_threadsList": 5,
+        "req_threadsGet": 6,
+        "units": 12659,
+        "failed": 0,
+        "deferred": 0,
+        "aiDeferred": 0,
+        "aiSkipped": 139,
+        "sync_manual": 9,
+        "req_history": 4,
+        "batchFallback": 2
+      }
+    },
+    {
+      "name": "No page errors",
+      "ok": true,
+      "detail": []
+    }
+  ],
+  "passed": 19,
+  "total": 19,
+  "coldUnits": 6791,
+  "coldHttp": 13
+}

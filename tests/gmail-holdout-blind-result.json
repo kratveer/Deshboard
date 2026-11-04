@@ -1,0 +1,329 @@
+{
+  "note": "FIRST (blind) run of the hold-out set — written once, never overwritten",
+  "at": "2026-11-04T07:20:01.898Z",
+  "current": {
+    "per": {
+      "bill": {
+        "tp": 6,
+        "fp": 2,
+        "fn": 2,
+        "support": 8,
+        "precision": 0.75,
+        "recall": 0.75
+      },
+      "payment": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 4,
+        "support": 7,
+        "precision": 0.75,
+        "recall": 0.429
+      },
+      "refund": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 2,
+        "support": 5,
+        "precision": 1,
+        "recall": 0.6
+      },
+      "travel": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 4,
+        "support": 7,
+        "precision": 0.6,
+        "recall": 0.429
+      },
+      "food": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 4,
+        "support": 4,
+        "precision": null,
+        "recall": 0
+      },
+      "subscription": {
+        "tp": 4,
+        "fp": 2,
+        "fn": 0,
+        "support": 4,
+        "precision": 0.667,
+        "recall": 1
+      },
+      "receipt": {
+        "tp": 5,
+        "fp": 1,
+        "fn": 0,
+        "support": 5,
+        "precision": 0.833,
+        "recall": 1
+      },
+      "document": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "support": 3,
+        "precision": null,
+        "recall": 0
+      },
+      "security": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "support": 3,
+        "precision": null,
+        "recall": 0
+      },
+      "promotion": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 5,
+        "support": 6,
+        "precision": 1,
+        "recall": 0.167
+      },
+      "newsletter": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "support": 3,
+        "precision": null,
+        "recall": 0
+      },
+      "social": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "support": 2,
+        "precision": null,
+        "recall": 0
+      },
+      "personal": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "support": 3,
+        "precision": null,
+        "recall": 0
+      }
+    },
+    "confusion": {
+      "bill": {
+        "bill": 6,
+        "payment": 1,
+        "other": 1
+      },
+      "payment": {
+        "payment": 3,
+        "other": 4
+      },
+      "refund": {
+        "refund": 3,
+        "travel": 1,
+        "unseen": 1
+      },
+      "travel": {
+        "unseen": 2,
+        "travel": 3,
+        "other": 2
+      },
+      "food": {
+        "other": 3,
+        "receipt": 1
+      },
+      "subscription": {
+        "subscription": 4
+      },
+      "receipt": {
+        "receipt": 5
+      },
+      "document": {
+        "bill": 1,
+        "subscription": 1,
+        "other": 1
+      },
+      "security": {
+        "subscription": 1,
+        "unseen": 2
+      },
+      "promotion": {
+        "unseen": 2,
+        "other": 2,
+        "bill": 1,
+        "promotion": 1
+      },
+      "newsletter": {
+        "other": 3
+      },
+      "social": {
+        "other": 2
+      },
+      "personal": {
+        "other": 2,
+        "travel": 1
+      }
+    },
+    "accuracy": 0.417,
+    "seen": 53,
+    "total": 60
+  },
+  "optimised": {
+    "per": {
+      "bill": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 0,
+        "support": 8,
+        "precision": 1,
+        "recall": 1
+      },
+      "payment": {
+        "tp": 7,
+        "fp": 0,
+        "fn": 0,
+        "support": 7,
+        "precision": 1,
+        "recall": 1
+      },
+      "refund": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 1,
+        "support": 5,
+        "precision": 1,
+        "recall": 0.8
+      },
+      "travel": {
+        "tp": 6,
+        "fp": 1,
+        "fn": 1,
+        "support": 7,
+        "precision": 0.857,
+        "recall": 0.857
+      },
+      "food": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 1,
+        "support": 4,
+        "precision": 1,
+        "recall": 0.75
+      },
+      "subscription": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "support": 4,
+        "precision": 1,
+        "recall": 1
+      },
+      "receipt": {
+        "tp": 5,
+        "fp": 2,
+        "fn": 0,
+        "support": 5,
+        "precision": 0.714,
+        "recall": 1
+      },
+      "document": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 1,
+        "support": 3,
+        "precision": 1,
+        "recall": 0.667
+      },
+      "security": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 0,
+        "support": 3,
+        "precision": 1,
+        "recall": 1
+      },
+      "promotion": {
+        "tp": 5,
+        "fp": 0,
+        "fn": 1,
+        "support": 6,
+        "precision": 1,
+        "recall": 0.833
+      },
+      "newsletter": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 0,
+        "support": 3,
+        "precision": 0.75,
+        "recall": 1
+      },
+      "social": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "support": 2,
+        "precision": 1,
+        "recall": 1
+      },
+      "personal": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 1,
+        "support": 3,
+        "precision": 1,
+        "recall": 0.667
+      }
+    },
+    "confusion": {
+      "bill": {
+        "bill": 8
+      },
+      "payment": {
+        "payment": 7
+      },
+      "refund": {
+        "receipt": 1,
+        "refund": 4
+      },
+      "travel": {
+        "travel": 6,
+        "other": 1
+      },
+      "food": {
+        "food": 3,
+        "receipt": 1
+      },
+      "subscription": {
+        "subscription": 4
+      },
+      "receipt": {
+        "receipt": 5
+      },
+      "document": {
+        "other": 1,
+        "document": 2
+      },
+      "security": {
+        "security": 3
+      },
+      "promotion": {
+        "promotion": 5,
+        "newsletter": 1
+      },
+      "newsletter": {
+        "newsletter": 3
+      },
+      "social": {
+        "social": 2
+      },
+      "personal": {
+        "personal": 2,
+        "travel": 1
+      }
+    },
+    "accuracy": 0.9,
+    "seen": 60,
+    "total": 60
+  }
+}

@@ -280,6 +280,8 @@
   }
 
   function classify(rawMail, opts) {
+    // v2 mail cache: a message whose body was processed earlier carries the stored result instead of the body
+    if (rawMail && rawMail._bodyFromCache && rawMail._derived && rawMail._derived.fin && rawMail._derived.finV === VERSION) return JSON.parse(JSON.stringify(rawMail._derived.fin));
     const n = normalizeMail(rawMail);
     if (!n) return null;
     const o = opts || {};

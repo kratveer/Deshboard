@@ -186,7 +186,10 @@
           <span style="color:var(--muted)">${esc(acct?.providerAccountKey||'')} · schema v${st.schema}</span><br>
           store · entities ${st.entities||0} · rel ${st.relationships||0} · facts ${st.facts||0} · actions ${st.actions||0}
         </div>
-        ${row('Gmail',sync.gmail||{})}${row('Calendar',sync.calendar||{})}${row('Tasks',sync.tasks||{})}${row('Hydrate',sync.hydrate||{})}`;
+        ${row('Gmail',sync.gmail||{})}${row('Calendar',sync.calendar||{})}${row('Tasks',sync.tasks||{})}${row('Hydrate',sync.hydrate||{})}
+        ${await v2EfficiencyHTML().catch(e=>'<p>Sync efficiency unavailable: '+esc(e.message||e)+'</p>')}`;
+        body.querySelector('[data-v2-older]')?.addEventListener('click',async()=>{body.querySelector('[data-v2-older]').disabled=true;refreshAll.force=true;refreshAll.olderScan=true;await refreshAll();renderSyncDiag()});
+        body.querySelector('[data-v2-clear]')?.addEventListener('click',async()=>{if(!confirmInline(body.querySelector('[data-v2-clear]'),'Tap again to clear the saved mail index (your finance records and tasks are kept)'))return;await getMailV2().cache.clearAccount(v2AccountKey());try{localStorage.removeItem(v2LastKey())}catch{}toast('Mail cache cleared · the next sync rebuilds it');renderSyncDiag()});
       }catch(e){body.textContent='Could not read sync state: '+(e.message||e)}
     };
     renderSyncDiag();
@@ -404,10 +407,122 @@
     if(gmailEng)return gmailEng;
     const GS=window.DaylightGmailSync;
     if(!GS?.createGmailSync)throw new Error('Gmail sync module did not load · reload Daylight');
-    gmailEng=GS.createGmailSync({request:gmailRequest});
+    let qcfg={};try{qcfg={limitPerMinute:window.DaylightGmailConfig?.load?.().quota?.limitPerMinute||undefined}}catch{}
+    gmailEng=GS.createGmailSync({request:gmailRequest,config:qcfg.limitPerMinute?qcfg:undefined});
     return gmailEng;
   }
-  function resetGmailEngine(){try{gmailEng?.reset()}catch{}lastGmailReport=null}
+  function resetGmailEngine(){try{gmailEng?.reset()}catch{}lastGmailReport=null;mailV2=null}
+  // ---- Gmail v2: cost-optimised pipeline (persistent per-account cache, history-driven discovery, metadata + local
+  // rules, selective bodies, HTTP batch, AI budget, sync slots). Falls back to the Phase 1 engine when disabled. ----
+  let mailV2=null,lastGmailDecision=null,v2Channel=null,v2SlotTimer=null;
+  const V2_AI_CAT={travel:'travel',bills:'bill',finance:'payment',subscriptions:'subscription',shopping:'receipt',delivery:'receipt',documents:'document',government:'document',security:'security',promotions:'promotion',newsletters:'newsletter',social:'social',personal:'personal',work:'personal'};
+  function v2Enabled(){
+    const W=window;
+    if(DEMO||!(W.DaylightMailPipeline&&W.DaylightGmailConfig&&W.DaylightMailCache&&W.DaylightGmailRules&&W.DaylightGmailBatch&&W.DaylightAiBudget&&W.DaylightSyncScheduler))return false;
+    try{return W.DaylightGmailConfig.load().engine.mode!=='legacy'}catch{return false}
+  }
+  function v2AccountKey(){const p=readProfile();return String(p.sub||p.email||serverEmail||'local')}
+  async function gmailBatchPost(url,init){
+    if(serverSession&&Date.now()>tokenExpiry-60000)await serverToken();
+    if(!token)return {ok:false,status:401,text:async()=>'',headers:{get:()=>''}};
+    const send=async()=>{const ctrl=new AbortController();const tm=setTimeout(()=>ctrl.abort(),30000);try{return await fetch(url,{...init,headers:{...(init.headers||{}),Authorization:'Bearer '+token},signal:ctrl.signal})}finally{clearTimeout(tm)}};
+    let r=await send();
+    if(r.status===401&&serverSession&&await serverToken())r=await send();
+    return r;
+  }
+  function v2Derive(full){
+    const Cls=window.DaylightEmailClassify,F=window.DaylightFinance;let cls=null,fin=null;
+    try{cls=Cls?.classifyEmail?.(full)||null}catch{}
+    try{fin=F?.classify?.(full)||null}catch{}
+    return {cls,clsV:Cls?.VERSION,fin,finV:F?.VERSION};
+  }
+  function getMailV2(){
+    if(mailV2)return mailV2;
+    const W=window,config=W.DaylightGmailConfig.load();
+    let idb=null;try{idb=window.indexedDB||null}catch{}
+    const cache=W.DaylightMailCache.createMailCache({indexedDB:idb,dbName:config.cache.dbName});
+    const pipe=W.DaylightMailPipeline.createMailPipeline({engine:gmailEngine(),cache,rules:W.DaylightGmailRules,config,batch:W.DaylightGmailBatch,batchSend:W.DaylightGmailBatch.createSender(gmailBatchPost),derive:v2Derive,fullFields:W.DaylightGmailSync.FULL_FIELDS});
+    const budget=W.DaylightAiBudget.createAiBudget({cache,config});
+    const lock=W.DaylightSyncScheduler.createLock({name:config.schedule.lockName+':'+v2AccountKey(),leaseMs:config.schedule.lockLeaseMs});
+    mailV2={config,cache,pipe,budget,lock};
+    return mailV2;
+  }
+  const v2LastKey=()=>'daylight-gmail-last-sync:'+v2AccountKey();
+  // two-tap confirmation without a browser dialog
+  function confirmInline(btn,msg){if(btn.dataset.armed==='1'){btn.dataset.armed='';return true}btn.dataset.armed='1';const old=btn.textContent;btn.textContent=msg;setTimeout(()=>{if(btn.dataset.armed==='1'){btn.dataset.armed='';btn.textContent=old}},5000);return false}
+  function v2Accounts(){try{return JSON.parse(localStorage.getItem('daylight-gmail-accounts')||'[]')}catch{return []}}
+  function v2RememberAccount(k){try{const a=v2Accounts();if(!a.includes(k)){a.push(k);localStorage.setItem('daylight-gmail-accounts',JSON.stringify(a.slice(-10)))}}catch{}}
+  /** Sync Efficiency panel (inside Sync Diagnostics). Gmail quota units and AI money are shown separately. */
+  async function v2EfficiencyHTML(){
+    if(!v2Enabled())return '<div style="margin:8px 0;font-size:12px">Gmail engine: Phase 1 (cost optimisation off)</div>';
+    const v=getMailV2(),M=window.DaylightSyncMetrics,acct=v2AccountKey();
+    const accts=[...new Set([acct,...v2Accounts()])];
+    const per=await Promise.all(accts.map(async a=>({a,rows:await v.cache.metrics(a)})));
+    const mine=per.find(x=>x.a===acct)?.rows||[],all=per.flatMap(x=>x.rows);
+    const d1=M.summarise(mine,{days:1}),d7=M.summarise(mine,{days:7}),agg=M.summarise(all,{days:1});
+    const idx=await v.cache.all(acct),cp=await v.cache.getCheckpoint(acct)||{};
+    const n=k=>idx.filter(r=>r.status===k).length;
+    const tr=(label,a,b,c)=>`<tr><td>${esc(label)}</td><td>${esc(String(a??'—'))}</td><td>${esc(String(b??'—'))}</td>${accts.length>1?`<td>${esc(String(c??'—'))}</td>`:''}</tr>`;
+    const pct=x=>x==null?'—':Math.round(x*100)+' %';
+    const ms=x=>x==null?'—':(x/1000).toFixed(1)+' s';
+    const rules=x=>Object.entries(x.rules).map(([k,v])=>v?`${k} ${v}`:'').filter(Boolean).join(', ')||'—';
+    return `<div style="margin:10px 0;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--card2);font-size:12px;line-height:1.45">
+      <b>Sync efficiency</b> · ${idx.length} emails indexed · window ${cp.windowDays||v.config.window.backfillDays} days · last mode ${esc(cp.lastMode||'—')}<br>
+      <span style="color:var(--muted)">Gmail quota units are Google's free per-user allowance (6,000 per minute), not money. AI cost is money and is estimated from the price table.</span>
+      <table style="width:100%;border-collapse:collapse;margin-top:6px"><thead><tr><th style="text-align:left">Metric</th><th>Today</th><th>7 days</th>${accts.length>1?'<th>All accounts today</th>':''}</tr></thead><tbody>
+      ${tr('Syncs (scheduled / manual / open / catch-up)',`${d1.syncs.scheduled}/${d1.syncs.manual}/${d1.syncs.open}/${d1.syncs.catchUp}`,`${d7.syncs.scheduled}/${d7.syncs.manual}/${d7.syncs.open}/${d7.syncs.catchUp}`,agg.syncs.total)}
+      ${tr('Gmail quota units',d1.quota.units,d7.quota.units,agg.quota.units)}
+      ${tr('history.list / messages.list',`${d1.quota.historyList} / ${d1.quota.messagesList}`,`${d7.quota.historyList} / ${d7.quota.messagesList}`,`${agg.quota.historyList} / ${agg.quota.messagesList}`)}
+      ${tr('Metadata GETs / full-body GETs',`${d1.quota.metadataGets} / ${d1.quota.fullGets}`,`${d7.quota.metadataGets} / ${d7.quota.fullGets}`,`${agg.quota.metadataGets} / ${agg.quota.fullGets}`)}
+      ${tr('Batch requests (parts)',`${d1.quota.batchRequests} (${d1.quota.batchedParts})`,`${d7.quota.batchRequests} (${d7.quota.batchedParts})`,agg.quota.batchRequests)}
+      ${tr('Decided without a body',d1.skippedWithoutBody,d7.skippedWithoutBody,agg.skippedWithoutBody)}
+      ${tr('By rule stage',rules(d1),rules(d7),'')}
+      ${tr('Domain-cache hit rate',pct(d1.domainCache.hitRate),pct(d7.domainCache.hitRate),pct(agg.domainCache.hitRate))}
+      ${tr('Duplicate requests avoided',d1.duplicatesAvoided,d7.duplicatesAvoided,agg.duplicatesAvoided)}
+      ${tr('Label-only updates / deletions',`${d1.labelOnlyUpdates} / ${d1.deletionsMarked}`,`${d7.labelOnlyUpdates} / ${d7.deletionsMarked}`,'')}
+      ${tr('AI requests',d1.ai.requests,d7.ai.requests,agg.ai.requests)}
+      ${tr('AI tokens in / out',`${d1.ai.inputTokens} / ${d1.ai.outputTokens}`,`${d7.ai.inputTokens} / ${d7.ai.outputTokens}`,`${agg.ai.inputTokens} / ${agg.ai.outputTokens}`)}
+      ${tr('AI estimated cost (money, USD)','$'+d1.ai.estimatedCostUsd,'$'+d7.ai.estimatedCostUsd,'$'+agg.ai.estimatedCostUsd)}
+      ${tr('AI deferred (cap / 5 % share)',d1.ai.deferred,d7.ai.deferred,agg.ai.deferred)}
+      ${tr('Review queue',n('review'),'','')}
+      ${tr('Bodies queued / metadata waiting',`${n('body-queued')} / ${n('meta-pending')}`,'','')}
+      ${tr('Cold / warm sync duration',`${ms(d1.duration.coldMs)} / ${ms(d1.duration.warmMs)}`,`${ms(d7.duration.coldMs)} / ${ms(d7.duration.warmMs)}`,'')}
+      ${tr('Failed / deferred operations',`${d1.failed} / ${d1.deferred}`,`${d7.failed} / ${d7.deferred}`,`${agg.failed} / ${agg.deferred}`)}
+      </tbody></table>
+      <div style="margin-top:6px;color:var(--muted)">Last decision: ${esc(lastGmailDecision?`${lastGmailDecision.trigger} → ${lastGmailDecision.run?lastGmailDecision.label:'skipped'} (${lastGmailDecision.reason})`:'—')} · next slot ${esc((()=>{const t=window.DaylightSyncScheduler.nextSlot(Date.now(),v.config.schedule.slots);return t?new Date(t).toLocaleString(undefined,{weekday:'short',hour:'2-digit',minute:'2-digit'}):'—'})())}</div>
+      <div class="server-actions" style="margin-top:8px"><button class="connect ghost" type="button" data-v2-older>Scan older bills (${v.config.window.olderScanDays} days)</button><button class="connect ghost" type="button" data-v2-clear>Clear mail cache</button></div>
+    </div>`;
+  }
+  function lastGmailSyncAt(){try{return Number(localStorage.getItem(v2LastKey()))||0}catch{return 0}}
+  /** One Gmail pass for this refresh: decides (slots / 15-min skip / manual), takes the cross-tab lock, runs or reads the cache. */
+  async function v2GmailSync(trigger,extra){
+    const v=getMailV2(),acct=v2AccountKey(),S=window.DaylightSyncScheduler;
+    const d=S.decide({trigger,now:Date.now(),lastSyncAt:lastGmailSyncAt(),schedule:v.config.schedule,slotAt:extra?.slotAt});
+    lastGmailDecision={...d,at:Date.now(),trigger};
+    if(!d.run)return v.pipe.fromCache(acct,d.reason);
+    const aiOn=!!(window.DaylightAI?.isEnabled?.()&&window.DaylightAI?.getConsent?.());
+    const lk=await v.lock.withLock(()=>v.pipe.run({accountId:acct,label:d.label,aiEnabled:aiOn,olderScan:!!extra?.olderScan}));
+    if(!lk.ran){lastGmailDecision.reason='another tab is syncing';return v.pipe.fromCache(acct,'another tab is syncing')}
+    const out=lk.result;
+    v2RememberAccount(acct);
+    if(!out.report.fatal&&out.report.pipeline?.mode!=='profile-failed'){
+      try{localStorage.setItem(v2LastKey(),String(Date.now()))}catch{}
+      try{v2Channel?.postMessage({type:'synced',account:acct,at:Date.now()})}catch{}
+    }
+    return out;
+  }
+  function v2ArmSlots(){
+    if(!v2Enabled())return;
+    const S=window.DaylightSyncScheduler,cfg=window.DaylightGmailConfig.load().schedule;
+    clearTimeout(v2SlotTimer);
+    if(!cfg.timersWhileOpen)return;
+    const n=S.nextSlot(Date.now(),cfg.slots);if(!n)return;
+    v2SlotTimer=setTimeout(()=>{if((token||serverSession)&&!syncBusy){refreshAll.trigger='slot';refreshAll.slotAt=n;refreshAll()}v2ArmSlots()},Math.min(2**31-1,Math.max(1000,n-Date.now()+2000)));
+  }
+  try{
+    v2Channel=typeof BroadcastChannel!=='undefined'?new BroadcastChannel('daylight-sync'):null;
+    if(v2Channel)v2Channel.onmessage=e=>{if(e.data?.type==='synced'&&e.data.account===v2AccountKey()&&document.visibilityState==='visible'&&token&&!syncBusy){refreshAll.trigger='peer';refreshAll()}};
+  }catch{}
   const header=(headers,name)=>headers?.find(x=>x.name?.toLowerCase()===name.toLowerCase())?.value||'';
   function renderAll(){renderCalendar();renderMail();renderTasks();renderInsights();renderDrive();renderBirthdays();if(typeof renderLoops==='function'){renderLoops();renderUpNext()}}
   function renderCalendar(){queueInsights();
@@ -435,8 +550,11 @@
     return providerData.google.events.length;
   }
   async function loadMail(){
+    // v2: the Mail widget reads the inbox from the same Gmail pass as everything else (0 extra Gmail requests)
+    let res=null;
+    if(v2Enabled()&&v2InboxWait){const pools=await v2InboxWait.promise;if(pools)res={msgs:(pools.inbox||[]).slice(0,10),failed:[],partial:false,error:null}}
     // Shares cache, quota budget and retries with the Gmail sync engine (no duplicate fetches of the same inbox mail)
-    const res=await gmailEngine().fetchList('labelIds=INBOX',10,'metadata');
+    if(!res)res=await gmailEngine().fetchList('labelIds=INBOX',10,'metadata');
     if(res.error&&!res.msgs.length){const e=new Error('Mail: '+(res.error.message||res.error.kind||'Gmail unavailable'));e.status=res.error.status;throw e}
     const msgs=res.msgs;
     providerData.google.mailsNote=res.partial?`Mail: ${res.failed.length||'some'} of ${res.msgs.length+res.failed.filter(f=>!f.stale).length} inbox messages could not refresh`:'';
@@ -486,7 +604,8 @@
     const lists=await graph('/me/todo/lists?$top=5');const groups=await Promise.all((lists.value||[]).slice(0,3).map(l=>graph(`/me/todo/lists/${encodeURIComponent(l.id)}/tasks?$top=20&$select=title,status,dueDateTime`)));
     providerData.microsoft.tasks=groups.flatMap((g,i)=>(g.value||[]).filter(t=>t.status!=='completed').map(t=>({title:t.title,due:t.dueDateTime?.dateTime?new Date(t.dueDateTime.dateTime).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'',dueDate:t.dueDateTime?.dateTime||'',listName:lists.value[i].displayName,source:'Microsoft To Do'}))).slice(0,8);renderTasks();return providerData.microsoft.tasks.length;
   }
-  let lastSyncOk=0,lastSyncErr='',syncBusy=false,lastSyncPartial=false,lastRefreshStart=0,profileReady=null;
+  let lastSyncOk=0,lastSyncErr='',syncBusy=false,lastSyncPartial=false,lastRefreshStart=0,profileReady=null,v2InboxWait=null;
+  const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r});return {promise,resolve}};
   const accountReady=()=>Promise.race([profileReady||Promise.resolve(),new Promise(r=>setTimeout(r,8000))]).catch(()=>{});
   async function refreshAll(){
     if(!token&&!microsoftAccount){if(DEMO){syncBusy=true;lastSyncErr='';if(typeof renderDrawerSync==='function')renderDrawerSync();await loadLoops(true);renderCategories();renderSmart();syncBusy=false;lastSyncOk=Date.now();if(typeof renderDrawerSync==='function')renderDrawerSync()}return}
@@ -494,7 +613,10 @@
     $('#sync-status').textContent=`Connected to ${[token?'Google':'',microsoftAccount?'Microsoft':''].filter(Boolean).join(' and ')} · refreshing…`;
     // Profile first: it selects the active Daylight account, so sync state is never written to the wrong account.
     profileReady=loadProfile();
-    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays(),loadLoops(refreshAll.force));refreshAll.force=false;if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
+    const gmailTrigger=refreshAll.force?'manual':(refreshAll.trigger||'open'),gmailExtra={slotAt:refreshAll.slotAt||null,olderScan:!!refreshAll.olderScan};
+    refreshAll.trigger=null;refreshAll.slotAt=null;refreshAll.olderScan=false;
+    v2InboxWait=deferred();
+    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays(),loadLoops(refreshAll.force,gmailTrigger,gmailExtra));refreshAll.force=false;if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
     const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();renderCategories();
     const eventCount=(providerData.google.events||[]).length+(providerData.microsoft.events||[]).length,mailCount=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length,taskCount=(providerData.google.tasks||[]).length+(providerData.microsoft.tasks||[]).length;
     const cats=computeCategories();
@@ -514,6 +636,8 @@
     if(problems.length){lastSyncErr=problems.join('; ');lastSyncPartial=!hardFail;toast(hardFail?'Sync failed · check the status line':'Sync incomplete · some items will retry on the next refresh',{type:'warn'})}
     else {lastSyncOk=Date.now();lastSyncPartial=false}
     mWeekCache={};mCalIds=null;
+    v2InboxWait?.resolve(null);
+    v2ArmSlots();
     if(typeof renderDrawerSync==='function')renderDrawerSync();
     if(typeof renderAssistant==='function'&&mq.matches&&mTab==='assistant'&&!mAssistAsk)renderAssistant();
   }
@@ -523,7 +647,8 @@
     $('#weather-content').textContent='Waiting for location permission…';navigator.geolocation.getCurrentPosition(async pos=>{try{const {latitude,longitude}=pos.coords;const u=`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;const w=await(await fetch(u)).json();const names={0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Fog',51:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',71:'Snow',80:'Showers',95:'Thunderstorm'};$('#weather-content').innerHTML=`<div class="weather-temp">${Math.round(w.current.temperature_2m)}°</div><div class="weather-label">${esc(names[w.current.weather_code]||'Current conditions')}</div><div class="weather-range">Feels like ${Math.round(w.current.apparent_temperature)}° · H ${Math.round(w.daily.temperature_2m_max[0])}° / L ${Math.round(w.daily.temperature_2m_min[0])}°</div>`;$('#weather-connect').textContent='Refresh';}catch(e){$('#weather-content').textContent='Weather could not be loaded. Try again.'}},()=>{$('#weather-content').textContent='Location permission was not granted. You can allow it in browser settings.'},{enableHighAccuracy:false,timeout:10000});
   };
   // Focus refresh is throttled (≥2 min apart, never while a sync runs) so switching tabs cannot burn Gmail quota.
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&(token||microsoftAccount)&&!syncBusy&&Date.now()-lastRefreshStart>120000)refreshAll()});
+  // v2: Gmail itself is gated by the sync slots and the 15-minute open-refresh rule (see v2GmailSync).
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&(token||microsoftAccount)&&!syncBusy&&Date.now()-lastRefreshStart>120000){refreshAll.trigger='visible';refreshAll()}});
   const clientId=localStorage.getItem('daylight-client-id');if(clientId){$('#sync-status').textContent='Google setup saved · connect to grant access';}
   // ---- Today timeline + free-time finder (runs on data already loaded; nothing leaves the browser) ----
   let DAY_START=8, DAY_END=20;const MIN_GAP=25;
@@ -953,9 +1078,10 @@
     }
     throw lastErr||new Error('Request failed');
   }
-  async function loadLoops(force){
+  let v2LastPools=null;
+  async function loadLoops(force,gmailTrigger,gmailExtra){
     if(!token){if(DEMO){loopsData=demoLoopsData();try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)};try{await enrichWithDaylightAI(loopsData)}catch(e){console.warn('daylight-ai',e)};loopsFetched=Date.now();try{runCrossAppIntelligence()}catch(e){console.warn('intel',e)};try{syncClassifiedTicketsToWallet()}catch(e){console.warn('ticket wallet',e)};try{distributeAiExtractions(loopsData)}catch(e){console.warn('ai-distribute',e)};queueDaylightHydrate();renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();if(typeof renderWallet==='function'&&mq?.matches&&mTab==='wallet')renderWallet();return computeLoops().length}return 0}
-    if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return 0}
+    if(!force&&loopsData&&Date.now()-loopsFetched<3*60000){v2InboxWait?.resolve(v2LastPools);renderLoops();renderCategories();if(typeof renderInbox==='function')renderInbox();return 0}
     const Store=window.DaylightStore;
     await accountReady();
     const accountId=Store?await Store.getActiveAccountId().catch(()=>null):null;
@@ -989,9 +1115,15 @@
         return MONEY.test(text)||PENDING_PAY.test(text)||BILL.test(text)||TRAVEL.test(text)||DOCUMENT.test(text);
       }
     };
-    const {report:gmailReport,pools,historyExtras,threads:sentThreads,cursor:gmailCursor}=await gmailEngine().sync(gmailPlan);
+    const useV2=v2Enabled();
+    let v2Out=null;
+    if(useV2){try{v2Out=await v2GmailSync(gmailTrigger||(force?'manual':'open'),gmailExtra)}catch(e){console.warn('gmail v2 — falling back to the Phase 1 engine',e);v2Out=null}}
+    v2InboxWait?.resolve(v2Out?v2Out.pools:null);
+    if(v2Out)v2LastPools=v2Out.pools;
+    const {report:gmailReport,pools,historyExtras,threads:sentThreads,cursor:gmailCursor}=v2Out||await gmailEngine().sync(gmailPlan);
     gmailReport.at=Date.now();lastGmailReport=gmailReport;
-    if(!gmailReport.partial)lastGmailFullSyncAt=gmailReport.at;
+    if(gmailReport.fromCache)lastGmailFullSyncAt=lastGmailSyncAt()||lastGmailFullSyncAt;
+    else if(!gmailReport.partial)lastGmailFullSyncAt=gmailReport.at;
     const inbox=pools.inbox||[],travelMail=pools.travel||[],docsMail=pools.docs||[];
     const financeMail=[...(pools.moneyA||[]),...(pools.moneyB||[]),...(pools.moneyC||[])];
     const byId=new Map();[...(historyExtras||[]),...inbox,...financeMail,...travelMail,...docsMail].forEach(m=>{if(m?.id)byId.set(m.id,m)});
@@ -1044,6 +1176,7 @@
       upcoming=[];
     }
     loopsData={inbox:[...byId.values()],financeMail,travelMail,docsMail,threads:(sentThreads||[]).filter(Boolean),upcoming,gmailSync:gmailReport,files:{},scanned:byId.size,financeHits:financeMail.length};
+    if(v2Out)loopsData.gmailV2={aiCandidates:v2Out.aiCandidates||[],newCount:v2Out.report.pipeline?.newMessages||0,review:v2Out.review||[],deletedIds:v2Out.deletedIds||[],fromCache:!!v2Out.report.fromCache};
     // Classify-first: every fetched mail gets a primary category before UI use
     try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)}
     try{await enrichWithDaylightAI(loopsData)}catch(e){console.warn('daylight-ai',e)}
@@ -1059,7 +1192,8 @@
       try{
         const r=gmailReport,gMode=r.history?.mode==='none'?'full':(r.history?.mode||'full');
         const gDetails={records:r.records,requests:r.requestCount,units:r.units,retries:r.retries,quotaErrors:r.quotaErrors,uniqueIds:r.uniqueIds,duplicatesAvoided:r.duplicatesAvoided,queryErrors:r.queryErrors.length,sent:r.sent,failures:(r.failures||[]).slice(0,10)};
-        if(r.partial)await Store.recordSyncPartial('gmail',{summary:r.summary,durationMs:r.durationMs,retries:r.retries,fetched:r.records.fetched,cursor:gmailCursor,mode:gMode,details:gDetails},accountId);
+        if(r.fromCache){/* no Gmail call happened: keep the last real sync state */}
+        else if(r.partial)await Store.recordSyncPartial('gmail',{summary:r.summary,durationMs:r.durationMs,retries:r.retries,fetched:r.records.fetched,cursor:gmailCursor,mode:gMode,details:gDetails},accountId);
         else await Store.recordSyncSuccess('gmail',{durationMs:r.durationMs,retries:r.retries,fetched:r.records.fetched,deleted:r.records.deleted,cursor:gmailCursor,mode:gMode,details:gDetails},accountId);
         await Store.recordSyncSuccess('calendar',{durationMs:Date.now()-t0,retries:calRetries,fetched:upcoming.length,cursor:calCursor,mode:calMode},accountId);
       }catch(e){console.warn('sync meta',e)}
@@ -1101,6 +1235,13 @@
     const L=F.buildLedger(cls,{prior:Array.isArray(prior)?prior:[],corrections:finCorrections(),now:Date.now()});
     L.byMailClass={};cls.forEach(c=>{L.byMailClass[c.mailId]=c});
     L.recordByKey={};L.records.forEach(r=>{L.recordByKey[r.key]=r});
+    // v2: an email deleted in Gmail never deletes or changes a financial record — it is only flagged for your review.
+    if(!DEMO){
+      const delKey='daylight-finance-source-deleted',del=readJSON(delKey,{})||{};let ch=false;
+      (data.gmailV2?.deletedIds||[]).forEach(id=>{if(!del[id]){del[id]=Date.now();ch=true}});
+      if(ch)writeJSON(delKey,del);
+      L.records.forEach(r=>{if(r.mailIds?.length&&r.mailIds.every(id=>del[id]))r.sourceDeleted=true});
+    }
     data.finance=L;
     // Demo/preview data is never persisted into the real ledger.
     if(!DEMO)writeJSON(ledgerKey,L.records.filter(r=>r.category!=='promotional_offer').slice(0,300).map(F.compact));
@@ -1182,12 +1323,7 @@
     };
     const accountEmail=(readProfile()?.email||serverEmail||'').toLowerCase();
     if(accountEmail&&!AI.accountAllowed(accountEmail)){AI.setStatus('AI skipped for this account');data.aiEnrichment={skipped:true,reason:'account'};return data.aiEnrichment}
-    for(const id of enrichIds){
-      const m=pool.get(id),rule=byMail[id];
-      const mail=normalizeMailForAi(m);
-      try{
-        const extraction=await AI.analyseEmail(mail,{...ctxBase,ruleResult:rule});
-        if(!extraction||!extraction.valid)continue;
+    const applyExtraction=async(id,m,rule,mail,extraction)=>{
         extraction._at=Date.now();
         extraction.mailId=id;
         extraction.threadId=mail.threadId||m.threadId||id;
@@ -1228,6 +1364,38 @@
           rule.aiConfidence=extraction.confidence;
           rule.requiresConfirmation=!!extraction.requires_confirmation;
         }
+    };
+    if(data.gmailV2&&v2Enabled()){
+      // v2: only emails the pipeline marked as uncertain / missing fields, within the 5 % credit bucket and the daily cap.
+      const v=getMailV2(),acct=v2AccountKey(),Bud=window.DaylightAiBudget;
+      const aiOn=AI.isEnabled?.()&&AI.getConsent?.();
+      const allowFin=localStorage.getItem('daylight-ai-allow-financial')==='1';
+      let processed=0;
+      const res=await v.pipe.runAi({accountId:acct,candidates:data.gmailV2.aiCandidates||[],budget:v.budget,newCount:data.gmailV2.newCount||0,aiEnabled:!!aiOn,allowFinancial:allowFin,
+        analyse:async c=>{
+          const m=pool.get(c.messageId)||{id:c.messageId,threadId:c.threadId,payload:{headers:[]}},rule=byMail[c.messageId];
+          const mail=normalizeMailForAi(m);
+          mail.body=Bud.cleanForAi(c.text||mail.body||mail.snippet||'',v.config.ai.maxChars).text;
+          try{
+            const extraction=await AI.analyseEmail(mail,{...ctxBase,ruleResult:rule,maxChars:v.config.ai.maxChars});
+            const called=extraction?.source==='gemini';
+            if(extraction&&extraction.valid){await applyExtraction(c.messageId,m,rule,mail,extraction);processed++}
+            const cat=V2_AI_CAT[extraction?.category]||null;
+            return {ok:!!(extraction?.valid&&called&&cat),noCall:!called,value:cat?{category:cat,confidence:extraction.confidence||0}:null,usage:{inputTokens:Number(extraction?.usage?.promptTokenCount||0),outputTokens:Number(extraction?.usage?.candidatesTokenCount||0),model:extraction?.model},retried:!!extraction?.retried};
+          }catch(e){console.warn('ai enrich',c.messageId,e);return {ok:false,noCall:true}}
+        }});
+      saveAiExtractions(next);
+      data.aiExtractions=next;
+      data.aiEnrichment={processed,sent:res.sent,deferred:res.deferred,skipped:res.skipped,total:Object.keys(byMail).length,engine:'v2'};
+      return data.aiEnrichment;
+    }
+    for(const id of enrichIds){
+      const m=pool.get(id),rule=byMail[id];
+      const mail=normalizeMailForAi(m);
+      try{
+        const extraction=await AI.analyseEmail(mail,{...ctxBase,ruleResult:rule});
+        if(!extraction||!extraction.valid)continue;
+        await applyExtraction(id,m,rule,mail,extraction);
       }catch(e){console.warn('ai enrich',id,e)}
     }
     saveAiExtractions(next);
@@ -1741,7 +1909,7 @@
   function finRowHTML(r){
     const F=window.DaylightFinance;
     const amt=r.amount?F.fmtAmount(r.amount):'—';
-    const flags=[r.suggestion&&!finConfirmed()[r.suggestion.key]?'<span class="fin-flag sug">Reminder suggested</span>':'',r.possiblyPaid?'<span class="fin-flag">Possibly paid</span>':'',r.corrected?'<span class="fin-flag">Corrected</span>':'',r.fromHistory?'<span class="fin-flag">Earlier email</span>':''].join('');
+    const flags=[r.suggestion&&!finConfirmed()[r.suggestion.key]?'<span class="fin-flag sug">Reminder suggested</span>':'',r.possiblyPaid?'<span class="fin-flag">Possibly paid</span>':'',r.corrected?'<span class="fin-flag">Corrected</span>':'',r.fromHistory?'<span class="fin-flag">Earlier email</span>':'',r.sourceDeleted?'<span class="fin-flag">Email deleted in Gmail · record kept</span>':''].join('');
     return `<button type="button" class="fin-row b-${esc(r.bucket)}" data-fin-open="${esc(r.key)}"><span class="fin-main"><b>${esc(r.merchant||'Unknown')}</b><small>${esc(r.label)} · ${esc(finWhenLine(r))}</small>${flags?`<span class="fin-flags">${flags}</span>`:''}</span><span class="fin-side"><b class="${r.direction==='incoming'?'in':''}">${r.direction==='incoming'&&r.amount?'+':''}${esc(amt)}</b><small>${Math.round((r.confidence||0)*100)}% sure</small></span></button>`;
   }
   function finRecordsFor(filter,money){
@@ -1767,6 +1935,36 @@
   }
   $('#money-tabs')?.addEventListener('click',e=>{const b=e.target.closest('[data-money]');if(!b)return;if(b.dataset.money==='open'){openMoneySheet();return}moneyFilter=b.dataset.money;setLS('daylight-money-filter',moneyFilter);renderMoney();fitAll?.()});
   $('#finance-list')?.addEventListener('click',e=>{const b=e.target.closest('[data-fin-open]');if(b)openMoneySheet(b.dataset.finOpen)});
+  // ---- v2 review queue: emails the rules could not decide confidently. Your choice also teaches the sender's domain. ----
+  const REVIEW_CATS=[['bill','Bill to pay'],['payment','Payment'],['refund','Refund'],['travel','Travel'],['food','Food / restaurant'],['subscription','Subscription'],['receipt','Receipt'],['document','Document'],['promotion','Promotion'],['newsletter','Newsletter'],['personal','Personal / other']];
+  async function openReviewSheet(){
+    ensureMoneySheet();
+    let el=$('#rv-sheet');
+    if(!el){
+      el=document.createElement('div');el.id='rv-sheet';el.className='fin-sheet';el.hidden=true;el.setAttribute('role','dialog');el.setAttribute('aria-label','Quick check');
+      el.innerHTML='<div class="fin-panel"><div class="fin-top"><h3>Quick check</h3><button type="button" class="fin-x" data-rv-close aria-label="Close">×</button></div><div id="rv-body"></div></div>';
+      document.body.append(el);
+      el.addEventListener('click',async e=>{
+        if(e.target.id==='rv-sheet'||e.target.closest('[data-rv-close]')){el.hidden=true;return}
+        const b=e.target.closest('[data-rv-pick]');if(!b)return;
+        const rec=await getMailV2().pipe.resolveReview(v2AccountKey(),b.dataset.rvId,b.dataset.rvPick);
+        toast(rec?`Saved · emails from ${rec.fromDomain||'this sender'} will be sorted this way`:'Could not save');
+        paintReviewSheet();
+      });
+    }
+    el.hidden=false;paintReviewSheet();
+  }
+  async function paintReviewSheet(){
+    const body=$('#rv-body');if(!body)return;
+    if(!v2Enabled()){body.innerHTML='<p class="fin-note">Nothing to check.</p>';return}
+    const rows=(await getMailV2().cache.all(v2AccountKey())).filter(r=>r.status==='review').sort((a,b)=>b.internalDate-a.internalDate).slice(0,30);
+    const label=c=>(REVIEW_CATS.find(x=>x[0]===c)||[c,c])[1];
+    body.innerHTML=`<p class="fin-note">Daylight was not sure about these emails. Pick what each one is — Daylight remembers the sender's domain (only the domain and your choice, never the email). Nothing is paid, deleted or created from here.</p>
+      ${rows.length?rows.map(r=>`<div class="fin-detail"><b>${esc(r.subject||'(No subject)')}</b><br><small>${esc((r.from||'').replace(/<.*>/,'').trim())} · ${esc(new Date(r.internalDate).toLocaleDateString())}</small>
+        <div class="fin-ev">Best guess: ${esc(label(r.category))} (${Math.round((r.confidence||0)*100)}% sure) — ${esc(r.ruleReason||'')}</div>
+        <div class="fin-actions">${REVIEW_CATS.map(([k,l])=>`<button type="button" class="${k===r.category?'primary':''}" data-rv-id="${esc(r.messageId)}" data-rv-pick="${esc(k)}">${esc(l)}</button>`).join('')}</div></div>`).join(''):'<p class="fin-note">All clear — nothing needs a check.</p>'}`;
+  }
+  window.DaylightReviewUI={open:openReviewSheet};
   function ensureMoneySheet(){
     let el=$('#fin-sheet');if(el)return el;
     const st=document.createElement('style');st.textContent=`
@@ -2011,6 +2209,7 @@
     else if(dest==='travel'){if(mobile){mInboxFilter='tickets';setLS('daylight-inbox-filter','tickets');setTab('inbox');if(typeof renderInbox==='function')renderInbox({animate:false})}else goWidget('travel')}
     else if(dest==='wallet'){if(mobile)setTab('wallet');else goWidget('travel')}
     else if(dest==='money'){openMenu(false);openMoneySheet();return}
+    else if(dest==='review'){openMenu(false);openReviewSheet();return}
     else if(dest==='subscriptions'){if(mobile){mInboxFilter='subscriptions';setLS('daylight-inbox-filter','subscriptions');setTab('inbox');if(typeof renderInbox==='function')renderInbox({animate:false})}else goWidget('finance')}
     markDrawerNav();openMenu(false);
   }

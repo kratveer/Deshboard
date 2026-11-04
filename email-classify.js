@@ -329,7 +329,10 @@
     return `other:${mail.id}`;
   }
 
+  const VERSION = 1;
   function classifyEmail(raw) {
+    // v2 mail cache: reuse the result computed when the full body was read (bodies are not stored)
+    if (raw && raw._bodyFromCache && raw._derived && raw._derived.cls && raw._derived.clsV === VERSION) return Object.assign({}, raw._derived.cls);
     const scored = classifyScores(raw);
     if (!scored) return null;
     const { mail, scores, reasons, subBrand, billBrand, shopBrand, ticketBrand } = scored;
@@ -518,6 +521,7 @@
   }
 
   root.DaylightEmailClassify = {
+    VERSION,
     CATEGORIES,
     normalizeMail,
     classifyEmail,

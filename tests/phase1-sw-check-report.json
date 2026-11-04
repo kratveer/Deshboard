@@ -1,10 +1,10 @@
 {
   "online": {
     "keys": [
-      "daylight-v89"
+      "daylight-v90"
     ],
     "hasModule": true,
-    "shellCount": 15,
+    "shellCount": 23,
     "sw": true
   },
   "offlineReload": {

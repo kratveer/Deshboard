@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-03T21:00:08.247Z",
-  "gmailCalls": 239,
+  "generatedAt": "2026-11-04T07:36:19.729Z",
+  "gmailCalls": 229,
   "expectedObligations": [
     "inv:studiopixel:INV2041",
     "mail:f009",
@@ -9,16 +9,17 @@
     "mail:f014",
     "mail:f018",
     "mail:f033",
+    "mail:f057",
     "sub:cursor",
     "sub:netflix"
   ],
-  "homeMobile": "Pull to refresh Daylight T Tuesday, Nov 3 Good evening, Test Daily brief Tuesday, November 3 1 need attention You have 1 payment to manage today. One payment is overdue. Your calendar is clear today. 0 tasks 1 payment No events Today’s Schedule View Calendar Nothing on the calendar for today — enjoy the open block. Priority Actions 1 Next 7 Days Tasks Payments Meetings SP Studio Pixel Gmail · Nov 1 Due Today’s Health Open Health score 94/100 +7 vs last week 8,862 Steps 2,468 kcal 7h 19m Sleep Home Inbox Wallet Timeline Health",
+  "homeMobile": "Pull to refresh Daylight T Wednesday, Nov 4 Good morning, Test Daily brief Wednesday, November 4 1 need attention You have 1 payment to manage today. One payment is overdue. Your calendar is clear today. 0 tasks 1 payment No events Today’s Schedule View Calendar Nothing on the calendar for today — enjoy the open block. Priority Actions 1 Next 7 Days Tasks Payments Meetings SP Studio Pixel Gmail · Nov 1 Due Today’s Health Open Health score 94/100 +7 vs last week 8,862 Steps 2,468 kcal 7h 19m Sleep Home Inbox Wallet Timeline Health",
   "checks": [
     {
       "name": "App fetched most fixtures (mail window)",
       "ok": true,
       "detail": {
-        "fetched": 50,
+        "fetched": 58,
         "of": 58
       }
     },
@@ -55,6 +56,7 @@
           "mail:f014",
           "mail:f018",
           "mail:f033",
+          "mail:f057",
           "sub:cursor",
           "sub:netflix"
         ],
@@ -65,6 +67,7 @@
           "mail:f014",
           "mail:f018",
           "mail:f033",
+          "mail:f057",
           "sub:cursor",
           "sub:netflix"
         ],
@@ -109,6 +112,7 @@
       "detail": [
         "mail:f018",
         "mail:f033",
+        "mail:f057",
         "sub:cursor",
         "sub:netflix"
       ]
@@ -122,19 +126,19 @@
         "rows": [
           {
             "key": "mail:f038",
-            "text": "PayPal Refund received · Email 1 d ago +€18.40 85% sure"
+            "text": "PayPal Refund received · Email 1 d ago +€18.40 90% sure"
           },
           {
             "key": "ord:amazon:11233445567788990:refund",
-            "text": "Amazon Refund pending · Email 1 d ago +$42.10 45% sure"
+            "text": "Amazon Refund pending · Email 1 d ago +$42.10 50% sure"
           },
           {
             "key": "mail:f040",
-            "text": "Temu Refund pending · Email 1 d ago — 72% sure"
+            "text": "Temu Refund pending · Email 1 d ago — 77% sure"
           },
           {
             "key": "ord:alza:445566778:refund",
-            "text": "Alza.cz Refund received · Email 1 d ago +1,999 Kč 85% sure"
+            "text": "Alza.cz Refund received · Email 1 d ago +1,999 Kč 90% sure"
           }
         ]
       }
@@ -179,22 +183,22 @@
         "Vodafone Unpaid bill · Email 1 d ago 499 Kč 40% sure",
         "Studio Pixel Unpaid bill · Email 1 d ago €1,200 40% sure",
         "Acme Hosting Unpaid bill · No due date in the email $80 80% sure",
-        "Uber Purchase receipt · Email 1 d ago 245 Kč 58% sure",
+        "Uber Purchase receipt · Email 1 d ago 245 Kč 53% sure",
         "Stripe Payment failed · Email 1 d ago $12 90% sure",
-        "Trading 212 Payment failed · Email 1 d ago — 77% sure",
-        "Netlify Payment failed · Email 1 d ago €49 85% sure"
+        "Trading 212 Payment failed · Email 1 d ago — 82% sure",
+        "Netlify Payment failed · Email 1 d ago €49 90% sure"
       ]
     },
     {
       "name": "Home briefing does not lead with or count old automatic Pay tasks",
       "ok": true,
-      "detail": "Good evening, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 11 money emails need a quick check. 1 trip on the radar."
+      "detail": "Good morning, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 11 money emails need a quick check. 1 trip on the radar. Quiet window for focus: 08:36 AM–08:00 PM."
     },
     {
       "name": "Home briefing counts only real payments to make this week",
       "ok": true,
       "detail": {
-        "brief": "Good evening, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 11 money emails need a quick check. 1 trip on the radar.",
+        "brief": "Good morning, Test. Your calendar is clear for the rest of the day. You’ve got 1 thing asking for you today — starting with Pay rent. 2 payments to make this week — next: Studio Pixel, 4 later. 11 money emails need a quick check. 1 trip on the radar. Quiet window for focus: 08:36 AM–08:00 PM.",
         "expected": 2
       }
     },
@@ -204,7 +208,7 @@
       "detail": {
         "f010": {
           "category": "paid_invoice",
-          "at": 1793739593981
+          "at": 1793777766737
         }
       }
     },
@@ -213,7 +217,7 @@
       "ok": true,
       "detail": [
         {
-          "id": "b413f4c2-2842-4383-ae29-49505295ca38",
+          "id": "4bad3050-e9d3-480d-9d4c-b882f11a2781",
           "title": "Pay British Gas · £84.20",
           "suggested": false,
           "financeConfirmed": true
@@ -248,8 +252,8 @@
       "name": "Repeated refreshes keep the same number of financial records",
       "ok": true,
       "detail": {
-        "before": 41,
-        "after": 41
+        "before": 42,
+        "after": 42
       }
     },
     {
@@ -304,7 +308,7 @@
       "ok": true,
       "detail": {
         "badTags": [],
-        "n": 42
+        "n": 50
       }
     },
     {

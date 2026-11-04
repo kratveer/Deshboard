@@ -7,6 +7,7 @@
  * - Asserts what the USER sees: the status line, the drawer sync card and the stored sync state.
  * - Optionally runs the same scenarios against the baseline build (--baseline <dir>) for before/after.
  *
+ * Runs with the Gmail engine set to 'legacy' (Phase 1); the v2 pipeline has its own browser E2E.
  * Run: node tests/phase1-browser-e2e.js [--baseline ../base]
  * Synthetic data only; no real accounts or tokens.
  */
@@ -43,11 +44,13 @@ async function scenario(browser, port, name, setup) {
   const gmail = makeGmail({ clock, size: 600, seed: 11, latencyMs: 40 });
   const env = { worker: { status: 200 }, netDrop: null };
   if (setup) setup({ gmail, env });
-  const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: (setup && setup.viewport) || { width: 1280, height: 900 }, isMobile: !!(setup && setup.viewport && setup.viewport.width < 680), hasTouch: !!(setup && setup.viewport && setup.viewport.width < 680) });
   await ctx.addInitScript((w) => {
     if (!sessionStorage.getItem('dl-seeded')) {
       localStorage.setItem('daylight-api', w);
       localStorage.setItem('daylight-session', 'S'.repeat(43));
+      // This suite verifies the Phase 1 engine (six-search plan). The v2 pipeline is covered by tests/gmail-v2-browser-e2e.js.
+      localStorage.setItem('daylight-gmail-config', JSON.stringify({ global: { engine: { mode: 'legacy' } } }));
       sessionStorage.setItem('dl-seeded', '1');
     }
   }, WORKER);
@@ -167,6 +170,26 @@ async function runAll(dir, port, label) {
       return { afterReload, afterRecovery: await snap() };
     };
     await S('E8_reload_partial_then_recover', e8);
+    // E9 every mobile tab renders from the new message shape (metadata + queued bodies); then manual refresh
+    const e9 = () => {}; e9.viewport = { width: 390, height: 844 };
+    e9.after = async ({ page, gmail, settle, snap }) => {
+      const tabs = {};
+      for (const t of ['home', 'inbox', 'wallet', 'assistant', 'stats']) {
+        await page.evaluate((tt) => document.querySelector(`[data-tab="${tt}"]`)?.click(), t);
+        await page.waitForTimeout(1200);
+        tabs[t] = await page.evaluate(() => {
+          const scr = [...document.querySelectorAll('section,[data-screen],.m-screen')].find((s) => s.offsetParent && s.innerText.length > 40);
+          const txt = (scr || document.body).innerText;
+          return { chars: txt.length, inboxCards: document.querySelectorAll('.m-swipe').length, walletPasses: document.querySelectorAll('[data-open-wallet],.m-pass,.wallet-pass').length, priority: (txt.match(/Priority/g) || []).length, head: txt.replace(/\s+/g, ' ').slice(0, 160) };
+        });
+      }
+      gmail.resetStats();
+      await page.evaluate(() => { document.querySelector('#sync-status').textContent = 'manual · refreshing'; document.querySelector('#refresh').click(); });
+      await settle();
+      const after = await snap();
+      return { tabs, refresh: { status: after.status, requests: gmail.stats.calls, units: gmail.stats.units } };
+    };
+    await S('E9_mobile_tabs', e9);
     // E6 Google sign-in expired at the worker (401) → reconnect prompt
     await S('E6_worker_401', ({ env }) => { env.worker.status = 401; });
     // E7 temporary worker/Google outage (502) — documents the Phase 4 issue (session cleared)
@@ -202,6 +225,10 @@ async function runAll(dir, port, label) {
   ck('E8 after reload with failures: partial + last full sync time shown', /Partial sync/.test(e8r.afterReload.status) && /last full sync \d/.test(e8r.afterReload.status), e8r.afterReload.status);
   ck('E8 stored lastSuccessAt preserved during partial', e8r.afterReload.sync.lastSuccessAt && e8r.afterReload.sync.lastPartialAt > e8r.afterReload.sync.lastSuccessAt, e8r.afterReload.sync);
   ck('E8 recovery: back to updated, partial cleared', /updated/.test(e8r.afterRecovery.status) && !e8r.afterRecovery.sync.lastPartialAt && e8r.afterRecovery.sync.records.failed === 0, { s: e8r.afterRecovery.status, sync: e8r.afterRecovery.sync });
+  const e9 = p.E9_mobile_tabs.after;
+  ck('E9 every mobile tab renders content', Object.values(e9.tabs).every((t) => t.chars > 40), e9.tabs);
+  ck('E9 inbox shows cards from synced mail', e9.tabs.inbox.inboxCards > 0, e9.tabs.inbox);
+  ck('E9 manual refresh on mobile ends truthfully', /updated|Partial sync/.test(e9.refresh.status), e9.refresh);
   ck('E6 401 → reconnect prompt', /sign-in expired/i.test(p.E6_worker_401.first.status), p.E6_worker_401.first.status);
   report.knownIssues = [{ id: 'E7', phase: 4, observed: p.E7_worker_502.first.status, sessionKept: p.E7_worker_502.first.hasSession, note: 'Worker 502 clears the stay-signed-in session (app.js serverToken). Out of Phase 1 scope; fix planned in Phase 4.' }];
   ck('No page errors in any scenario', Object.values(p).every((r) => !r.consoleErrors.some((e) => /pageerror/.test(e))), Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v.consoleErrors])));

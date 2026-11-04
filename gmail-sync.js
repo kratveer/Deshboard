@@ -29,7 +29,8 @@
     bodyShare: 0.7,         // full bodies may use at most 70% of the per-minute budget; the rest stays for lists, metadata and threads
     historyMaxPages: 10,
     historyExtrasMax: 25,
-    maxFailuresReported: 60
+    maxFailuresReported: 60,
+    cacheKeepSyncs: 5
   });
 
   /** Decide whether a failed response is worth retrying, and why it failed. */
@@ -129,6 +130,7 @@
     let threadCache = new Map(); // threadId -> { historyId, thread }
     const inflight = new Map();  // `${id}|${format}` -> Promise
     let epoch = 0;               // bumps on reset so late responses from an old account are ignored
+    let syncNo = 0;              // cache entries not seen for cfg.cacheKeepSyncs syncs are dropped (bounded memory)
 
     const newCtx = (label) => ({ label, requests: {}, units: 0, retries: 0, attempts: 0, quotaErrors: 0, fatal: null, startedAt: now() });
 
@@ -140,19 +142,20 @@
         // Optional body: if quota is getting tight, fetch metadata instead so the record still arrives.
         const dg = callOpt && callOpt.downgrade;
         if (dg && budget.used() + cost > cfg.limitPerMinute * cfg.bodyShare) { kind = dg.kind; url = dg.url; cost = dg.cost; downgraded = true; }
-        for (let attempt = 0; attempt < cfg.maxAttempts; attempt++) {
+        const maxAttempts = (callOpt && callOpt.maxAttempts) || cfg.maxAttempts;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
           if (ctx.fatal) return { ok: false, skipped: true, kind: ctx.fatal.kind, status: ctx.fatal.status, reason: ctx.fatal.reason, message: 'skipped after ' + ctx.fatal.kind + ' error' };
           if (!(await budget.take(cost, optional ? 0 : null))) return { ok: false, deferred: true, kind: 'budget', status: 0, reason: 'quota_budget', message: 'Waiting for Gmail quota' };
           ctx.requests[kind] = (ctx.requests[kind] || 0) + 1;
           ctx.units += cost; ctx.attempts++;
           let res = null, netErr = '';
-          try { res = await request(url); } catch (e) { netErr = String(e?.name === 'AbortError' ? 'timeout' : (e?.message || e)); if (e?.name !== 'AbortError') { budget.refund(cost); ctx.units -= cost; } }
+          try { res = await (callOpt && typeof callOpt.send === 'function' ? callOpt.send() : request(url)); } catch (e) { netErr = String(e?.name === 'AbortError' ? 'timeout' : (e?.message || e)); if (e?.name !== 'AbortError') { budget.refund(cost); ctx.units -= cost; } }
           if (res && res.ok) return { ok: true, data: res.data, status: res.status, downgraded };
           const f = classifyFailure(res);
           last = { kind: f.kind, status: res?.status || 0, reason: res?.reason || '', message: res?.message || netErr || '' };
           if (f.kind === 'quota') ctx.quotaErrors++;
           if (f.kind === 'auth' || f.kind === 'daily') { ctx.fatal = last; return { ok: false, ...last, attempts: attempt + 1 }; }
-          if (!f.retry || attempt === cfg.maxAttempts - 1) return { ok: false, ...last, attempts: attempt + 1 };
+          if (!f.retry || attempt === maxAttempts - 1) { if (callOpt && callOpt.refundOnFailure && f.kind !== 'quota') { budget.refund(cost); ctx.units -= cost; } return { ok: false, ...last, attempts: attempt + 1 }; }
           if (f.kind === 'quota') budget.penalize(res?.retryAfterMs ?? cfg.quotaCooldownMs);
           ctx.retries++;
           await sleep(backoffDelay(attempt, { baseMs: cfg.baseDelayMs, maxMs: cfg.maxDelayMs, random, retryAfterMs: f.kind === 'quota' ? null : res?.retryAfterMs }));
@@ -181,8 +184,8 @@
           // A metadata refresh of a cached full message only updates labels/snippet; keep the body.
           if (format === 'metadata' && c && c.format === 'full') {
             msg = Object.assign({}, c.msg, { labelIds: r.data.labelIds || c.msg.labelIds, snippet: r.data.snippet ?? c.msg.snippet, historyId: r.data.historyId || c.msg.historyId });
-            cache.set(id, { msg, format: 'full', stale: false, at: now() });
-          } else cache.set(id, { msg, format: r.downgraded ? 'metadata' : format, stale: false, at: now() });
+            cache.set(id, { msg, format: 'full', stale: false, at: now(), seen: syncNo });
+          } else cache.set(id, { msg, format: r.downgraded ? 'metadata' : format, stale: false, at: now(), seen: syncNo });
           return { ok: true, msg, fetched: true, downgraded: !!r.downgraded };
         }
         if (r.kind === 'notFound') { cache.delete(id); return { ok: false, deleted: true, kind: 'notFound', status: r.status }; }
@@ -362,6 +365,11 @@
       const sent = await sentP;
       sent.failed.forEach((f) => noteFail(f.id, f, f.deferred ? 'deferred' : 'failed'));
 
+      // Bound the cache: forget messages that have not appeared in any search for a few syncs.
+      syncNo++;
+      union.forEach((e) => { const c = cache.get(e.id); if (c) c.seen = syncNo; });
+      cache.forEach((c, id) => { if ((c.seen ?? syncNo) < syncNo - cfg.cacheKeepSyncs) cache.delete(id); });
+
       // 8. Pools in each query's own order; stale copies are kept so nothing disappears on a bad refresh.
       const pools = {};
       lists.forEach((l) => { pools[l.key] = l.ids.map((m) => result.get(m.id)?.msg).filter(Boolean); });
@@ -412,6 +420,9 @@
       sync,
       fetchList,
       reset,
+      // v2 cost pipeline (gmail-pipeline.js) reuses the same budget, pool, retry and accounting:
+      newCtx,
+      call,
       cacheSize: () => cache.size,
       budgetUsed: () => budget.used(),
       cooldownRemaining: () => budget.cooldownRemaining(),

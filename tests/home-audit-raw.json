@@ -1,0 +1,2052 @@
+{
+  "now": "2026-11-04T08:15:00.000Z",
+  "mobile": {
+    "home": {
+      "brief": "Daily brief\nWednesday 4 November\n6 need attention\n\nYou have 7 tasks and 3 payments to manage today. Two payments and four tasks are overdue, one more is due today, and three tasks are due today. You have 11 events today, starting at 00:00.\n\n7 tasks\n3 payments\n11 events",
+      "briefRows": [],
+      "scheduleProse": "You have 9 events today, starting with Gym at 07:30. You’re in Daily standup until 09:30. Next is Lab meeting – Fock state data at 10:00. two events overlap today.",
+      "schedule": [
+        {
+          "time": "07:30",
+          "title": "Gym",
+          "text": "07:30 Gym 07:30 – 08:15",
+          "link": false
+        },
+        {
+          "time": "09:00",
+          "title": "Daily standup",
+          "text": "09:00 Daily standup 09:00 – 09:30",
+          "link": false
+        },
+        {
+          "time": "10:00",
+          "title": "Lab meeting – Fock state data",
+          "text": "10:00 Lab meeting – Fock state data 10:00 – 11:00",
+          "link": false
+        },
+        {
+          "time": "10:30",
+          "title": "Call with Anita",
+          "text": "10:30 Call with Anita 10:30 – 11:15",
+          "link": false
+        },
+        {
+          "time": "11:00",
+          "title": "Call with Bangalore team",
+          "text": "11:00 Call with Bangalore team 11:00 – 11:30",
+          "link": false
+        },
+        {
+          "time": "12:00",
+          "title": "Lunch with Marek",
+          "text": "12:00 Lunch with Marek 12:00 – 13:00",
+          "link": false
+        },
+        {
+          "time": "13:00",
+          "title": "Write SI section (focus)",
+          "text": "13:00 Write SI section (focus) 13:00 – 14:00 · Deep work",
+          "link": false
+        },
+        {
+          "time": "14:00",
+          "title": "Vendor demo",
+          "text": "14:00 Vendor demo 14:00 – 15:00",
+          "link": false
+        },
+        {
+          "time": "",
+          "title": "All day · Diwali preparations",
+          "text": "All day · Diwali preparations",
+          "link": false
+        },
+        {
+          "time": "",
+          "title": "All day · Klára's birthday",
+          "text": "All day · Klára's birthday",
+          "link": false
+        }
+      ],
+      "priorityTotal": "21",
+      "priority": [
+        {
+          "id": "pay:t-g03",
+          "text": "SP Studio Pixel Gmail · 1 Nov Due"
+        },
+        {
+          "id": "prio:g06",
+          "text": "BF Black Friday: slevy až 50 % Gmail · 3 h ago Priority Reply"
+        },
+        {
+          "id": "prio:w01",
+          "text": "YB Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Priority Trip"
+        },
+        {
+          "id": "inbox-prio:w01",
+          "text": "R Reply to Ryanair Gmail · 3 h ago Reply"
+        },
+        {
+          "id": "travel:t-w01",
+          "text": "R Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Trip"
+        },
+        {
+          "id": "prio:g16",
+          "text": "AT Arriving today: your package Gmail · 3 h ago Priority Reply"
+        }
+      ],
+      "seeAll": true
+    },
+    "priorityAll": [
+      {
+        "id": "pay:t-g03",
+        "text": "SP Studio Pixel Gmail · 1 Nov Due"
+      },
+      {
+        "id": "prio:g06",
+        "text": "BF Black Friday: slevy až 50 % Gmail · 3 h ago Priority Reply"
+      },
+      {
+        "id": "prio:w01",
+        "text": "YB Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Priority Trip"
+      },
+      {
+        "id": "inbox-prio:w01",
+        "text": "R Reply to Ryanair Gmail · 3 h ago Reply"
+      },
+      {
+        "id": "travel:t-w01",
+        "text": "R Your boarding pass FR1234 PRG–DUB Gmail · 3 h ago Trip"
+      },
+      {
+        "id": "prio:g16",
+        "text": "AT Arriving today: your package Gmail · 3 h ago Priority Reply"
+      },
+      {
+        "id": "inbox-prio:g16",
+        "text": "A Reply to Amazon.de Gmail · 3 h ago Reply"
+      },
+      {
+        "id": "prio:g12",
+        "text": "TW This week in AI Gmail · 2 h ago Priority Reply"
+      },
+      {
+        "id": "reply:t-g12",
+        "text": "SA Reply to Substack AI Weekly Gmail · waiting 2 h Reply"
+      },
+      {
+        "id": "inbox-prio:g12",
+        "text": "SA Reply to Substack AI Weekly Gmail · 2 h ago Reply"
+      },
+      {
+        "id": "prio:g14",
+        "text": "AW Anita wants to connect Gmail · 2 h ago Priority Reply"
+      },
+      {
+        "id": "prio:g05",
+        "text": "YR Your refund has been processed Gmail · 2 h ago Priority Trip"
+      },
+      {
+        "id": "prio:g04",
+        "text": "PO Potvrzení objednávky 554433 Gmail · 1 h ago Priority Reply"
+      },
+      {
+        "id": "inbox-prio:g04",
+        "text": "A Reply to Alza.cz Gmail · 1 h ago Reply"
+      },
+      {
+        "id": "prio:g07",
+        "text": "MO Meeting on Thursday? Gmail · 1 h ago Priority Reply"
+      },
+      {
+        "id": "inbox-prio:g07",
+        "text": "PJ Reply to Prof. Jan Novák Gmail · 1 h ago Priority Reply"
+      },
+      {
+        "id": "prio:g07b",
+        "text": "RM Re: Meeting on Thursday? Gmail · 35 min ago Priority Reply"
+      },
+      {
+        "id": "inbox-prio:g07b",
+        "text": "PJ Reply to Prof. Jan Novák Gmail · 35 min ago Priority Reply"
+      },
+      {
+        "id": "prio:g18",
+        "text": "PA Position at QuantumTech Gmail · 20 min ago Priority Reply"
+      },
+      {
+        "id": "inbox-prio:g18",
+        "text": "EH Reply to Eva Horáková Gmail · 20 min ago Reply"
+      },
+      {
+        "id": "pay:t-g01",
+        "text": "ČP ČEZ Prodej Gmail · 4 Nov Due"
+      }
+    ],
+    "money": {
+      "To pay now": [
+        "Studio Pixel Unpaid bill · Was due 1 Nov 2026 Reminder suggested €480 80% sure",
+        "ČEZ Prodej Unpaid bill · Due 4 Nov 2026 Reminder suggested 1,250 Kč 80% sure"
+      ],
+      "Upcoming": [
+        "Vodafone CZ Unpaid bill · Due 14 Nov 2026 Reminder suggested 649 Kč 80% sure"
+      ],
+      "Needs review": [
+        "Petr Novák Unpaid bill · No due date in the email 18,500 Kč 80% sure"
+      ],
+      "Paid": [
+        "Alza.cz Purchase receipt · Email 1 h ago 1,120 Kč 80% sure",
+        "Revolut Payment successful · Email 55 min ago 289.50 Kč 82% sure"
+      ],
+      "Refunded": [
+        "Booking.com Refund received · Email 2 h ago +€82 90% sure"
+      ]
+    },
+    "inbox": {
+      "all": [
+        {
+          "section": "Needs Attention",
+          "id": "t-g03",
+          "title": "Studio Pixel",
+          "time": "20 Oct",
+          "snippet": "Hi, please find invoice INV-2041 attached. Amount due: €480.00. Due date",
+          "tag": "Overdue",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "task-money:gt076",
+          "title": "Renew passport photos",
+          "time": "1 d ago",
+          "snippet": "Renew passport photos",
+          "tag": "Due soon",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g01",
+          "title": "ČEZ Prodej",
+          "time": "25 Oct",
+          "snippet": "Dobrý den, zasíláme vyúčtování. Částka k úhradě: 1 250 Kč. Datum splatno",
+          "tag": "Due 4 Nov",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g02",
+          "title": "Vodafone CZ",
+          "time": "2 d ago",
+          "snippet": "Faktura č. 2026104455. Celkem k úhradě 649 Kč, splatnost 14.11.2026.",
+          "tag": "Due 14 Nov",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g19",
+          "title": "Petr Novák",
+          "time": "14 h ago",
+          "snippet": "Ahoj, připomínám nájem 18 500 Kč za listopad, prosím zaplať do 4. 11. 20",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-w08",
+          "title": "Ticketportal",
+          "time": "6 d ago",
+          "snippet": "E-vstupenky: Česká filharmonie, Rudolfinum, 28. 11. 2026 v 19:30, objedn",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-w02c",
+          "title": "Booking.com",
+          "time": "2 d ago",
+          "snippet": "Your reservation 4123987 at Hotel Lisboa (20–23 Nov 2026) has been cance",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g09",
+          "title": "Organic Letters",
+          "time": "28 Oct",
+          "snippet": "Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-w04",
+          "title": "RegioJet",
+          "time": "2 d ago",
+          "snippet": "Vaše jízdenka č. 2211334455. Odjezd 16. 11. 2026 v 7:05 z Praha hl.n., p",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g08",
+          "title": "Li Wei",
+          "time": "17 h ago",
+          "snippet": "I have addressed reviewer 2 comments, can you check the SI and confirm t",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g12",
+          "title": "Substack AI Weekly",
+          "time": "2 h ago",
+          "snippet": "The biggest stories of the week in AI research and products.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g14",
+          "title": "LinkedIn",
+          "time": "2 h ago",
+          "snippet": "Anita Sharma would like to join your network.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-novak",
+          "title": "Prof. Jan Novák",
+          "time": "1 h ago",
+          "snippet": "Can we move our meeting to Thursday at 10? I want to discuss the Wigner ",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-novak",
+          "title": "Prof. Jan Novák",
+          "time": "35 min ago",
+          "snippet": "Also, please bring the latest data plots.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g18",
+          "title": "Eva Horáková",
+          "time": "20 min ago",
+          "snippet": "Dear Mr. Kumar, I came across your profile and would like to discuss a r",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-ew",
+          "title": "Eurowings",
+          "time": "10 Oct",
+          "snippet": "Booking code EWQ7Z1. Flight EW 8121 Prague – Cologne on 3 Dec 2026, depa",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-lisboa",
+          "title": "Booking.com",
+          "time": "15 Oct",
+          "snippet": "Confirmation number 4123987. Hotel Lisboa, Rua Augusta 10, Lisbon. Check",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g10",
+          "title": "Ryanair",
+          "time": "21 Oct",
+          "snippet": "Booking reference ABC12D. Prague (PRG) to Dublin (DUB) on 4 Nov 2026 21:",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-landlord-q",
+          "title": "Me",
+          "time": "5 d ago",
+          "snippet": "Hi, is late check-in possible?",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-ew",
+          "title": "Eurowings",
+          "time": "3 d ago",
+          "snippet": "Your flight EW 8121 on 3 Dec 2026 now departs at 11:40 instead of 10:55.",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-w03",
+          "title": "OpenTable",
+          "time": "3 d ago",
+          "snippet": "Your table for 2 at Field, U Milosrdných 12, Praha on Sat 21 Nov 2026 at",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-w01",
+          "title": "Ryanair",
+          "time": "3 h ago",
+          "snippet": "Boarding pass for Test User. Flight FR1234 Prague (PRG) to Dublin (DUB) ",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g11",
+          "title": "Netflix",
+          "time": "3 d ago",
+          "snippet": "Your Netflix Standard plan renews today, 4 Nov 2026, for 259 Kč. No acti",
+          "tag": "Mail",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g13",
+          "title": "Google",
+          "time": "45 min ago",
+          "snippet": "New sign-in to your Google Account on a Windows device.",
+          "tag": "Mail",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g15",
+          "title": "GitHub",
+          "time": "25 min ago",
+          "snippet": "A new issue was opened in kratveer/Deshboard.",
+          "tag": "Mail",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent",
+          "id": "t-g05",
+          "title": "Booking.com",
+          "time": "2 h ago",
+          "snippet": "The refund of €82.00 for reservation 4123987 has been processed to your ",
+          "tag": "Refunded",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent",
+          "id": "t-g17",
+          "title": "Revolut",
+          "time": "55 min ago",
+          "snippet": "You paid 289.50 CZK at Albert Vinohrady with your card ending 1144.",
+          "tag": "Paid",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent",
+          "id": "t-g16",
+          "title": "Amazon.de",
+          "time": "3 h ago",
+          "snippet": "Your package with order 302-1188776 is out for delivery and arrives toda",
+          "tag": "Shopping",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent",
+          "id": "t-g04",
+          "title": "Alza.cz",
+          "time": "1 h ago",
+          "snippet": "Děkujeme za objednávku 554433. Celkem 1 120 Kč, zaplaceno kartou. Doruče",
+          "tag": "Paid",
+          "unreadMark": false
+        }
+      ],
+      "subscriptions": [],
+      "payments": [
+        {
+          "section": "Needs Attention",
+          "id": "task-money:gt076",
+          "title": "Renew passport photos",
+          "time": "1 d ago",
+          "snippet": "Renew passport photos",
+          "tag": "Due soon",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent payments",
+          "id": "t-g05",
+          "title": "Booking.com",
+          "time": "2 h ago",
+          "snippet": "The refund of €82.00 for reservation 4123987 has been processed to your ",
+          "tag": "Refunded",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent payments",
+          "id": "t-g17",
+          "title": "Revolut",
+          "time": "55 min ago",
+          "snippet": "You paid 289.50 CZK at Albert Vinohrady with your card ending 1144.",
+          "tag": "Paid",
+          "unreadMark": false
+        }
+      ],
+      "receipts": [
+        {
+          "section": "Recent",
+          "id": "t-g16",
+          "title": "Amazon.de",
+          "time": "3 h ago",
+          "snippet": "Your package with order 302-1188776 is out for delivery and arrives toda",
+          "tag": "Shopping",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent",
+          "id": "t-g04",
+          "title": "Alza.cz",
+          "time": "1 h ago",
+          "snippet": "Děkujeme za objednávku 554433. Celkem 1 120 Kč, zaplaceno kartou. Doruče",
+          "tag": "Paid",
+          "unreadMark": false
+        }
+      ],
+      "bills": [
+        {
+          "section": "Needs Attention",
+          "id": "t-g03",
+          "title": "Studio Pixel",
+          "time": "20 Oct",
+          "snippet": "Hi, please find invoice INV-2041 attached. Amount due: €480.00. Due date",
+          "tag": "Overdue",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g01",
+          "title": "ČEZ Prodej",
+          "time": "25 Oct",
+          "snippet": "Dobrý den, zasíláme vyúčtování. Částka k úhradě: 1 250 Kč. Datum splatno",
+          "tag": "Due 4 Nov",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g02",
+          "title": "Vodafone CZ",
+          "time": "2 d ago",
+          "snippet": "Faktura č. 2026104455. Celkem k úhradě 649 Kč, splatnost 14.11.2026.",
+          "tag": "Due 14 Nov",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g19",
+          "title": "Petr Novák",
+          "time": "14 h ago",
+          "snippet": "Ahoj, připomínám nájem 18 500 Kč za listopad, prosím zaplať do 4. 11. 20",
+          "tag": "Needs review",
+          "unreadMark": false
+        }
+      ],
+      "tickets": [
+        {
+          "section": "Needs Attention",
+          "id": "t-w08",
+          "title": "Ticketportal",
+          "time": "6 d ago",
+          "snippet": "E-vstupenky: Česká filharmonie, Rudolfinum, 28. 11. 2026 v 19:30, objedn",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-w02c",
+          "title": "Booking.com",
+          "time": "2 d ago",
+          "snippet": "Your reservation 4123987 at Hotel Lisboa (20–23 Nov 2026) has been cance",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-ew",
+          "title": "Eurowings",
+          "time": "10 Oct",
+          "snippet": "Booking code EWQ7Z1. Flight EW 8121 Prague – Cologne on 3 Dec 2026, depa",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-lisboa",
+          "title": "Booking.com",
+          "time": "15 Oct",
+          "snippet": "Confirmation number 4123987. Hotel Lisboa, Rua Augusta 10, Lisbon. Check",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g10",
+          "title": "Ryanair",
+          "time": "21 Oct",
+          "snippet": "Booking reference ABC12D. Prague (PRG) to Dublin (DUB) on 4 Nov 2026 21:",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-landlord-q",
+          "title": "Me",
+          "time": "5 d ago",
+          "snippet": "Hi, is late check-in possible?",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-ew",
+          "title": "Eurowings",
+          "time": "3 d ago",
+          "snippet": "Your flight EW 8121 on 3 Dec 2026 now departs at 11:40 instead of 10:55.",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-w03",
+          "title": "OpenTable",
+          "time": "3 d ago",
+          "snippet": "Your table for 2 at Field, U Milosrdných 12, Praha on Sat 21 Nov 2026 at",
+          "tag": "Ticket",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-w01",
+          "title": "Ryanair",
+          "time": "3 h ago",
+          "snippet": "Boarding pass for Test User. Flight FR1234 Prague (PRG) to Dublin (DUB) ",
+          "tag": "Ticket",
+          "unreadMark": false
+        }
+      ],
+      "important": [
+        {
+          "section": "Needs Attention",
+          "id": "t-g09",
+          "title": "Organic Letters",
+          "time": "28 Oct",
+          "snippet": "Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-w04",
+          "title": "RegioJet",
+          "time": "2 d ago",
+          "snippet": "Vaše jízdenka č. 2211334455. Odjezd 16. 11. 2026 v 7:05 z Praha hl.n., p",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g08",
+          "title": "Li Wei",
+          "time": "17 h ago",
+          "snippet": "I have addressed reviewer 2 comments, can you check the SI and confirm t",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g12",
+          "title": "Substack AI Weekly",
+          "time": "2 h ago",
+          "snippet": "The biggest stories of the week in AI research and products.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g14",
+          "title": "LinkedIn",
+          "time": "2 h ago",
+          "snippet": "Anita Sharma would like to join your network.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-novak",
+          "title": "Prof. Jan Novák",
+          "time": "1 h ago",
+          "snippet": "Can we move our meeting to Thursday at 10? I want to discuss the Wigner ",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-novak",
+          "title": "Prof. Jan Novák",
+          "time": "35 min ago",
+          "snippet": "Also, please bring the latest data plots.",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "Needs Attention",
+          "id": "t-g18",
+          "title": "Eva Horáková",
+          "time": "20 min ago",
+          "snippet": "Dear Mr. Kumar, I came across your profile and would like to discuss a r",
+          "tag": "Needs review",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g11",
+          "title": "Netflix",
+          "time": "3 d ago",
+          "snippet": "Your Netflix Standard plan renews today, 4 Nov 2026, for 259 Kč. No acti",
+          "tag": "Mail",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g13",
+          "title": "Google",
+          "time": "45 min ago",
+          "snippet": "New sign-in to your Google Account on a Windows device.",
+          "tag": "Mail",
+          "unreadMark": false
+        },
+        {
+          "section": "This Week",
+          "id": "t-g15",
+          "title": "GitHub",
+          "time": "25 min ago",
+          "snippet": "A new issue was opened in kratveer/Deshboard.",
+          "tag": "Mail",
+          "unreadMark": false
+        }
+      ],
+      "promotions": [
+        {
+          "section": "Recent",
+          "id": "t-w06",
+          "title": "Ryanair",
+          "time": "23 h ago",
+          "snippet": "Grab a seat sale: flights to Rome, Milan and Malta from €19.99. Book by ",
+          "tag": "Promotion",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent",
+          "id": "t-w07",
+          "title": "Booking.com",
+          "time": "21 h ago",
+          "snippet": "Getaway deals: up to 25% off stays this weekend.",
+          "tag": "Promotion",
+          "unreadMark": false
+        },
+        {
+          "section": "Recent",
+          "id": "t-g06",
+          "title": "Alza.cz",
+          "time": "3 h ago",
+          "snippet": "Výprodej elektroniky: slevy až 50 %. Akce platí do neděle.",
+          "tag": "Promotion",
+          "unreadMark": false
+        }
+      ]
+    },
+    "inboxHasSearch": false,
+    "inboxDetail": {
+      "id": "t-w06",
+      "gmailLinks": [],
+      "openButtons": [
+        "SP\n      Studio PixelGmail · 1 NovDue",
+        "BF\n      Black Friday: slevy až 50 %Gmail · 3 h agoPriorityReply",
+        "YB\n      Your boarding pass FR1234 PRG–DUBGmail · 3 h agoPriorityTrip",
+        "R\n      Reply to RyanairGmail · 3 h agoReply",
+        "R\n      Your boarding pass FR1234 PRG–DUBGmail · 3 h agoTrip"
+      ],
+      "sheetText": "‹ Email ☆ ⋯ R Ryanair Gmail 23 h ago Details Notes Activity R Ryanair Flights from €19.99 — this weekend only 3 Nov, 10:00 Grab a seat sale: flights to Rome, Milan and Malta from €19.99. Book by Sunday. Suggested Daylight reads this as: Promotion (80% sure). Nothing to pay. Linked records Flights from €19.99 — this weekend only Flight ticket Money · Promotion Daylight reads this as: Promotion (80%"
+    },
+    "wallet": {
+      "dom": [
+        {
+          "section": "Upcoming 3",
+          "passes": [
+            {
+              "wid": "mail:g05",
+              "text": "DOCUMENT Upcoming — → YOUR CARD Your refund has been processed"
+            },
+            {
+              "wid": "mail:w02",
+              "text": "DOCUMENT Upcoming Your booking is confirmed at Hotel Lisboa Booking.com · → tal price"
+            },
+            {
+              "wid": "mail:w06",
+              "text": "TICKET Upcoming — → ROME Flights from €19.99 — this weekend only"
+            }
+          ]
+        },
+        {
+          "section": "Active 8",
+          "passes": [
+            {
+              "wid": "mail:s01",
+              "text": "Question about the apartment Ticket · Me"
+            },
+            {
+              "wid": "mail:w08",
+              "text": "Vaše e-vstupenky: Česká filharmonie Ticket · Ticketportal"
+            },
+            {
+              "wid": "mail:w07",
+              "text": "Last-minute deals for this weekend Document · Booking.com"
+            },
+            {
+              "wid": "mail:w05",
+              "text": "Your booking confirmation EWQ7Z1 Ticket · Eurowings"
+            },
+            {
+              "wid": "mail:g10",
+              "text": "Your booking confirmation ABC12D Ticket · Ryanair"
+            },
+            {
+              "wid": "mail:w05c",
+              "text": "Flight schedule change EWQ7Z1 Ticket · Eurowings"
+            },
+            {
+              "wid": "mail:w03",
+              "text": "Reservation confirmed at Field Ticket · OpenTable"
+            },
+            {
+              "wid": "mail:w01",
+              "text": "Your boarding pass FR1234 PRG–DUB Ticket · Ryanair"
+            }
+          ]
+        },
+        {
+          "section": "Expired 1",
+          "passes": [
+            {
+              "wid": "mail:w02c",
+              "text": "Cancelled · Your booking 4123987 has been cancelled Document · Cancelled"
+            }
+          ]
+        }
+      ],
+      "store": [
+        {
+          "id": "mail:s01",
+          "childKey": null,
+          "mailId": "s01",
+          "sourceId": "s01",
+          "threadId": "t-landlord-q",
+          "tripId": null,
+          "title": "Question about the apartment",
+          "kind": "tickets",
+          "note": "Me",
+          "org": "Me",
+          "typeLabel": "Train ticket",
+          "number": "",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-landlord-q",
+          "flight": null,
+          "bookingRef": null,
+          "recordKey": "ticket:t-landlord-q",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "s01",
+            "threadId": "t-landlord-q",
+            "recordKey": "ticket:t-landlord-q",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "lastChange": null,
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w08",
+          "childKey": null,
+          "mailId": "w08",
+          "sourceId": "w08",
+          "threadId": "t-w08",
+          "tripId": "trip:ticketportal:2026-10-25",
+          "title": "Vaše e-vstupenky: Česká filharmonie",
+          "kind": "tickets",
+          "note": "Ticketportal",
+          "org": "Ticketportal",
+          "typeLabel": "Flight ticket",
+          "number": "",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-w08",
+          "flight": null,
+          "bookingRef": null,
+          "recordKey": "ticket:t-w08",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w08",
+            "threadId": "t-w08",
+            "recordKey": "ticket:t-w08",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "tripMates": [
+            {
+              "id": "mail:w05c",
+              "title": "Flight schedule change EWQ7Z1",
+              "kind": "tickets"
+            },
+            {
+              "id": "mail:w03",
+              "title": "Reservation confirmed at Field",
+              "kind": "tickets"
+            }
+          ],
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "lastChange": null,
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w02c",
+          "childKey": null,
+          "mailId": "w02c",
+          "sourceId": "w02c",
+          "threadId": "t-w02c",
+          "tripId": "trip:booking-com:2027-02-14",
+          "title": "Cancelled · Your booking 4123987 has been cancelled",
+          "kind": "documents",
+          "note": "CANCELLED · Booking.com",
+          "org": "Booking.com",
+          "typeLabel": "Hotel booking",
+          "number": "#4123987",
+          "date": "20 Feb 2027",
+          "travelAt": "2027-02-19T23:00:00.000Z",
+          "eventAt": "2027-02-19T23:00:00.000Z",
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#2f9e44",
+            "#1b6b2e"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-w02c",
+          "flight": {
+            "flight": "",
+            "from": "",
+            "to": "",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "4123987",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": "4123987",
+          "recordKey": "ticket:t-w02c",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "cancelled",
+          "cancelled": true,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w02c",
+            "threadId": "t-w02c",
+            "recordKey": "ticket:t-w02c",
+            "entityKey": null
+          },
+          "_bookingFp": "|1803078000000|||||4123987|1|",
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "|1803078000000|||||4123987|1|",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w06",
+          "childKey": null,
+          "mailId": "w06",
+          "sourceId": "w06",
+          "threadId": "t-w06",
+          "tripId": "trip:rome:2034-03-12",
+          "title": "Flights from €19.99 — this weekend only",
+          "kind": "tickets",
+          "note": "Ryanair · → ROME",
+          "org": "Ryanair",
+          "typeLabel": "Flight ticket",
+          "number": "",
+          "date": "19 Mar 2034",
+          "travelAt": "2034-03-18T23:00:00.000Z",
+          "eventAt": "2034-03-18T23:00:00.000Z",
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-w06",
+          "flight": {
+            "flight": "",
+            "from": "",
+            "to": "ROME",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": null,
+          "recordKey": "ticket:t-w06",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w06",
+            "threadId": "t-w06",
+            "recordKey": "ticket:t-w06",
+            "entityKey": null
+          },
+          "_bookingFp": "|2026335600000||||||0|ROME",
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "|2026335600000||||||0|ROME",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w07",
+          "childKey": null,
+          "mailId": "w07",
+          "sourceId": "w07",
+          "threadId": "t-w07",
+          "tripId": "trip:dub:2026-11-01",
+          "title": "Last-minute deals for this weekend",
+          "kind": "documents",
+          "note": "Booking.com",
+          "org": "Booking.com",
+          "typeLabel": "Hotel booking",
+          "number": "",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#2f9e44",
+            "#1b6b2e"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-w07",
+          "flight": null,
+          "bookingRef": null,
+          "recordKey": "ticket:t-w07",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w07",
+            "threadId": "t-w07",
+            "recordKey": "ticket:t-w07",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "tripMates": [
+            {
+              "id": "mail:w01",
+              "title": "Your boarding pass FR1234 PRG–DUB",
+              "kind": "tickets"
+            }
+          ],
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "lastChange": null,
+          "rescheduled": false,
+          "linkedMailId": "w01"
+        },
+        {
+          "id": "mail:g05",
+          "childKey": null,
+          "mailId": "g05",
+          "sourceId": "g05",
+          "threadId": "t-g05",
+          "tripId": "trip:your-card:2027-02-14",
+          "title": "Your refund has been processed",
+          "kind": "documents",
+          "note": "Booking.com · → YOUR CARD",
+          "org": "Booking.com",
+          "typeLabel": "Hotel booking",
+          "number": "",
+          "date": "20 Feb 2027",
+          "travelAt": "2027-02-19T23:00:00.000Z",
+          "eventAt": "2027-02-19T23:00:00.000Z",
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#2f9e44",
+            "#1b6b2e"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-g05",
+          "flight": {
+            "flight": "",
+            "from": "",
+            "to": "YOUR CARD",
+            "seat": "",
+            "gate": "",
+            "coach": "D",
+            "pnr": "",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": null,
+          "recordKey": "ticket:t-g05",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "g05",
+            "threadId": "t-g05",
+            "recordKey": "ticket:t-g05",
+            "entityKey": null
+          },
+          "_bookingFp": "|1803078000000||||||0|YOUR CARD",
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "|1803078000000||||||0|YOUR CARD",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w05",
+          "childKey": null,
+          "mailId": "w05",
+          "sourceId": "w05",
+          "threadId": "t-ew",
+          "tripId": "trip:eurowings:2026-10-04",
+          "title": "Your booking confirmation EWQ7Z1",
+          "kind": "tickets",
+          "note": "Eurowings",
+          "org": "Eurowings",
+          "typeLabel": "Flight ticket",
+          "number": "#EWQ7Z1",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-ew",
+          "flight": {
+            "flight": "EW8121",
+            "from": "",
+            "to": "",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "EWQ7Z1",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": "EWQ7Z1",
+          "recordKey": "ticket:t-ew",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w05",
+            "threadId": "t-ew",
+            "recordKey": "ticket:t-ew",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "||||EW8121||EWQ7Z1|0|",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w02",
+          "childKey": null,
+          "mailId": "w02",
+          "sourceId": "w02",
+          "threadId": "t-lisboa",
+          "tripId": "trip:tal-price:2027-08-08",
+          "title": "Your booking is confirmed at Hotel Lisboa",
+          "kind": "documents",
+          "note": "Booking.com · → tal price",
+          "org": "Booking.com",
+          "typeLabel": "Hotel booking",
+          "number": "#NUMBER",
+          "date": "10 Aug 2027",
+          "travelAt": "2027-08-09T22:00:00.000Z",
+          "eventAt": "2027-08-09T22:00:00.000Z",
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#2f9e44",
+            "#1b6b2e"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-lisboa",
+          "flight": {
+            "flight": "",
+            "from": "",
+            "to": "",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "NUMBER",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": "NUMBER",
+          "recordKey": "ticket:t-lisboa",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w02",
+            "threadId": "t-lisboa",
+            "recordKey": "ticket:t-lisboa",
+            "entityKey": null
+          },
+          "_bookingFp": "|1817848800000|||||NUMBER|0|tal price",
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "|1817848800000|||||NUMBER|0|tal price",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:g10",
+          "childKey": null,
+          "mailId": "g10",
+          "sourceId": "g10",
+          "threadId": "t-g10",
+          "tripId": "trip:dublin:2026-10-18",
+          "title": "Your booking confirmation ABC12D",
+          "kind": "tickets",
+          "note": "Ryanair",
+          "org": "Ryanair",
+          "typeLabel": "Flight ticket",
+          "number": "#ABC12D",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-g10",
+          "flight": {
+            "flight": "",
+            "from": "",
+            "to": "DUBLIN ",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "ABC12D",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": "ABC12D",
+          "recordKey": "ticket:t-g10",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "g10",
+            "threadId": "t-g10",
+            "recordKey": "ticket:t-g10",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "||||||ABC12D|0|DUBLIN",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w05c",
+          "childKey": null,
+          "mailId": "w05c",
+          "sourceId": "w05c",
+          "threadId": "t-ew",
+          "tripId": "trip:ticketportal:2026-10-25",
+          "title": "Flight schedule change EWQ7Z1",
+          "kind": "tickets",
+          "note": "Eurowings",
+          "org": "Eurowings",
+          "typeLabel": "Flight ticket",
+          "number": "",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-ew",
+          "flight": {
+            "flight": "EW8121",
+            "from": "",
+            "to": "",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": null,
+          "recordKey": "ticket:t-ew",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w05c",
+            "threadId": "t-ew",
+            "recordKey": "ticket:t-ew",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "tripMates": [
+            {
+              "id": "mail:w08",
+              "title": "Vaše e-vstupenky: Česká filharmonie",
+              "kind": "tickets"
+            },
+            {
+              "id": "mail:w03",
+              "title": "Reservation confirmed at Field",
+              "kind": "tickets"
+            }
+          ],
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "||||EW8121|||0|",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w03",
+          "childKey": null,
+          "mailId": "w03",
+          "sourceId": "w03",
+          "threadId": "t-w03",
+          "tripId": "trip:ticketportal:2026-10-25",
+          "title": "Reservation confirmed at Field",
+          "kind": "tickets",
+          "note": "OpenTable",
+          "org": "OpenTable",
+          "typeLabel": "Flight ticket",
+          "number": "#99812",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-w03",
+          "flight": {
+            "flight": "",
+            "from": "",
+            "to": "",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "99812",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": "99812",
+          "recordKey": "ticket:t-w03",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w03",
+            "threadId": "t-w03",
+            "recordKey": "ticket:t-w03",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "tripMates": [
+            {
+              "id": "mail:w08",
+              "title": "Vaše e-vstupenky: Česká filharmonie",
+              "kind": "tickets"
+            },
+            {
+              "id": "mail:w05c",
+              "title": "Flight schedule change EWQ7Z1",
+              "kind": "tickets"
+            }
+          ],
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "||||||99812|0|",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w01",
+          "childKey": null,
+          "mailId": "w01",
+          "sourceId": "w01",
+          "threadId": "t-w01",
+          "tripId": "trip:dub:2026-11-01",
+          "title": "Your boarding pass FR1234 PRG–DUB",
+          "kind": "tickets",
+          "note": "Ryanair",
+          "org": "Ryanair",
+          "typeLabel": "Flight ticket",
+          "number": "",
+          "date": "",
+          "travelAt": null,
+          "eventAt": null,
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-w01",
+          "flight": {
+            "flight": "FR1234",
+            "from": "PRG",
+            "to": "DUB",
+            "seat": "14C",
+            "gate": "",
+            "coach": "",
+            "pnr": "",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": null,
+          "recordKey": "ticket:t-w01",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w01",
+            "threadId": "t-w01",
+            "recordKey": "ticket:t-w01",
+            "entityKey": null
+          },
+          "_bookingFp": "|||||||0|",
+          "tripMates": [
+            {
+              "id": "mail:w07",
+              "title": "Last-minute deals for this weekend",
+              "kind": "documents"
+            }
+          ],
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "||||FR1234|||0|DUB",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        }
+      ]
+    },
+    "timelineToday": [
+      {
+        "time": "All day",
+        "title": "Diwali preparations",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=a01",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "All day",
+        "title": "Klára's birthday",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=a02",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "22:00 – 01:00",
+        "title": "Night observation run",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e00",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "00:00",
+        "title": "Prepare seminar slides",
+        "meta": "Reminder",
+        "href": "",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "07:30 – 08:15",
+        "title": "Gym",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e01",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "09:00 – 09:30",
+        "title": "Daily standup",
+        "meta": "Google Calendar · Mail: Position at QuantumTech",
+        "href": "https://www.google.com/calendar/event?eid=e02",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "10:00 – 11:00",
+        "title": "Lab meeting – Fock state data",
+        "meta": "FZU room 214 · Google Calendar · Mail: Re: Meeting on Thursday?",
+        "href": "https://www.google.com/calendar/event?eid=e03",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "10:30 – 11:15",
+        "title": "Call with Anita",
+        "meta": "Google Calendar · Mail: Anita wants to connect",
+        "href": "https://www.google.com/calendar/event?eid=e04",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "11:00 – 11:30",
+        "title": "Call with Bangalore team",
+        "meta": "Google Calendar · Mail: Position at QuantumTech",
+        "href": "https://www.google.com/calendar/event?eid=e05",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "12:00 – 13:00",
+        "title": "Lunch with Marek",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e06",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "13:00 – 14:00",
+        "title": "Write SI section (focus)",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e07",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "14:00 – 15:00",
+        "title": "Vendor demo",
+        "meta": "Google Calendar · Mail: Position at QuantumTech",
+        "href": "https://www.google.com/calendar/event?eid=e08",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "15:00 – 15:45",
+        "title": "Dentist",
+        "meta": "Zubař Malá, Vinohradská 12 · Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e09",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "16:30 – 17:30",
+        "title": "Seminar: quantum optics",
+        "meta": "Google Calendar · Mail: Position at QuantumTech",
+        "href": "https://www.google.com/calendar/event?eid=e10",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "17:00 – 18:00",
+        "title": "Parents' evening (school)",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=f01",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "17:45 – 18:30",
+        "title": "Yoga",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e11",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "19:15 – 19:45",
+        "title": "Taxi to airport",
+        "meta": "Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e12",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      },
+      {
+        "time": "21:40 – 00:05",
+        "title": "Flight to Dublin (FR 1234)",
+        "meta": "Prague PRG · Google Calendar",
+        "href": "https://www.google.com/calendar/event?eid=e13",
+        "walletId": "",
+        "mailId": "",
+        "loop": ""
+      }
+    ],
+    "timeline_2026-11-16": {
+      "heading": "Mon 16 Nov",
+      "items": []
+    },
+    "timeline_2026-11-21": {
+      "heading": "Sat 21 Nov",
+      "items": []
+    },
+    "timeline_2026-12-03": {
+      "heading": "Thu 3 Dec",
+      "items": []
+    },
+    "calendarRequests": [
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-03T23:00:00.000Z",
+        "timeMax": "2026-11-04T23:00:00.000Z",
+        "max": 12,
+        "returned": 12,
+        "total": 16
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-04T08:15:00.000Z",
+        "timeMax": "2026-11-17T23:00:00.000Z",
+        "max": 50,
+        "returned": 16,
+        "total": 16
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-03T23:00:00.000Z",
+        "timeMax": "2026-11-04T23:00:00.000Z",
+        "max": 12,
+        "returned": 12,
+        "total": 16
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-01T23:00:00.000Z",
+        "timeMax": "2026-11-08T23:00:00.000Z",
+        "max": 250,
+        "returned": 18,
+        "total": 18
+      },
+      {
+        "calId": "family@group.calendar.google.com",
+        "timeMin": "2026-11-01T23:00:00.000Z",
+        "timeMax": "2026-11-08T23:00:00.000Z",
+        "max": 250,
+        "returned": 1,
+        "total": 1
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-08T23:00:00.000Z",
+        "timeMax": "2026-11-15T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      },
+      {
+        "calId": "family@group.calendar.google.com",
+        "timeMin": "2026-11-08T23:00:00.000Z",
+        "timeMax": "2026-11-15T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-15T23:00:00.000Z",
+        "timeMax": "2026-11-22T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      },
+      {
+        "calId": "family@group.calendar.google.com",
+        "timeMin": "2026-11-15T23:00:00.000Z",
+        "timeMax": "2026-11-22T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-22T23:00:00.000Z",
+        "timeMax": "2026-11-29T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      },
+      {
+        "calId": "family@group.calendar.google.com",
+        "timeMin": "2026-11-22T23:00:00.000Z",
+        "timeMax": "2026-11-29T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-29T23:00:00.000Z",
+        "timeMax": "2026-12-06T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      },
+      {
+        "calId": "family@group.calendar.google.com",
+        "timeMin": "2026-11-29T23:00:00.000Z",
+        "timeMax": "2026-12-06T23:00:00.000Z",
+        "max": 250,
+        "returned": 0,
+        "total": 0
+      }
+    ],
+    "afterChange": {
+      "schedule": [
+        "07:30 Gym 07:30 – 08:15",
+        "09:00 Daily standup 09:00 – 09:30",
+        "10:00 Lab meeting – Fock state data 10:00 – 11:00",
+        "10:30 Call with Anita 10:30 – 11:15",
+        "11:00 Call with Bangalore team 11:00 – 11:30",
+        "13:00 Write SI section (focus) 13:00 – 14:00 · Deep work",
+        "14:00 Vendor demo 14:00 – 15:00",
+        "16:00 Dentist 16:00 – 16:45",
+        "All day · Diwali preparations",
+        "All day · Klára's birthday"
+      ],
+      "timeline": [],
+      "inboxAllCount": 29
+    },
+    "pageErrors": []
+  },
+  "desktop": {
+    "summary": "Good morning, Ravi. Daily standup is happening now · 7 more after that. You’ve got 4 things asking for you today — starting with Renew passport photos. 3 people are waiting on a reply. And 2 overdue tasks could use a reschedule. 3 payments to make this week — next: Studio Pixel, 1 later. 1 money email needs a quick check. 8 trips on the radar. Quiet window for focus: 15:45–20:00.",
+    "chips": [
+      {
+        "text": "Studio Pixel",
+        "href": "https://mail.google.com/mail/u/0/#all/t-g03"
+      },
+      {
+        "text": "Renew passport photos",
+        "href": "https://tasks.google.com/"
+      },
+      {
+        "text": "Reschedule: Renew passport photos",
+        "href": "https://tasks.google.com/"
+      },
+      {
+        "text": "Reschedule: Water plants",
+        "href": ""
+      }
+    ],
+    "calendar": [
+      {
+        "text": "All day Diwali preparations Google Calendar Event",
+        "href": ""
+      },
+      {
+        "text": "22:00 Night observation run Google Calendar 180 min",
+        "href": ""
+      },
+      {
+        "text": "All day Klára's birthday Google Calendar Event",
+        "href": ""
+      },
+      {
+        "text": "07:30 Gym Google Calendar 45 min",
+        "href": ""
+      },
+      {
+        "text": "09:00 Daily standup Google Calendar 30 min",
+        "href": ""
+      },
+      {
+        "text": "10:00 Lab meeting – Fock state data FZU room 214 60 min",
+        "href": ""
+      },
+      {
+        "text": "10:30 Call with Anita Google Calendar 45 min",
+        "href": ""
+      },
+      {
+        "text": "11:00 Call with Bangalore team Google Calendar 30 min",
+        "href": ""
+      },
+      {
+        "text": "12:00 Lunch with Marek Google Calendar 60 min",
+        "href": ""
+      },
+      {
+        "text": "13:00 Write SI section (focus) Google Calendar 60 min",
+        "href": ""
+      },
+      {
+        "text": "14:00 Vendor demo Google Calendar 60 min",
+        "href": ""
+      },
+      {
+        "text": "15:00 Dentist Zubař Malá, Vinohradská 12 45 min",
+        "href": ""
+      }
+    ],
+    "eventCount": "12",
+    "timeline": [
+      "07:30–08:15 · Gym",
+      "09:00–09:30 · Daily standup",
+      "10:00–11:00 · Lab meeting – Fock state data",
+      "10:30–11:15 · Call with Anita",
+      "11:00–11:30 · Call with Bangalore team",
+      "12:00–13:00 · Lunch with Marek",
+      "13:00–14:00 · Write SI section (focus)",
+      "14:00–15:00 · Vendor demo",
+      "15:00–15:45 · Dentist"
+    ],
+    "loops": [
+      {
+        "text": "Reschedule: Renew passport photos Google Tasks Was due 3 Nov Priority Reschedule Expand Snooze Done",
+        "href": ""
+      },
+      {
+        "text": "Reschedule: Water plants Daylight Was due 2 Nov Priority Reschedule Expand Snooze Done",
+        "href": ""
+      },
+      {
+        "text": "Book Diwali train tickets Google Tasks Due tomorrow Due soon Expand Snooze Done",
+        "href": ""
+      },
+      {
+        "text": "Prepare seminar slides Daylight Due today Due soon Expand Snooze Done",
+        "href": ""
+      },
+      {
+        "text": "Reply to Li Wei Gmail · waiting 17 h Re: manuscript revisions Priority Suggested action Expand Snooze Done",
+        "href": ""
+      },
+      {
+        "text": "Reply to Substack AI Weekly Gmail · waiting 2 h This week in AI Suggested action Expand Snooze Done",
+        "href": ""
+      }
+    ],
+    "headline": "Today: 12 events · 11 pending · 32 money · 22 loops",
+    "calendarRequests": [
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-03T23:00:00.000Z",
+        "timeMax": "2026-11-04T23:00:00.000Z",
+        "max": 12,
+        "returned": 12,
+        "total": 16
+      },
+      {
+        "calId": "primary",
+        "timeMin": "2026-11-04T08:15:00.000Z",
+        "timeMax": "2026-11-17T23:00:00.000Z",
+        "max": 50,
+        "returned": 16,
+        "total": 16
+      }
+    ],
+    "pageErrors": []
+  }
+}

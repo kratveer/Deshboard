@@ -145,6 +145,7 @@ Intent examples:
   "reminders": [{"title":"string","datetime":"ISO-8601|null","reason":"string|null","requires_confirmation":true}],
   "suggested_actions": [{"action":"string","label":"string|null"}],
   "confidence": 0.0,
+  "field_confidence": {"<field name, e.g. pnr|depart_datetime|order_id|delivery_date|amount|due_date>": 0.0},
   "evidence": [{"field":"order_id|delivery_date|pnr|depart_datetime|due_date|...","quoted_text":"exact snippet"}],
   "requires_confirmation": false,
   "original_date_expressions": [{"field":"string","text":"string"}],
@@ -459,6 +460,7 @@ Intent examples:
         label: asStr(a?.label)
       })).filter(a => a.action),
       confidence,
+      field_confidence: (() => { const fc = raw.field_confidence && typeof raw.field_confidence === 'object' && !Array.isArray(raw.field_confidence) ? raw.field_confidence : {}; const o = {}; Object.keys(fc).slice(0, 30).forEach((k) => { const v = Number(fc[k]); if (isFinite(v)) o[String(k).slice(0, 40)] = Math.max(0, Math.min(1, v)); }); return o; })(),
       evidence: asArray(raw.evidence).slice(0, 30).map(e => ({
         field: String(e?.field || ''),
         quoted_text: String(e?.quoted_text || '')
@@ -740,7 +742,7 @@ message_id: ${mail.id || mail.mailId || ''}
 attachment_names: ${(mail.attachments || []).map(a => a.filename || a).join(', ') || 'none'}
 
 email_body:
-${String(mail.body || mail.snippet || '').slice(0, 6000)}
+${String(mail.body || mail.snippet || '').slice(0, ctx?.maxChars || 6000)}
 
 Return JSON with this shape:
 ${SCHEMA_HINT}`;
@@ -828,7 +830,8 @@ ${SCHEMA_HINT}`;
     }
 
     const prompt = buildPrompt(normalized, ctx);
-    const hash = await sha256Hex(prompt);
+    // cache key without the changing current_datetime line, so an unchanged email is never re-sent (v2 cost fix)
+    const hash = await sha256Hex(prompt.replace(/^current_datetime:[^\n]*\n/, ''));
     const cached = cacheGet(hash);
     if (cached) {
       setStatus('Analysed (cached)', cached.summary);
@@ -836,11 +839,22 @@ ${SCHEMA_HINT}`;
     }
 
     try {
-      const data = await callWorker(serverUrl, session, prompt, ctx);
+      let data = await callWorker(serverUrl, session, prompt, ctx);
       trackUsage(data.usage);
-      const parsed = parseJsonLoose(data.text);
-      const validated = validateExtraction({ ...(parsed || {}), method: 'gemini' });
-      if (!validated.valid) throw new Error('invalid_schema');
+      let parsed = parseJsonLoose(data.text);
+      let validated = validateExtraction({ ...(parsed || {}), method: 'gemini' });
+      let retried = false, usage = data.usage;
+      if (!parsed || !validated.valid) {
+        // invalid JSON / schema: retry exactly once with the same (identical) system prompt, then give up
+        retried = true;
+        data = await callWorker(serverUrl, session, prompt + '\n\nReturn ONLY one valid JSON object matching the shape above.', ctx);
+        trackUsage(data.usage);
+        usage = { promptTokenCount: Number(usage?.promptTokenCount || 0) + Number(data.usage?.promptTokenCount || 0), candidatesTokenCount: Number(usage?.candidatesTokenCount || 0) + Number(data.usage?.candidatesTokenCount || 0) };
+        parsed = parseJsonLoose(data.text);
+        validated = validateExtraction({ ...(parsed || {}), method: 'gemini' });
+        if (!parsed || !validated.valid) { const err = new Error('invalid_schema'); err.usage = usage; err.retried = true; throw err; }
+      }
+      data.usage = usage; validated.retried = retried;
       cacheSet(hash, validated);
       if (validated.requires_confirmation) setStatus('Needs confirmation', validated.summary);
       else if (validated.travel) setStatus('Booking detected', validated.summary);
