@@ -163,7 +163,9 @@ body.menu-open .drawer{transform:none}
 .drawer-sync.is-err b{color:var(--hot,#d0627a)}
 .drawer-sync #refresh{border:0;background:var(--accent-soft);color:var(--accent-text);border-radius:999px;min-height:30px;padding:0 12px;font:650 12px var(--font);cursor:pointer}
 .drawer-sync #refresh[hidden]{display:none}
-#drawer-sync{display:none!important} /* sync status removed from the menu (still runs; Settings keeps sync controls) */
+#drawer-sync{display:none!important}
+/* menu + laptop sidebar scroll without a visible scrollbar */
+.drawer,.drawer-scroll,body.m .m-tabs{scrollbar-width:none;-ms-overflow-style:none}.drawer::-webkit-scrollbar,.drawer-scroll::-webkit-scrollbar,body.m .m-tabs::-webkit-scrollbar{display:none;width:0;height:0} /* sync status removed from the menu (still runs; Settings keeps sync controls) */
 .drawer-sub{display:none;padding:4px 8px 8px;font:500 12.5px/1.5 var(--font);color:var(--muted)}
 .drawer-sub.show{display:block}
 .drawer-sub button,.drawer-sub a{display:block;margin-top:8px;color:var(--accent-text);font:650 13px var(--font);text-decoration:none;background:none;border:0;padding:0;cursor:pointer;text-align:left}
@@ -1554,7 +1556,8 @@ body.m .m-empty-art::after{content:'';position:absolute;inset:22px;border:2px da
 .td-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:999px;font:650 12px/1.2 var(--font);background:#eef1f6;color:var(--muted)}
 .td-chip.accent{background:var(--accent-soft);color:var(--accent-text)}
 .td-chip.hot{background:var(--hot-soft);color:var(--hot)}
-.td-tabs{display:flex;gap:4px;padding:3px;margin:0 0 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 7%,var(--card));overflow-x:auto}
+.td-body>*{flex-shrink:0} /* children of the scrolling column must not be squashed (tabs have overflow-x and could shrink to 0) */
+.td-tabs{flex:none;display:flex;gap:4px;padding:3px;margin:0 0 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 7%,var(--card));overflow-x:auto}
 .td-tab{flex:1 1 0;border:0;border-radius:9px;min-height:34px;padding:7px 8px;background:transparent;color:var(--muted);font:650 13px/1.2 var(--font);cursor:pointer;white-space:nowrap}
 .td-tab.on{background:var(--card);color:var(--ink);box-shadow:0 2px 8px rgba(15,23,42,.08)}
 .td-tab:disabled{opacity:.4;cursor:default}
