@@ -99,6 +99,20 @@ GMAIL.push(
   m('p05', 'Acme Robotics <hello@acmerobotics.io>', "Big News: We're Award Winners!", 'Thank you for being part of our journey.', '2026-11-04T06:15:00+01:00', [...U, 'CATEGORY_PERSONAL'], { listUnsubscribe: true }),
   m('p06', 'Notion Team <team@makenotion.com>', 'Thanks for checking us out! 😎', 'Here is how to get started with your workspace.', '2026-11-04T06:20:00+01:00', [...U, 'CATEGORY_SOCIAL'])
 );
+// Mail with dates inside the next 7 days (Priority Actions)
+GMAIL.push(
+  m('n01', 'Zubní klinika Malá <recepce@zubarmala.cz>', 'Připomínka termínu', 'Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. V případě změny volejte.', '2026-11-03T10:00:00+01:00', [...IN, 'CATEGORY_PERSONAL']),
+  m('n02', 'Embassy of India <cons.prague@mea.gov.in>', 'Passport appointment confirmation', 'Your passport renewal appointment is scheduled for 9 November 2026 at 09:15. Bring the original documents.', '2026-11-02T12:00:00+01:00', [...IN, 'CATEGORY_UPDATES']),
+  m('n03', 'Kooperativa <platby@koop.cz>', 'Pojistné – výzva k úhradě', 'Pojistné 2 340 Kč za vozidlo prosíme uhraďte do 7. 11. 2026, VS 8800124.', '2026-11-01T09:00:00+01:00', [...IN, 'CATEGORY_UPDATES']),
+  m('n04', 'RegioJet <jizdenky@regiojet.cz>', 'Jízdenka Praha – Ostrava', 'Vaše jízdenka č. 2299001122. Odjezd 8. 11. 2026 v 7:05 z Praha hl.n., vůz 3, místo 21.', '2026-11-02T21:00:00+01:00', [...IN, 'CATEGORY_UPDATES']),
+  m('n05', 'Wizz Air <noreply@wizzair.com>', 'Your booking confirmation W6K2PQ', 'Booking code W6K2PQ. Flight W6 2345 Prague – Rome on 9 Nov 2026, departs 10:55.', '2026-10-20T10:00:00+02:00', [...IN, 'CATEGORY_UPDATES'], { threadId: 't-wizz' }),
+  m('n05c', 'Wizz Air <noreply@wizzair.com>', 'Schedule change W6K2PQ', 'Your flight W6 2345 on 9 Nov 2026 now departs at 11:40 instead of 10:55. Booking code W6K2PQ.', '2026-11-02T08:00:00+01:00', [...IN, 'CATEGORY_UPDATES'], { threadId: 't-wizz' }),
+  m('n06', 'Airbnb <automated@airbnb.com>', 'Reservation confirmed HM7Q2X', 'Reservation HM7Q2X in Rome. Check-in 9 Nov 2026 after 15:00, check-out 11 Nov 2026.', '2026-10-21T10:00:00+02:00', [...IN, 'CATEGORY_UPDATES']),
+  m('n06c', 'Airbnb <automated@airbnb.com>', 'Reservation HM7Q2X cancelled', 'Your reservation HM7Q2X in Rome (9–11 Nov 2026) has been cancelled. Refund on its way.', '2026-11-03T18:00:00+01:00', [...IN, 'CATEGORY_UPDATES']),
+  m('n07', 'Prof. Jan Novák <novak@fzu.cz>', 'Thesis committee', 'Please send me your progress report by 10 November 2026. Thanks, Jan', '2026-11-04T07:50:00+01:00', [...IN, 'CATEGORY_PERSONAL']),
+  m('n08', 'Shop Deals <news@shopdeals.example>', 'Sale ends 8 November!', 'Last chance: everything 40% off until 8 November 2026.', '2026-11-04T05:00:00+01:00', [...IN, 'CATEGORY_UPDATES'], { listUnsubscribe: true }),
+  m('n09', 'Alza.cz <objednavky@alza.cz>', 'Objednávka 554500 odeslána', 'Objednávka 554500 zaplacena. Doručení 6. 11. 2026 mezi 8:00 a 12:00.', '2026-11-04T07:00:00+01:00', [...IN, 'CATEGORY_UPDATES'])
+);
 const SENT = [
   { id: 's01', threadId: 't-landlord-q', from: 'Me <me@example.com>', to: 'Lisbon Host <host@lisbonflats.pt>', subject: 'Question about the apartment', body: 'Hi, is late check-in possible?', snippet: 'Hi, is late check-in possible?', internalDate: at('2026-10-30T10:00:00+01:00'), labelIds: ['SENT'] }
 ];
@@ -155,5 +169,10 @@ TRUTH.timeline = {
   mustNot: ['Vendor demo', 'Team retro', 'Renew passport photos', 'Book Diwali train tickets'],
   flightOnce: true,
   importantMail: ['Revision due: manuscript OL-2026-0123', 'ČEZ'] // deadlines / bills due today that live only in Gmail
+};
+TRUTH.priority7 = {
+  // expected Priority Actions (mail only), earliest first
+  must: ['g03', 'g01', 'g19|n?', 'w01|g10', 'g09', 'n01', 'n03', 'n04', 'n05c', 'n02', 'n07'],
+  mustNot: ['n06', 'n06c', 'n08', 'n05', 'p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'g06', 'g12', 'g14']
 };
 module.exports = { NOW, CALENDAR, SECONDARY, TASKS, PERSONAL, GMAIL, SENT, TRUTH };

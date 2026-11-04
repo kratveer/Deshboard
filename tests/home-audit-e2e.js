@@ -125,14 +125,21 @@ const clickTab = async (page, t) => { await page.evaluate((x) => document.queryS
       brief: document.querySelector('#m-brief')?.innerText || '',
       briefRows: [...document.querySelectorAll('#m-brief [data-brief-kind]')].map((r) => ({ kind: r.dataset.briefKind, id: r.dataset.briefId, href: r.dataset.briefHref || '', mail: r.dataset.briefMail || '', text: r.innerText.replace(/\s+/g, ' ') })),
       scheduleProse: document.querySelector('#m-schedule-prose')?.innerText || '',
-      schedule: [...document.querySelectorAll('#m-schedule-rail li')].map((li) => ({ time: li.querySelector('time')?.textContent || '', title: li.querySelector('b')?.textContent || li.innerText.replace(/\s+/g, ' '), text: li.innerText.replace(/\s+/g, ' '), link: !!li.querySelector('a[href]') })),
+      schedule: [...document.querySelectorAll('#m-schedule-rail .dl-ev, #m-schedule-rail li')].map((li) => ({ time: (li.querySelector('small')?.textContent || li.getAttribute('title') || '').slice(0, 11), title: li.querySelector('b')?.textContent || li.innerText.replace(/\s+/g, ' '), text: (li.getAttribute('title') || li.innerText).replace(/\s+/g, ' '), link: li.tagName === 'A' ? li.getAttribute('href') : '' })),
+      allDay: [...document.querySelectorAll('#m-schedule-rail .dl-allday > *')].map((a) => ({ text: a.textContent, link: a.getAttribute('href') || '' })),
       priorityTotal: document.querySelector('#m-loop-total')?.textContent || '',
       priority: [...document.querySelectorAll('#m-loop-grid [data-loop]')].map((c) => ({ id: c.dataset.loop, text: c.innerText.replace(/\s+/g, ' ') })),
       seeAll: !document.querySelector('#m-loops-see')?.hidden
     }));
     // full priority list via "See All"
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((t) => { document.body.classList.toggle('dark', t === 'dark'); }, theme);
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: path.join(__dirname, `home-v3-${theme}.png`), fullPage: true });
+    }
+    await page.evaluate(() => document.body.classList.remove('dark'));
     out.mobile.priorityByChip = {};
-    for (const chip of ['week', 'tasks', 'payments', 'meetings']) {
+    for (const chip of ['week', 'payments', 'deadlines', 'travel']) {
       out.mobile.priorityByChip[chip] = await page.evaluate(async (c) => { document.querySelector(`#m-prio-tabs [data-prio="${c}"]`)?.click(); await new Promise((r) => setTimeout(r, 400)); const b = document.querySelector('#m-loops-see'); const cards = [...document.querySelectorAll('#m-loop-grid [data-loop]')].map((x) => ({ id: x.dataset.loop, text: x.innerText.replace(/\s+/g, ' ') })); return { on: document.querySelector('#m-prio-tabs .on')?.dataset.prio, total: document.querySelector('#m-loop-total')?.textContent || '', cards, empty: document.querySelector('#m-loop-grid .m-empty')?.innerText || '' }; }, chip);
     }
     await page.evaluate(() => document.querySelector('#m-prio-tabs [data-prio="week"]')?.click());

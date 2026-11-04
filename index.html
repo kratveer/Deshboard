@@ -1806,6 +1806,44 @@ body.m .m-hello{max-width:100%}
   body.m .m-wallet-pass:active,body.m .m-circle:active,body.m .m-tabs [data-tab]:active{transform:none!important}
   body.m.tabs-hide .m-tabs{transform:none;opacity:0}
 }
+/* ===== One app on every screen: centred column on tablets, sidebar on laptops (v107) ===== */
+.m-side-brand{display:none}
+@media(min-width:681px){
+  body.m{--m-col:640px}
+  /* content stays a readable column; the area around it keeps the page background (light + dark) */
+  body.m .mapp{padding-left:0;padding-right:0}
+  body.m .m-top{padding-left:max(var(--m-space-4,18px),calc((100% - var(--m-col))/2));padding-right:max(var(--m-space-4,18px),calc((100% - var(--m-col))/2))}
+  body.m .m-screen{padding-left:max(var(--m-space-4,18px),calc((100% - var(--m-col))/2));padding-right:max(var(--m-space-4,18px),calc((100% - var(--m-col))/2))}
+  body.m .m-tabs{left:max(16px,calc((100% - 560px)/2));right:max(16px,calc((100% - 560px)/2))}
+  body.m .m-wallet-fab{right:max(18px,calc((100% - var(--m-col))/2 + 4px))}
+  body.m .brief-pop-card,body.m .notif-sheet,body.m .pass-sheet{max-width:640px;margin-left:auto;margin-right:auto}
+}
+@media(min-width:1100px){
+  body.m{--m-side:248px;--m-col:760px}
+  body.m .mapp{padding-left:var(--m-side)}
+  /* bottom tabs become a fixed left sidebar */
+  body.m .m-tabs,body.m.tabs-hide .m-tabs{
+    left:0;right:auto;top:0;bottom:0;width:var(--m-side);
+    display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;
+    padding:calc(18px + env(safe-area-inset-top)) 14px 18px;border-radius:0;
+    background:var(--card);border:0;border-right:1px solid var(--line);box-shadow:none;
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+    transform:none;opacity:1;visibility:visible;pointer-events:auto;
+  }
+  body.dark.m .m-tabs{background:var(--card);border-color:rgba(255,255,255,.08);box-shadow:none}
+  body.m .m-side-brand{display:flex;align-items:center;gap:10px;padding:6px 10px 22px;font:750 20px/1 var(--font);letter-spacing:-.4px;color:var(--ink)}
+  body.m .m-side-brand i{width:30px;height:30px;border-radius:9px;flex:none;background:radial-gradient(circle at 50% 38%,#fbbf24 0 38%,transparent 40%),linear-gradient(145deg,#7596ef,var(--accent));box-shadow:0 4px 12px rgba(99,129,217,.35)}
+  body.m .mapp[data-screen="home"] .m-title{visibility:hidden}
+  body.m .m-tabs [data-tab]{flex-direction:row;justify-content:flex-start;gap:12px;min-height:46px;padding:0 14px;border-radius:12px;font-size:15px}
+  body.m .m-tabs [data-tab] > span:not(.m-tab-ico){font-size:15px;max-width:none}
+  body.m .m-tabs [data-tab]:hover:not(.on){background:color-mix(in srgb,var(--ink) 5%,transparent)}
+  body.m .m-tab-thumb{border-radius:12px}
+  body.m .m-tabs [data-tab].on .m-tab-ico{transform:none}
+  body.m .m-screen{padding-bottom:48px}
+  body.m .m-wallet-fab{bottom:32px}
+  body.m .drawer{left:0}
+  body.m:has(.overlay.show) .m-tabs{opacity:1;visibility:visible}
+}
 </style>
 </head>
 <body>
@@ -1875,14 +1913,14 @@ Day start and Email Intelligence already live in Connections. Nothing extra is s
 <script>
 const $=s=>document.querySelector(s), toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)};
 const d=new Date();$('#today').textContent=d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'});$('#caldate').textContent=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-if(localStorage.getItem('daylight-theme')==='dark')document.body.classList.add('dark');
+document.body.classList.add('m');document.documentElement.classList.add('m-app');if(localStorage.getItem('daylight-theme')==='dark')document.body.classList.add('dark');
 $('#connections').onclick=()=>$('#overlay').classList.add('show');$('#close').onclick=()=>$('#overlay').classList.remove('show');$('#overlay').onclick=e=>{if(e.target.id==='overlay')$('#overlay').classList.remove('show')};
 function $$(s){return [...document.querySelectorAll(s)]}
 $('#refresh').onclick=()=>toast('You’re viewing sample data. Connect an app to sync updates.');const grid=$('#layout');const savedOrder=JSON.parse(localStorage.getItem('daylight-order')||'[]');savedOrder.forEach(id=>{const c=grid.querySelector(`[data-widget="${id}"]`);if(c)grid.append(c)});let editing=false;$('#customize')?.addEventListener('click',()=>{editing=!editing;$('#customize')?.classList.toggle('active',editing);$$('.card').forEach(c=>{c.draggable=editing;c.style.outline=editing?'1px dashed #7892e6':'none';c.style.cursor=editing?'grab':''});toast(editing?'Drag tiles to arrange your dashboard':'Layout saved on this device')});let dragged=null;grid.addEventListener('dragstart',e=>{if(!editing)return;dragged=e.target.closest('.card');if(dragged)e.dataTransfer.effectAllowed='move'});grid.addEventListener('dragover',e=>{if(!editing||!dragged)return;e.preventDefault();const target=e.target.closest('.card');if(target&&target!==dragged){const r=target.getBoundingClientRect();const after=(e.clientY-r.top)/r.height>.5;grid.insertBefore(dragged,after?target.nextSibling:target)}});grid.addEventListener('dragend',()=>{if(editing&&dragged)localStorage.setItem('daylight-order',JSON.stringify($$('.card').map(c=>c.dataset.widget)));dragged=null});
 $('#focus-start').onclick=()=>{let n=25*60,b=$('#focus-start');b.disabled=true;b.textContent='Focus session running';toast('Focus session started · 25 minutes');const timer=setInterval(()=>{n--;b.textContent=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')} remaining`;if(n<=0){clearInterval(timer);b.disabled=false;b.textContent='Start focus session';toast('Focus session complete — nice work!')}},1000)};
 const note=$('#daily-note'), noteKey=`daylight-note-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;note.value=localStorage.getItem(noteKey)||'';$('#note-count').textContent=`${note.value.length} / 2000`;note.addEventListener('input',()=>{localStorage.setItem(noteKey,note.value);$('#note-count').textContent=`${note.value.length} / 2000`;$('#note-status').textContent='Saved on this device';});
 </script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=4" defer></script><script src="gmail-sync.js?v=2" defer></script><script src="finance-intel.js?v=2" defer></script><script src="gmail-config.js?v=2" defer></script><script src="sync-scheduler.js?v=1" defer></script><script src="gmail-cache.js?v=1" defer></script><script src="gmail-rules.js?v=1" defer></script><script src="gmail-batch.js?v=1" defer></script><script src="ai-budget.js?v=1" defer></script><script src="sync-metrics.js?v=1" defer></script><script src="gmail-pipeline.js?v=2" defer></script><script src="daylight-data.js?v=3" defer></script><script src="email-classify.js?v=2" defer></script><script src="daylight-ai.js?v=5" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=105" defer></script></body></html>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js" defer></script><script src="scan-pipeline.js?v=2" defer></script><script src="daylight-store.js?v=4" defer></script><script src="gmail-sync.js?v=2" defer></script><script src="finance-intel.js?v=3" defer></script><script src="gmail-config.js?v=2" defer></script><script src="sync-scheduler.js?v=1" defer></script><script src="gmail-cache.js?v=1" defer></script><script src="gmail-rules.js?v=1" defer></script><script src="gmail-batch.js?v=1" defer></script><script src="ai-budget.js?v=1" defer></script><script src="sync-metrics.js?v=1" defer></script><script src="mail-dates.js?v=1" defer></script><script src="gmail-pipeline.js?v=3" defer></script><script src="daylight-data.js?v=3" defer></script><script src="email-classify.js?v=2" defer></script><script src="daylight-ai.js?v=5" defer></script><script src="health-data.js?v=1" defer></script><script src="app.js?v=107" defer></script></body></html>
 
 
 

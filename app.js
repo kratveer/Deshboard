@@ -545,8 +545,10 @@
   if(personalTaskForm) personalTaskForm.addEventListener('submit',e=>{e.preventDefault();const input=$('#personal-task-input'),title=input.value.trim();if(!title)return;personalTasks.unshift({id:crypto.randomUUID?.()||String(Date.now()),title});localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks));input.value='';renderTasks();toast('Task added on this device');});
   $('.task-list').addEventListener('click',e=>{const button=e.target.closest('[data-local-task]');if(!button)return;logDone(personalTasks.find(t=>t.id===button.dataset.localTask));personalTasks=personalTasks.filter(t=>t.id!==button.dataset.localTask);localStorage.setItem('daylight-personal-tasks',JSON.stringify(personalTasks));renderTasks();toast('Personal task completed');});
   async function loadCalendar(){
-    const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');u.searchParams.set('timeMin',iso(localMidnight));u.searchParams.set('timeMax',iso(tomorrow));u.searchParams.set('singleEvents','true');u.searchParams.set('orderBy','startTime');u.searchParams.set('maxResults','12');
-    const data=await api(u);providerData.google.events=(data.items||[]).map(e=>({...e,source:'Google Calendar'}));renderCalendar();
+    // Today from every selected calendar, all pages (was: primary only, first 12 events); declined events are left out
+    const items=await googleEventsBetween(localMidnight,tomorrow);
+    items.sort((a,b)=>new Date(a.start?.dateTime||a.start?.date+'T00:00')-new Date(b.start?.dateTime||b.start?.date+'T00:00'));
+    providerData.google.events=items.map(e=>({...e,source:e.source||'Google Calendar'}));renderCalendar();
     return providerData.google.events.length;
   }
   async function loadMail(){
@@ -566,17 +568,23 @@
     const t0=Date.now();let retries=0;
     let lists;
     try{
-      const r=await apiRetry('https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=5');lists=r.data;retries+=r.retries;
+      const r=await apiRetry('https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=20');lists=r.data;retries+=r.retries;
     }catch(e){
       try{const Store=window.DaylightStore;const acct=await Store?.getActiveAccountId?.();if(Store&&acct)await Store.recordSyncFailure('tasks',e,{retries,mode:'full'},acct)}catch{}
       throw e;
     }
     await accountReady();
-    const groups=await Promise.all((lists.items||[]).slice(0,3).map(async l=>{
-      const r=await apiRetry(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(l.id)}/tasks?showCompleted=false&showHidden=false&maxResults=20`);
-      retries+=r.retries;return r.data;
+    // every list (up to 10) and every open task (paged, up to 300 per list) — was: 3 lists, first 8 tasks
+    const groups=await Promise.all((lists.items||[]).slice(0,10).map(async l=>{
+      const items=[];let pageToken='';
+      do{
+        const r=await apiRetry(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(l.id)}/tasks?showCompleted=false&showHidden=false&maxResults=100${pageToken?'&pageToken='+encodeURIComponent(pageToken):''}`);
+        retries+=r.retries;(r.data?.items||[]).forEach(t=>items.push(t));pageToken=r.data?.nextPageToken||'';
+      }while(pageToken&&items.length<300);
+      return {items};
     }));
-    providerData.google.tasks=groups.flatMap((g,i)=>(g.items||[]).filter(t=>t.status!=='completed').map(t=>({id:t.id,title:t.title,due:t.due?new Date(t.due).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'',dueDate:t.due||'',listName:lists.items[i].title,source:'Google Tasks'}))).slice(0,8);renderTasks();
+    const dueKey=t=>t.dueDate?Date.parse(t.dueDate):Infinity;
+    providerData.google.tasks=groups.flatMap((g,i)=>(g.items||[]).filter(t=>t.status!=='completed'&&t.title).map(t=>({id:t.id,title:t.title,due:t.due?new Date(t.due).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'',dueDate:t.due||'',listName:lists.items[i].title,source:'Google Tasks',href:t.webViewLink||'https://tasks.google.com/'}))).sort((a,b)=>dueKey(a)-dueKey(b));renderTasks();
     try{
       const Store=window.DaylightStore;const acct=await Store?.getActiveAccountId?.();
       if(Store&&acct)await Store.recordSyncSuccess('tasks',{durationMs:Date.now()-t0,retries,fetched:providerData.google.tasks.length,mode:'reconcile'},acct);
@@ -657,14 +665,16 @@
   function queueInsights(){if(insightsQueued)return;insightsQueued=true;setTimeout(()=>{insightsQueued=false;renderInsights()},0)}
   const hm=d=>d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   function todayEvents(){
+    todayEvents.allDayItems=[];
     const all=[...(providerData.google.events||[]),...(providerData.microsoft.events||[])];
     const timed=[],allDay=[];
     all.forEach(e=>{
       if(e.start?.dateTime){
         const tz=e.start.timeZone==='UTC'&&!/[zZ]|[+-]\d\d:?\d\d$/.test(e.start.dateTime);// Graph returns UTC without suffix
         const st=new Date(e.start.dateTime+(tz?'Z':'')),en=new Date((e.end?.dateTime||e.start.dateTime)+(tz?'Z':''));
-        if(en>localMidnight&&st<tomorrow)timed.push({title:e.summary||e.subject||'(No title)',start:st,end:en>st?en:new Date(st.getTime()+30*60000)});
-      } else if(e.start?.date||e.isAllDay) allDay.push(e.summary||e.subject||'(No title)');
+        if(e.responseStatus?.response==='declined'||(e.attendees||[]).find(a=>a.self)?.responseStatus==='declined')return;
+        if(en>localMidnight&&st<tomorrow)timed.push({id:e.id,title:e.summary||e.subject||'(No title)',start:st,end:en>st?en:new Date(st.getTime()+30*60000),href:e.htmlLink||e.webLink||'',location:typeof e.location==='string'?e.location:(e.location?.displayName||''),guests:(e.attendees||[]).length,online:!!(e.hangoutLink||e.conferenceData||e.onlineMeeting)});
+      } else if(e.start?.date||e.isAllDay){allDay.push(e.summary||e.subject||'(No title)');(todayEvents.allDayItems=todayEvents.allDayItems||[]).push(e)}
     });
     return {timed:timed.sort((a,b)=>a.start-b.start),allDay,connected:!!(providerData.google.events||providerData.microsoft.events)};
   }
@@ -906,6 +916,14 @@
   // the v2 rules' promotion/newsletter/social/security categories, or an automated sender.
   const PAY_TASK=/(^\s*(pay|zaplat|uhra[dď]|bezahl)|\b(invoice|bill|rent|fee|fees|tuition|installment|instal?ment|emi|loan|faktur\p{L}*|nájem|nájm\p{L}*|poplat\p{L}*|školn\p{L}*|splátk\p{L}*|záloh\p{L}*|miete|rechnung)\b)/iu;
   const BULK_LABELS=/^CATEGORY_(PROMOTIONS|SOCIAL|FORUMS)$/;
+  /** Marketing / list mail (no automated-sender rule): used for dated items, where no-reply senders such as airlines matter. */
+  function isMarketingMail(m){
+    if(!m)return true;
+    if((m.labelIds||[]).some(l=>BULK_LABELS.test(l)))return true;
+    const h=m.payload?.headers||[];
+    if(header(h,'List-Unsubscribe')||header(h,'List-Id')||/^(bulk|list|junk)$/i.test(header(h,'Precedence')))return true;
+    const cc=m._cache?.category;return !!(cc&&['promotion','newsletter','social','security'].includes(cc));
+  }
   function isBulkMail(m){
     if(!m)return true;
     if((m.labelIds||[]).some(l=>BULK_LABELS.test(l)))return true;
@@ -2639,7 +2657,7 @@
           if(q)u.searchParams.set('q',q);
           if(pageToken)u.searchParams.set('pageToken',pageToken);
           const data=await api(u);
-          (data.items||[]).forEach(e=>{if(e&&e.status!=='cancelled')items.push({...e,source:e.source||'Google Calendar',calendarId:id})});
+          (data.items||[]).forEach(e=>{if(!e||e.status==='cancelled')return;const self=(e.attendees||[]).find(a=>a.self);if(self&&self.responseStatus==='declined')return;items.push({...e,source:e.source||'Google Calendar',calendarId:id})});
           pageToken=data.nextPageToken||'';
         }while(pageToken&&items.length<500);
       }catch(err){console.warn('calendar',id,err)}
@@ -3316,7 +3334,8 @@
   // ======== Mobile app (≤680px): Home · Inbox · Wallet · Assistant · Statistics ========
   function logDone(t){if(!t)return;try{const l=JSON.parse(localStorage.getItem('daylight-done-log')||'[]');l.push({id:t.id,title:t.title,project:t.project||'',at:new Date().toISOString()});localStorage.setItem('daylight-done-log',JSON.stringify(l.slice(-500)))}catch{}}
   function logFocus(min){try{const l=JSON.parse(localStorage.getItem('daylight-focus-log')||'[]');l.push({min,at:new Date().toISOString()});localStorage.setItem('daylight-focus-log',JSON.stringify(l.slice(-500)))}catch{}}
-  const mq=matchMedia('(max-width:680px)');
+  const mq=matchMedia('all'); // the app layout is used on every screen size (widget dashboard retired)
+  const deskMq=matchMedia('(min-width:1100px)'); // laptop: tabs live in a left sidebar
   const ICON={
     home:'<path d="M12 3.1 2.8 10.6c-.35.28-.2.8.22.8H5.2V19a2 2 0 0 0 2 2h3.1v-5.4h3.4V21H16.8a2 2 0 0 0 2-2v-7.6h2.18c.42 0 .57-.52.22-.8L12 3.1Z"/>',
     inbox:'<path d="M4.2 7.1A2.6 2.6 0 0 1 6.8 4.5h10.4a2.6 2.6 0 0 1 2.6 2.6v2.2l-3.35.15a2.7 2.7 0 0 0-2.45 1.55l-.25.5a1.3 1.3 0 0 1-1.15.7h-1.7a1.3 1.3 0 0 1-1.15-.7l-.25-.5A2.7 2.7 0 0 0 7.55 9.45L4.2 9.3V7.1Zm0 3.7 3.2.14a4.2 4.2 0 0 1 3.8 2.4l.12.24h1.36l.12-.24a4.2 4.2 0 0 1 3.8-2.4l3.2-.14V17a2.6 2.6 0 0 1-2.6 2.6H6.8A2.6 2.6 0 0 1 4.2 17V10.8Z"/>',
@@ -3362,15 +3381,15 @@
      <section class="m-schedule" id="m-schedule" aria-label="Today’s schedule">
        <div class="m-schedule-head"><h3>Today’s Schedule</h3><button type="button" class="m-schedule-link" id="m-schedule-cal">View Calendar ${svg(ICON.chevron,14)}</button></div>
        <p class="m-schedule-prose" id="m-schedule-prose"></p>
-       <ol class="m-schedule-rail" id="m-schedule-rail"></ol>
+       <div class="m-schedule-rail" id="m-schedule-rail"></div>
      </section>
      <div class="m-home-block" id="m-loops-block">
        <div class="m-sec-head"><h3 class="m-sec-title">Priority Actions <span class="m-count-pill" id="m-loop-total" hidden></span></h3><button class="m-see-all" type="button" id="m-loops-see">See All ${svg(ICON.chevron,14)}</button></div>
        <div class="m-prio-tabs m-pills" id="m-prio-tabs" role="tablist" aria-label="Priority filters">
          <button type="button" role="tab" data-prio="week" class="on" aria-selected="true">${pillIco(ICON.calendar,'ico-blue')}Next 7 Days</button>
-         <button type="button" role="tab" data-prio="tasks" aria-selected="false">${pillIco(ICON.check,'ico-green')}Tasks</button>
          <button type="button" role="tab" data-prio="payments" aria-selected="false">${pillIco(ICON.wallet,'ico-purple')}Payments</button>
-         <button type="button" role="tab" data-prio="meetings" aria-selected="false">${pillIco(ICON.calendar,'ico-blue')}Meetings</button>
+         <button type="button" role="tab" data-prio="deadlines" aria-selected="false">${pillIco(ICON.check,'ico-green')}Deadlines</button>
+         <button type="button" role="tab" data-prio="travel" aria-selected="false">${pillIco(ICON.calendar,'ico-blue')}Travel</button>
        </div>
        <div class="m-loop-list" id="m-loop-grid"></div>
        <div class="loops-foot" id="m-loops-foot" hidden></div>
@@ -3408,7 +3427,7 @@
    </section>
    <section class="m-screen" data-screen="stats" hidden><div id="m-stats"></div></section>
    </div>
-   <nav class="m-tabs" aria-label="Sections"><i class="m-tab-thumb" id="m-tab-thumb" aria-hidden="true"></i><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.calendar)}<span>Timeline</span></button><button data-tab="stats" type="button">${tabIco(ICON.heart)}<span>Health</span></button></nav>
+   <nav class="m-tabs" aria-label="Sections"><i class="m-tab-thumb" id="m-tab-thumb" aria-hidden="true"></i><span class="m-side-brand" aria-hidden="true"><i></i>Daylight</span><button data-tab="home" type="button">${tabIco(ICON.home)}<span>Home</span></button><button data-tab="inbox" type="button">${tabIco(ICON.inbox)}<span>Inbox</span></button><button data-tab="wallet" type="button">${tabIco(ICON.wallet)}<span>Wallet</span></button><button data-tab="assistant" type="button">${tabIco(ICON.calendar)}<span>Timeline</span></button><button data-tab="stats" type="button">${tabIco(ICON.heart)}<span>Health</span></button></nav>
    <button type="button" class="m-wallet-fab" id="m-wallet-fab" aria-label="Scan document" hidden>${svg(ICON.scan,22)}</button>`;
   document.body.append(mapp);
   const scanUI=document.createElement('div');scanUI.id='m-scan';scanUI.className='m-scan';scanUI.hidden=true;scanUI.setAttribute('aria-hidden','true');
@@ -4379,7 +4398,7 @@
   if(history.state?.dl&&history.state.view){try{history.replaceState({dl:0,root:1},'')}catch{}}
   else if(!history.state?.dl){try{history.replaceState({dl:0,root:1},'')}catch{}}
   function setTabsHidden(hide){
-    if(!mq.matches){document.body.classList.remove('tabs-hide');return}
+    if(!mq.matches||deskMq.matches){document.body.classList.remove('tabs-hide');return}
     document.body.classList.toggle('tabs-hide',!!hide);
   }
   const TAB_ORDER=['home','inbox','wallet','assistant','stats'];
@@ -4404,6 +4423,7 @@
     const fab=$('#m-wallet-fab');if(fab)fab.hidden=to!=='wallet';
     Nav.restoreTab();
     syncTabThumb(true);
+    dispatchEvent(new Event('daylight:tab'));
     if(pendingTab&&pendingTab!==to){const next=pendingTab;pendingTab=null;setTab(next);return}
     pendingTab=null;
   }
@@ -4467,6 +4487,7 @@
       });
       renderMobile();
       if(!soft)Nav.restoreTab();
+      dispatchEvent(new Event('daylight:tab'));
       return;
     }
 
@@ -4600,7 +4621,7 @@
     const THRESH=10,TOP=36;
     const y=()=>Nav.scrollEl().scrollTop||window.scrollY||0;
     const isHidden=()=>document.body.classList.contains('tabs-hide');
-    const canHide=()=>mq.matches&&mTab==='home'&&!Nav.anyOpen()&&!document.body.classList.contains('kb-open')&&!document.body.classList.contains('brief-open')&&!document.body.classList.contains('loops-open');
+    const canHide=()=>mq.matches&&!deskMq.matches&&!Nav.anyOpen()&&!document.body.classList.contains('kb-open')&&!document.body.classList.contains('brief-open')&&!document.body.classList.contains('loops-open');
     const onScroll=()=>{
       if(ticking)return;ticking=true;
       requestAnimationFrame(()=>{
@@ -4618,8 +4639,12 @@
         else if(acc<-THRESH){acc=0;setTabsHidden(false)}
       });
     };
-    window.addEventListener('scroll',onScroll,{passive:true});
+    // tab screens scroll inside .m-screen, so listen in the capture phase (scroll events do not bubble)
+    document.addEventListener('scroll',e=>{const t=e.target;if(t===document||t===Nav.scrollEl())onScroll()},{passive:true,capture:true});
     document.addEventListener('touchstart',()=>{if(canHide()){lastY=y();acc=0}},{passive:true});
+    window.addEventListener('daylight:tab',()=>{lastY=y();acc=0;setTabsHidden(false)});
+    deskMq.addEventListener?.('change',()=>{setTabsHidden(false);requestAnimationFrame(()=>syncTabThumb(false))});
+    addEventListener('resize',()=>requestAnimationFrame(()=>syncTabThumb(false)),{passive:true});
   })();
   (function bindPullRefresh(){
     let startY=0,pulling=false,armed=false,busy=false;
@@ -4870,86 +4895,313 @@
     }
     return sentences.filter(Boolean).slice(0,3).join(' ');
   }
-  /**
-   * Priority Actions — attention first. Sources: Phase 2 obligations (bills due), tasks, replies owed to real people,
-   * meetings and travel. Never bulk mail (offers, newsletters, social, automated). One entry per email thread.
-   * range: 'week' (next 7 days, default) | 'tasks' | 'payments' | 'meetings'
-   */
-  let mPrioRange=(()=>{try{return localStorage.getItem('daylight-prio-range')||'week'}catch{return 'week'}})();
-  function collectPriorityActions(range){
-    const r=range||mPrioRange||'week',Data=window.DaylightData;
-    const now=Date.now(),dayMs=86400000,today0=localMidnight.getTime(),horizon=today0+8*dayMs;
-    const items=[],seen=new Set();
-    const keyOf=it=>it.threadId?'t:'+it.threadId:it.mailId?'m:'+it.mailId:'i:'+it.id;
-    const push=(it,src)=>{if(!it||!it.id)return;const k=keyOf(it);if(seen.has(k))return;seen.add(k);items.push({...it,_src:src})};
-    const loops=(token||microsoftAccount||DEMO)?computeLoops():[];
-    if(r==='week'||r==='payments'){
-      try{(computeMoney().obligations||[]).forEach(p=>{
-        const when=+(p.when||p.whenMs||0);if(when&&when>=horizon)return;
-        push({type:'deadline',id:'pay:'+(p.id||p.mailId),title:p.title||p.subject||'Payment due',detail:[p.amount,p.meta].filter(Boolean).join(' · '),meta:p.meta||'Payment',
-          href:p.href||(p.mailId?gmailLink(p.mailId):''),mailId:p.mailId||null,threadId:p.threadId||null,whenMs:when,amount:p.amount,_prio:'pay',weight:2},'payments');
-      })}catch{}
-    }
-    if(r==='week'||r==='tasks'){
-      loops.filter(l=>l.type==='overdue'||l.type==='deadline').forEach(l=>{if(l.whenMs&&l.whenMs>=horizon)return;push({...l,_prio:l.type},'tasks')});
-      [...personalTasks.map(t=>({...t,src:'Daylight'})),...(providerData.google.tasks||[]).map(t=>({...t,src:'Google Tasks'})),...(providerData.microsoft.tasks||[]).map(t=>({...t,src:'To Do'}))].forEach(t=>{
-        if(!t?.title||!t.dueDate||isLegacyPayTask(t))return;
-        const d=dueDayLocal(t.dueDate);if(!d)return;const ms=d.getTime();
-        if(ms<today0+2*dayMs||ms>=horizon)return; // overdue / today / tomorrow already come from the loops above
-        push({type:'deadline',id:'task7:'+(t.id||t.title),title:t.title,detail:t.listName||t.src,meta:'Due '+d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}),
-          href:t.src==='Google Tasks'?'https://tasks.google.com/':t.src==='To Do'?'https://to-do.office.com/':'',whenMs:ms,_prio:'task',category:'Task'},'tasks');
-      });
-    }
-    if(r==='week'||r==='meetings'){
-      (loopsData?.upcoming||[]).forEach(e=>{
-        if(!e?.start?.dateTime||e.status==='cancelled')return;
-        const att=e.attendees||[],self=att.find(a=>a.self);if(att.length<2||self?.responseStatus==='declined')return;
-        const st=new Date(e.start.dateTime).getTime();if(st<now||st>=horizon)return;
-        if(r==='week'&&st>=today0+2*dayMs)return; // the 7-day view keeps meetings for today and tomorrow; the Meetings chip shows the whole week
-        const d=new Date(st),days=Math.floor((st-today0)/dayMs);
-        push({type:'prepare',id:'prepare:'+e.id,title:`Prepare for ${e.summary||'(No title)'}`,detail:`${att.length} people`,meta:(days===0?'Today':days===1?'Tomorrow':d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}))+' · '+hm(d),
-          href:e.htmlLink||'',whenMs:st,_prio:'meeting',category:'Calendar'},'meetings');
-      });
-    }
-    if(r==='week'){
-      try{(Data?.walletItems?Data.walletItems({filter:'tickets'}):[]).forEach(w=>{
-        const ev=Data.eventAt(w);if(!ev||isNaN(ev))return;const ms=ev.getTime();if(ms<today0||ms>=horizon)return;
-        if(w.status==='cancelled'||w.walletStatus==='cancelled')return;
-        push({type:'travel',id:'wallet-prio:'+w.id,title:w.title,detail:w.typeLabel||'Ticket',meta:ev.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})+' · '+hm(ev),
-          href:w.href||(w.mailId?gmailLink(w.mailId):''),mailId:w.mailId||null,threadId:w.threadId||null,walletId:w.id,whenMs:ms,_prio:'ticket'},'travel');
-      })}catch{}
-      loops.filter(l=>l.type==='travel'&&(l.travelWhenMs||l.whenMs)>=today0&&(l.travelWhenMs||l.whenMs)<horizon).forEach(l=>push({...l,whenMs:l.travelWhenMs||l.whenMs,_prio:'travel'},'travel'));
-      // replies you owe to real people (bulk mail never reaches the loops); up to 7 days old
-      loops.filter(l=>l.type==='reply'&&(!l.whenMs||now-l.whenMs<=7*dayMs)).forEach(l=>push({...l,_prio:'reply'},'replies'));
-      // unread mail from people received in the last 2 h (not yet a reply loop)
-      (loopsData?.inbox||[]).forEach(m=>{
-        if(!m?.id||isBulkMail(m))return;
-        const labels=m.labelIds||[];if(!labels.includes('UNREAD')&&!labels.includes('IMPORTANT')&&!labels.includes('STARRED'))return;
-        const cc=m._cache?.category;if(cc&&!['personal','other'].includes(cc))return; // bills, receipts, travel… are handled by their own sections
-        const h=m.payload?.headers||[],when=new Date(header(h,'Date')||m.internalDate*1).getTime();if(!isHomeToday(when))return;
-        const from=parseFrom(header(h,'From')),subject=header(h,'Subject')||'(No subject)';
-        push({type:'reply',id:'reply:'+(m.threadId||m.id),title:`Reply to ${from.name}`,detail:subject,subject,meta:ago(new Date(when)),href:gmailLink(m.threadId||m.id),
-          mailId:m.id,threadId:m.threadId,fromName:from.name,fromEmail:from.email,whenMs:when,weight:labels.includes('IMPORTANT')||labels.includes('STARRED')?2:1,_prio:'reply',category:'Reply / Email'},'replies');
-      });
-    }
-    // attention first: overdue / due-today payments, overdue tasks, today's deadlines and travel, meetings, replies, then the rest of the week
-    const rank=it=>{const t=it.whenMs||0,od=!!t&&t<today0,td=isHomeToday(t);
-      if(it._prio==='pay')return od?0:td?1:6;
-      if(it._prio==='overdue')return 1.5;
-      if(it._prio==='deadline'||it._prio==='task')return td?2:7;
-      if(it._prio==='ticket'||it._prio==='travel')return td?2.5:8;
-      if(it._prio==='meeting')return td?3:5;
-      if(it._prio==='reply')return (it.weight||0)>=2?3.5:4;
-      return 9};
-    return items.sort((a,b)=>rank(a)-rank(b)||(a.whenMs||0)-(b.whenMs||0));
+  // ======== Home v3: Daily Brief (today, linked coloured chips) · Today's Schedule (day timeline) · Priority Actions (mail, 7 days) ========
+  const HOME_KIND={task:'Task',reply:'Reply',pay:'Payment',travel:'Travel',deadline:'Deadline',reminder:'Reminder',event:'Event',renewal:'Renewal'};
+  function ensureHomeV3Styles(){
+    if($('#home-v3-css'))return;
+    const st=document.createElement('style');st.id='home-v3-css';st.textContent=`
+      :root{--k-task:#1d4ed8;--k-task-bg:rgba(37,99,235,.11);--k-pay:#a14b05;--k-pay-bg:rgba(245,158,11,.16);--k-travel:#0b6b63;--k-travel-bg:rgba(20,184,166,.15);
+        --k-deadline:#b42318;--k-deadline-bg:rgba(239,68,68,.12);--k-reminder:#6d28d9;--k-reminder-bg:rgba(139,92,246,.13);--k-event:#3730a3;--k-event-bg:rgba(99,102,241,.13);
+        --k-renewal:#475569;--k-renewal-bg:rgba(100,116,139,.15);--k-reply:#9d174d;--k-reply-bg:rgba(236,72,153,.12)}
+      body.dark{--k-task:#a9c7ff;--k-task-bg:rgba(96,140,255,.2);--k-pay:#ffd48a;--k-pay-bg:rgba(245,158,11,.22);--k-travel:#7fe3d6;--k-travel-bg:rgba(20,184,166,.22);
+        --k-deadline:#ffb4ab;--k-deadline-bg:rgba(239,68,68,.22);--k-reminder:#d4bcff;--k-reminder-bg:rgba(139,92,246,.24);--k-event:#c7c9ff;--k-event-bg:rgba(99,102,241,.24);
+        --k-renewal:#cbd5e1;--k-renewal-bg:rgba(148,163,184,.22);--k-reply:#ffb0d4;--k-reply-bg:rgba(236,72,153,.22)}
+      .bchip{display:inline-flex;align-items:center;gap:4px;max-width:100%;vertical-align:baseline;border:0;margin:2px 3px 2px 0;padding:1px 8px 2px;border-radius:8px;
+        font:650 13.5px/1.45 var(--font,system-ui);cursor:pointer;text-align:left;white-space:normal;word-break:break-word;text-decoration:none}
+      .bchip:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+      .bchip small{font-weight:600;opacity:.82;font-size:12px}
+      .bchip.k-task{color:var(--k-task);background:var(--k-task-bg)}.bchip.k-reply{color:var(--k-reply);background:var(--k-reply-bg)}
+      .bchip.k-pay{color:var(--k-pay);background:var(--k-pay-bg)}.bchip.k-travel{color:var(--k-travel);background:var(--k-travel-bg)}
+      .bchip.k-deadline{color:var(--k-deadline);background:var(--k-deadline-bg)}.bchip.k-more{color:var(--muted);background:var(--card2)}
+      .bchip .bdot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+      body.m .m-brief-prose.v3{color:var(--ink);font:500 14.5px/1.75 var(--font)}
+      body.m .m-brief-prose.v3 b.lbl{font-weight:750;margin-right:6px}
+      .bline{display:block;margin:0 0 6px}.bline.bnote{color:var(--muted);font-size:13px;margin-top:2px}
+      .m-brief-legend{display:flex;flex-wrap:wrap;gap:6px 12px;font:600 11.5px/1 var(--font);color:var(--muted)}
+      .m-brief-legend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+      /* day timeline */
+      .dl{position:relative;margin-top:6px}
+      .dl-allday{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px 44px}
+      .dl-allday a,.dl-allday span{font:650 12px/1.2 var(--font);padding:5px 9px;border-radius:8px;background:var(--k-event-bg);color:var(--k-event);text-decoration:none}
+      .dl-scroll{position:relative;max-height:396px;overflow-y:auto;border-radius:14px;background:var(--card2);overscroll-behavior:contain}
+      .dl-grid{position:relative}
+      .dl-hour{position:absolute;left:0;right:0;height:0;border-top:1px solid var(--line)}
+      .dl-hour span{position:absolute;left:6px;top:-8px;font:600 10.5px/1 var(--font);color:var(--muted);background:var(--card2);padding:0 3px}
+      .dl-ev{position:absolute;display:block;overflow:hidden;border-radius:9px;padding:4px 7px;text-decoration:none;box-sizing:border-box;
+        border-left:3px solid currentColor;background:var(--k-event-bg);color:var(--k-event)}
+      .dl-ev b{display:block;font:700 12.5px/1.25 var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .dl-ev small{display:block;font:600 11px/1.25 var(--font);opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .dl-ev.t-travel{background:var(--k-travel-bg);color:var(--k-travel)}.dl-ev.t-focus{background:var(--k-task-bg);color:var(--k-task)}
+      .dl-ev.t-meet{background:var(--k-reminder-bg);color:var(--k-reminder)}.dl-ev.past{opacity:.55}
+      .dl-now{position:absolute;left:38px;right:0;height:0;border-top:2px solid #ef4444;z-index:3}
+      .dl-now::before{content:'';position:absolute;left:-5px;top:-5px;width:8px;height:8px;border-radius:50%;background:#ef4444}
+      /* priority list */
+      .pa-day{font:750 12px/1 var(--font);letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin:14px 2px 6px}
+      .pa-day.is-overdue{color:var(--k-deadline)}
+      .pa-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--line);background:var(--card);color:inherit;border-radius:16px;padding:10px 12px;margin:0 0 8px;cursor:pointer;font:inherit}
+      .pa-time{flex:none;width:52px;text-align:center;font:750 13px/1.15 var(--font);color:var(--ink)}
+      .pa-time small{display:block;font:600 10.5px/1.2 var(--font);color:var(--muted)}
+      .pa-main{flex:1;min-width:0;display:grid;gap:3px}
+      .pa-main b{font:700 14px/1.3 var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pa-main small{font:500 12px/1.3 var(--font);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pa-pill{flex:none;font:700 11px/1 var(--font);padding:6px 8px;border-radius:999px}
+      .pa-pill.k-pay{color:var(--k-pay);background:var(--k-pay-bg)}.pa-pill.k-deadline{color:var(--k-deadline);background:var(--k-deadline-bg)}
+      .pa-pill.k-reminder{color:var(--k-reminder);background:var(--k-reminder-bg)}.pa-pill.k-travel{color:var(--k-travel);background:var(--k-travel-bg)}
+      .pa-pill.k-event{color:var(--k-event);background:var(--k-event-bg)}.pa-pill.k-renewal{color:var(--k-renewal);background:var(--k-renewal-bg)}
+      .pa-amt{display:block;font:700 12px/1.2 var(--font);color:var(--k-pay);margin-top:2px}`;
+    document.head.append(st);
   }
-  // kept for callers that look items up by id (open sheet, desktop ordering)
+  const dayStartMs=()=>localMidnight.getTime();
+  function fmtDayLabel(ms){
+    const d0=dayStartMs(),days=Math.floor((ms-d0)/86400000);
+    if(ms<d0)return 'Overdue';
+    if(days===0)return 'Today';if(days===1)return 'Tomorrow';
+    return new Date(ms).toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short'});
+  }
+  // ---- mail-sourced dated items (deadlines, reminders, travel, events) — never from bulk / marketing mail ----
+  const CANCEL_RX=/\b(cancel(?:l?ed|lation)|zrušen\p{L}*|storniert|annul\p{L}*)\b/iu;
+  const REF_RX=/\b(?=[A-Z0-9-]{5,14}\b)(?=[A-Z0-9-]*\d)[A-Z0-9][A-Z0-9-]{4,13}\b/g;
+  function mailPool(){
+    const seen=new Map();
+    [...(loopsData?.inbox||[]),...(loopsData?.financeMail||[]),...(loopsData?.travelMail||[]),...(loopsData?.docsMail||[])].forEach(m=>{if(m?.id&&!seen.has(m.id))seen.set(m.id,m)});
+    return [...seen.values()];
+  }
+  function mailTextOf(m){
+    const R=window.DaylightGmailRules;let body='';
+    try{if(R&&(m.payload?.parts||m.payload?.body?.data)){const b=R.bodyOf(m);body=b.text||R.htmlToText(b.html||'')}}catch{}
+    return body||m.snippet||'';
+  }
+  function mailKeyItems(fromMs,toMs){
+    const D=window.DaylightMailDates;if(!D)return [];
+    const out=[],pool=mailPool();
+    // references named in cancellation emails cancel the matching travel/reservation items
+    const cancelledRefs=new Set(),cancelledThreads=new Set();
+    pool.forEach(m=>{const h=m.payload?.headers||[],s=header(h,'Subject')+' '+(m.snippet||'');if(isMarketingMail(m)||!CANCEL_RX.test(s))return;cancelledThreads.add(m.threadId);(s.match(REF_RX)||[]).forEach(r=>cancelledRefs.add(r))});
+    const byThread=new Map();
+    pool.forEach(m=>{
+      if(isMarketingMail(m))return;
+      const h=m.payload?.headers||[],subject=header(h,'Subject')||'(No subject)',received=Number(m.internalDate)||Date.parse(header(h,'Date'))||Date.now();
+      const cat=m._cache?.category;
+      let kds=m._keyDates;
+      if(!kds){try{kds=D.extract(mailTextOf(m),{subject,receivedMs:received})}catch{kds=[]}}
+      (kds||[]).forEach(kd=>{
+        if((cat==='receipt'||cat==='payment'||cat==='refund')&&kd.kind==='deadline')return; // "due date" inside a receipt is not a to-do
+        const ms=D.toMs(kd);if(!(ms>=fromMs&&ms<toMs))return;
+        const from=parseFrom(header(h,'From'));
+        const refs=(subject+' '+(kd.quote||'')).match(REF_RX)||[];
+        if(kd.kind==='travel'||kd.kind==='reminder'){if(refs.some(r=>cancelledRefs.has(r))&&!CANCEL_RX.test(subject))return}
+        if(CANCEL_RX.test(subject))return; // the cancellation email itself is not an upcoming item
+        const it={kind:kd.kind,id:'mail-date:'+m.id+':'+kd.date+(kd.time||''),title:subject,whenMs:ms,hasTime:!!kd.time,quote:kd.quote,from:from.name||from.email,
+          href:gmailLink(m.threadId||m.id),mailId:m.id,threadId:m.threadId,received,source:'Gmail',refs};
+        // one item per thread and kind: the newest email wins (e.g. a schedule change replaces the original time)
+        const k=(m.threadId||m.id)+'|'+kd.kind,prev=byThread.get(k);
+        if(!prev||received>prev.received)byThread.set(k,it);
+      });
+    });
+    byThread.forEach(v=>out.push(v));
+    // the same trip often arrives as several emails (booking, boarding pass, check-in): one item, newest email wins
+    const merged=[];
+    out.sort((a,b)=>b.received-a.received).forEach(x=>{
+      if(x.kind==='travel'||x.kind==='reminder'){
+        const dup=merged.find(y=>y.kind===x.kind&&(Math.abs(y.whenMs-x.whenMs)<=15*60000||(x.refs.length&&x.refs.some(r=>y.refs.includes(r))&&Math.abs(y.whenMs-x.whenMs)<2*86400000)));
+        if(dup){dup.also=(dup.also||[]).concat(x.mailId);return}
+      }
+      merged.push(x);
+    });
+    return merged;
+  }
+  /** Bills due (Phase 2 ledger) and scheduled renewals, from mail. */
+  function mailMoneyItems(fromMs,toMs){
+    const out=[];
+    try{(computeMoney().obligations||[]).forEach(p=>{
+      if(!p.mailId&&!p.fin)return;
+      const when=+(p.when||p.whenMs||0);if(!when||when>=toMs)return;
+      if(when<fromMs-30*86400000)return;
+      out.push({kind:'pay',id:'pay:'+(p.id||p.mailId),title:p.fin?.merchant||p.title||p.subject||'Payment due',subject:p.subject||'',whenMs:when,hasTime:false,amount:p.amount||'',
+        from:p.from||p.detail||'',href:p.href||(p.mailId?gmailLink(p.mailId):''),mailId:p.mailId||null,threadId:p.threadId||null,finKey:p.fin?.key||null,source:'Gmail',overdue:when<dayStartMs()});
+    })}catch{}
+    try{(loopsData?.finance?.records||[]).forEach(r=>{
+      if(r.dismissed)return;
+      const date=r.category==='subscription_renewal'?r.renewalDate:(r.status==='scheduled_debit'?r.dueDate:null);if(!date)return;
+      const [y,mo,d]=date.split('-').map(Number),ms=new Date(y,mo-1,d,9).getTime();if(!(ms>=fromMs&&ms<toMs))return;
+      out.push({kind:'renewal',id:'renew:'+r.key,title:r.merchant||r.subject||'Renewal',subject:r.subject||'',whenMs:ms,hasTime:false,amount:r.amount?window.DaylightFinance?.fmtAmount?.(r.amount)||'':'',
+        from:r.fromName||'',href:r.mailIds?.[0]?gmailLink(r.mailIds[0]):'',mailId:r.mailIds?.[0]||null,finKey:r.key,source:'Gmail',auto:true});
+    })}catch{}
+    return out;
+  }
+  // ---- Daily Brief: today only ----
+  function collectBriefToday(){
+    const d0=dayStartMs(),d1=d0+86400000,now=Date.now();
+    const tasks=[],pays=[],travel=[],replies=[];
+    const seenTask=new Set();
+    [...personalTasks.map(t=>({...t,src:'Daylight'})),...(providerData.google.tasks||[]).map(t=>({...t,src:'Google Tasks'})),...(providerData.microsoft.tasks||[]).map(t=>({...t,src:'To Do'}))].forEach(t=>{
+      if(!t?.title||!t.dueDate||isLegacyPayTask(t))return;
+      const due=dueDayLocal(t.dueDate);if(!due||due.getTime()>=d1)return;
+      const k=t.title.trim().toLowerCase();if(seenTask.has(k))return;seenTask.add(k);
+      const overdue=due.getTime()<d0,ms=t.hasTime?new Date(t.dueDate).getTime():due.getTime();
+      const href=t.href||(t.src==='Google Tasks'?'https://tasks.google.com/':t.src==='To Do'?'https://to-do.office.com/':'');
+      const it={kind:PAY_TASK.test(t.title)?'pay':'task',id:'task:'+(t.id||t.title),title:t.title,whenMs:ms,hasTime:!!t.hasTime,overdue,href,source:t.src};
+      (it.kind==='pay'?pays:tasks).push(it);
+    });
+    mailMoneyItems(d0,d1).forEach(x=>{if(x.kind==='pay')pays.push(x)});
+    // a payment task and the bill email for the same thing are one payment (e.g. "Pay rent" + the landlord's "Nájem" email)
+    const SYN=[['rent','nájem','nájm','miete','landlord'],['electric','elektřin','elektrin','strom','energie','čez','cez'],['insurance','pojist','versicher'],['phone','mobile','telefon','mobil','vodafone','o2','t-mobile'],['internet','wifi'],['water','vod'],['gas','plyn'],['school','škol','tuition'],['tax','daň','steuer']];
+    const topics=t=>{const x=String(t||'').toLowerCase();return SYN.filter(g=>g.some(w=>x.includes(w))).map(g=>g[0])};
+    for(const tk of pays.filter(p=>p.id.startsWith('task:'))){
+      const tt=topics(tk.title);if(!tt.length)continue;
+      const bill=pays.find(p=>p!==tk&&!p.id.startsWith('task:')&&topics(p.title+' '+(p.subject||'')+' '+(p.from||'')).some(x=>tt.includes(x)));
+      if(bill){bill.linkedTask=tk.title;pays.splice(pays.indexOf(tk),1)}
+    }
+    const payMail=new Set(pays.map(p=>p.mailId).filter(Boolean));
+    mailKeyItems(d0,d1).forEach(x=>{if(x.mailId&&payMail.has(x.mailId))return;if(x.kind==='deadline')tasks.push({...x,kind:'deadline'});else if(x.kind==='travel')travel.push(x);else if(x.kind==='reminder'||x.kind==='event')tasks.push({...x})});
+    // travel on the calendar today (one entry per trip: a calendar flight and its booking email are merged by time)
+    const {timed}=todayEvents();
+    timed.filter(e=>TRAVEL.test(e.title+' '+(e.location||''))&&e.start>=new Date(d0)).forEach(e=>{
+      const near=travel.find(t=>Math.abs(t.whenMs-e.start.getTime())<=3*3600000);
+      if(near){near.calHref=e.href;return}
+      travel.push({kind:'travel',id:'cal:'+(e.id||e.start.getTime()),title:e.title,whenMs:e.start.getTime(),hasTime:true,href:e.href,source:'Calendar'});
+    });
+    const replyThreads=new Set();
+    (computeLoops()||[]).filter(l=>l.type==='reply'&&(!l.whenMs||now-l.whenMs<=2*86400000)&&!payMail.has(l.mailId)).forEach(l=>{replyThreads.add(l.threadId);replies.push({kind:'reply',id:l.id,title:l.fromName||l.title.replace(/^Reply to\s*/,''),whenMs:l.whenMs,href:l.href,mailId:l.mailId,threadId:l.threadId,loopId:l.id,source:'Gmail'})});
+    // unread mail from people that arrived in the last 2 hours (not yet a reply loop)
+    (loopsData?.inbox||[]).forEach(m=>{
+      if(!m?.id||isBulkMail(m)||payMail.has(m.id)||replyThreads.has(m.threadId))return;
+      const labels=m.labelIds||[];if(!labels.includes('UNREAD'))return;
+      const cc=m._cache?.category;if(cc&&!['personal','other'].includes(cc))return;
+      const h=m.payload?.headers||[],when=new Date(header(h,'Date')||m.internalDate*1).getTime();if(!isHomeToday(when))return;
+      const from=parseFrom(header(h,'From'));replyThreads.add(m.threadId);
+      replies.push({kind:'reply',id:'reply:'+(m.threadId||m.id),title:from.name||from.email,whenMs:when,href:gmailLink(m.threadId||m.id),mailId:m.id,threadId:m.threadId,source:'Gmail'});
+    });
+    const byTime=(a,b)=>(b.overdue?1:0)-(a.overdue?1:0)||(a.whenMs||0)-(b.whenMs||0);
+    [tasks,pays,travel,replies].forEach(a=>a.sort(byTime));
+    const ev=timed.filter(e=>isHomeToday(e.start));
+    return {tasks,pays,travel,replies,events:ev,allDay:todayEvents().allDay,connected:!!(token||microsoftAccount||DEMO)};
+  }
+  function chipTime(it){if(!it.whenMs)return '';if(it.overdue)return 'overdue';if(it.hasTime)return hm(new Date(it.whenMs));return ''}
+  function briefChip(it){
+    const kind=it.kind==='reminder'||it.kind==='event'?'task':it.kind;
+    const extra=[it.amount,chipTime(it)].filter(Boolean).join(' · ');
+    return `<button type="button" class="bchip k-${esc(kind)}" data-brief-kind="${esc(it.kind)}" data-brief-id="${esc(it.id||'')}" ${it.href?`data-brief-href="${esc(it.href)}"`:''} ${it.mailId?`data-brief-mail="${esc(it.mailId)}"`:''} ${it.finKey?`data-brief-fin="${esc(it.finKey)}"`:''} ${it.loopId?`data-brief-loop="${esc(it.loopId)}"`:''} title="${esc((HOME_KIND[it.kind]||'')+' · '+(it.source||''))}"><span class="bdot" aria-hidden="true"></span>${esc(it.title)}${extra?` <small>${esc(extra)}</small>`:''}</button>`;
+  }
+  function chipList(list,max){
+    const shown=list.slice(0,max||4).map(briefChip),more=list.length-(max||4);
+    if(more>0)shown.push(`<button type="button" class="bchip k-more" data-brief-kind="more">+${more} more</button>`);
+    return shown.join(' ');
+  }
+  function composeBriefV3(b){
+    if(!b.connected)return esc('Connect Google to brief today’s mail, calendar and tasks.');
+    const s=[];
+    const todo=b.tasks.filter(t=>!t.overdue),late=b.tasks.filter(t=>t.overdue);
+    const line=(lbl,html)=>`<span class="bline"><b class="lbl">${esc(lbl)}</b>${html}</span>`;
+    if(todo.length)s.push(line('To do today',chipList(todo)));
+    if(late.length)s.push(line('Overdue',chipList(late)));
+    const payToday=b.pays.filter(p=>!p.overdue),payLate=b.pays.filter(p=>p.overdue);
+    if(payToday.length||payLate.length)s.push(line('Pay',chipList([...payLate,...payToday])));
+    if(b.travel.length)s.push(line('Travel',chipList(b.travel)));
+    if(b.replies.length)s.push(line('Reply to',chipList(b.replies,3)));
+    const now=new Date(),next=b.events.find(e=>e.end>now);
+    if(b.events.length)s.push(`<span class="bline bnote">${b.events.length} ${b.events.length===1?'event':'events'} on your calendar${next?` · next ${esc(next.title)} at ${hm(next.start)}`:''}</span>`);
+    if(!s.length)return esc('Nothing due today — a clear day.');
+    return s.join('');
+  }
+  function renderBriefV3(){
+    const brief=$('#m-brief');if(!brief)return;
+    ensureHomeV3Styles();
+    const b=collectBriefToday();
+    const attention=b.tasks.filter(t=>t.overdue).length+b.pays.filter(p=>p.overdue).length;
+    const dateLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+    const status=b.connected?(attention?`<span class="m-brief-status is-hot">${attention} overdue</span>`:'<span class="m-brief-status">On track</span>'):'';
+    const n=b.tasks.length+b.replies.length;
+    brief.innerHTML=`<div class="m-brief-head">
+        <span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span>
+        <div class="m-brief-copy"><b>Daily brief</b><small>${esc(dateLabel)}</small></div>${status}
+      </div>
+      <p class="m-brief-prose v3">${composeBriefV3(b)}</p>
+      <div class="m-brief-legend" aria-hidden="true"><span><i style="background:var(--k-task)"></i>Tasks ${n}</span><span><i style="background:var(--k-pay)"></i>Payments ${b.pays.length}</span><span><i style="background:var(--k-travel)"></i>Travel ${b.travel.length}</span><span><i style="background:var(--k-deadline)"></i>Deadlines ${b.tasks.filter(t=>t.kind==='deadline').length}</span></div>`;
+  }
+  // ---- Today's Schedule: day timeline (all calendars, declined left out) ----
+  function scheduleKind(e){
+    if(TRAVEL.test(e.title+' '+(e.location||'')))return 't-travel';
+    if(/\b(focus|deep work|heads.?down|writing|coding)\b/i.test(e.title))return 't-focus';
+    if((e.guests||0)>1||e.online)return 't-meet';
+    return '';
+  }
+  function renderHomeSchedule(){
+    const rail=$('#m-schedule-rail');if(!rail)return;
+    ensureHomeV3Styles();
+    const proseEl=$('#m-schedule-prose');
+    let {timed,allDay,connected}=todayEvents();
+    const allDayItems=todayEvents.allDayItems||[];
+    const d0=localMidnight.getTime(),d1=d0+86400000;
+    const items=timed.filter(e=>e.end.getTime()>d0&&e.start.getTime()<d1);
+    if(proseEl)proseEl.textContent=composeScheduleProse({timed:items.filter(e=>isHomeToday(e.start)),allDay,connected});
+    if(!connected&&!DEMO){rail.innerHTML='';rail.hidden=true;return}
+    if(!items.length&&!allDay.length){rail.innerHTML='';rail.hidden=true;return}
+    rail.hidden=false;
+    const PX=46,hOf=t=>(Math.max(d0,Math.min(d1,t))-d0)/3600000;
+    let h0=8,h1=20;
+    items.forEach(e=>{if(e.start.getTime()>=d0)h0=Math.min(h0,Math.floor(hOf(e.start.getTime())));h1=Math.max(h1,Math.ceil(hOf(e.end.getTime())))});
+    h0=Math.max(0,h0);h1=Math.min(24,Math.max(h1,h0+4));
+    // lanes for overlapping events
+    const sorted=items.slice().sort((a,b)=>a.start-b.start||b.end-a.end),clusters=[];let cur=null;
+    sorted.forEach(e=>{if(!cur||e.start>=cur.end){cur={end:e.end,list:[]};clusters.push(cur)}cur.list.push(e);if(e.end>cur.end)cur.end=e.end});
+    clusters.forEach(c=>{const lanes=[];c.list.forEach(e=>{let l=lanes.findIndex(t=>t<=e.start);if(l<0){l=lanes.length;lanes.push(e.end)}else lanes[l]=e.end;e._lane=l});c.list.forEach(e=>{e._lanes=lanes.length})});
+    const now=Date.now();
+    const hours=[];for(let h=h0;h<=h1;h++)hours.push(`<div class="dl-hour" style="top:${(h-h0)*PX}px"><span>${String(h%24).padStart(2,'0')}:00</span></div>`);
+    const blocks=sorted.map(e=>{
+      const sH=Math.max(h0,hOf(e.start.getTime())),eH=Math.max(sH+0.4,hOf(e.end.getTime()));
+      const top=(sH-h0)*PX,ht=Math.max(24,(eH-sH)*PX-3);
+      const w=`calc((100% - 46px) / ${e._lanes})`,left=`calc(44px + (100% - 46px) / ${e._lanes} * ${e._lane})`;
+      const sub=`${hm(e.start)}–${hm(e.end)}${e.location?' · '+e.location:''}`;
+      const tag=e.href?'a':'div',attrs=e.href?`href="${esc(e.href)}" target="_blank" rel="noopener"`:'';
+      return `<${tag} class="dl-ev ${scheduleKind(e)}${e.end.getTime()<now?' past':''}" ${attrs} style="top:${top}px;height:${ht}px;left:${left};width:${w}" title="${esc(sub+' · '+e.title)}"><b>${esc(e.title)}</b>${ht>34?`<small>${esc(sub)}</small>`:''}</${tag}>`;
+    }).join('');
+    const nowTop=(now>=d0&&now<d1)?(hOf(now)-h0)*PX:null;
+    const allDayHtml=allDayItems.length?`<div class="dl-allday">${allDayItems.map(e=>e.htmlLink?`<a href="${esc(e.htmlLink)}" target="_blank" rel="noopener">All day · ${esc(e.summary||e.subject||'(No title)')}</a>`:`<span>All day · ${esc(e.summary||e.subject||'(No title)')}</span>`).join('')}</div>`:'';
+    rail.innerHTML=`<div class="dl">${allDayHtml}${items.length?`<div class="dl-scroll" id="dl-scroll"><div class="dl-grid" style="height:${(h1-h0)*PX+8}px">${hours.join('')}${blocks}${nowTop!=null&&nowTop>=0&&nowTop<=(h1-h0)*PX?`<div class="dl-now" style="top:${nowTop}px" aria-label="Now"></div>`:''}</div></div>`:''}</div>`;
+    const sc=$('#dl-scroll');if(sc&&nowTop!=null)sc.scrollTop=Math.max(0,nowTop-PX*1.5);
+  }
+  // ---- Priority Actions: every dated reference from mail, today + next 7 days, earliest first ----
+  let mPrioRange=(()=>{try{const v=localStorage.getItem('daylight-prio-range');return ['week','payments','deadlines','travel'].includes(v)?v:'week'}catch{return 'week'}})();
+  function collectPriorityActions(range){
+    const r=range||mPrioRange||'week';
+    const d0=dayStartMs(),to=d0+8*86400000;
+    const all=[...mailMoneyItems(d0,to),...mailKeyItems(d0-2*86400000,to)];
+    // a bill's due date found by both the ledger and the date reader is one item
+    const payMail=new Set(all.filter(x=>x.kind==='pay'&&x.mailId).map(x=>x.mailId));
+    let items=all.filter(x=>!(x.kind==='deadline'&&x.mailId&&payMail.has(x.mailId)));
+    items=items.map(x=>({...x,overdue:x.overdue||x.whenMs<(x.hasTime?Date.now():d0)}));
+    if(r==='payments')items=items.filter(x=>x.kind==='pay'||x.kind==='renewal');
+    else if(r==='deadlines')items=items.filter(x=>x.kind==='deadline'||x.kind==='reminder'||x.kind==='event');
+    else if(r==='travel')items=items.filter(x=>x.kind==='travel');
+    // loop-sheet compatible shape (type + subject + sender) so a tap opens the email with "Open in Gmail"
+    return items.map(x=>({...x,type:x.kind==='travel'?'travel':x.kind==='renewal'?'renewal':'deadline',subject:x.subject||x.title,detail:x.quote||x.subject||'',meta:x.from||'',fromName:x.from||'',category:HOME_KIND[x.kind]||''}))
+      .sort((a,b)=>a.whenMs-b.whenMs||String(a.title).localeCompare(String(b.title)));
+  }
   function collectPriorityActionsToday(){return collectPriorityActions(mPrioRange)}
-  function findPriorityItem(id){for(const r of ['week','tasks','payments','meetings']){const hit=collectPriorityActions(r).find(l=>l.id===id);if(hit)return hit}return null}
+  function findPriorityItem(id){for(const r of ['week']){const hit=collectPriorityActions(r).find(l=>l.id===id);if(hit)return hit}return null}
+  function priorityCard(it){
+    const t=it.hasTime&&!(it.overdue&&it.kind!=='travel')?hm(new Date(it.whenMs)):(it.kind==='pay'?(it.overdue?'Overdue':'Due'):it.kind==='renewal'?'Renews':it.kind==='deadline'?'By':'Day');
+    const sub=(it.kind==='pay'||it.kind==='renewal')?[it.subject&&it.subject!==it.title?it.subject:'',it.from&&it.from!==it.title?it.from:''].filter(Boolean).join(' · '):[it.from,it.quote].filter(Boolean).join(' · ');
+    return `<button type="button" class="pa-card" data-loop="${esc(it.id)}" data-open-loop="${esc(it.id)}">
+      <span class="pa-time">${esc(t)}${it.amount?`<small>${esc(it.amount)}</small>`:''}</span>
+      <span class="pa-main"><b>${esc(it.title)}</b><small>${esc(sub||'Gmail')}</small></span>
+      <span class="pa-pill k-${esc(it.kind)}">${esc(HOME_KIND[it.kind]||'')}</span>
+    </button>`;
+  }
+  function priorityGroupsHTML(items,limit){
+    let out='',last='',n=0;
+    for(const it of items){
+      if(limit&&n>=limit)break;
+      const lbl=it.overdue&&it.kind!=='travel'?'Overdue':fmtDayLabel(it.whenMs);
+      if(lbl!==last){out+=`<div class="pa-day${lbl==='Overdue'?' is-overdue':''}">${esc(lbl)}</div>`;last=lbl}
+      out+=priorityCard(it);n++;
+    }
+    return out;
+  }
   document.addEventListener('click',e=>{
     const b=e.target.closest?.('#m-prio-tabs [data-prio]');if(!b)return;
     mPrioRange=b.dataset.prio||'week';try{localStorage.setItem('daylight-prio-range',mPrioRange)}catch{}
-    $$('#m-prio-tabs [data-prio]').forEach(x=>{const on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false')});
     try{feel.select()}catch{}
     renderHome();
   });
@@ -4991,42 +5243,6 @@
     else if(days.length>1)sentences.push(`${days.length} all-day items, including ${days[0]}.`);
     return sentences.filter(Boolean).slice(0,3).join(' ');
   }
-  function renderHomeSchedule(){
-    const rail=$('#m-schedule-rail');if(!rail)return;
-    const proseEl=$('#m-schedule-prose');
-    // Calendar for the present local day only — never invent events
-    let {timed,allDay,connected}=todayEvents();
-    timed=timed.filter(e=>isHomeToday(e.start));
-    if(proseEl)proseEl.textContent=composeScheduleProse({timed,allDay,connected});
-    const items=timed.slice(0,8);
-    if(!connected&&!DEMO){
-      rail.innerHTML='';
-      rail.hidden=true;
-      return;
-    }
-    if(!items.length&&!allDay.length){
-      rail.innerHTML='';
-      rail.hidden=true;
-      return;
-    }
-    rail.hidden=false;
-    const rows=items.map(ev=>{
-      const {tone,icon}=scheduleTone(ev.title);
-      const start=hm(ev.start),end=hm(ev.end);
-      const where=/\b(online|zoom|meet\.google|teams|research meeting)\b/i.test(ev.title)?'Online':(/\bfocus\b/i.test(ev.title)?'Deep work':'');
-      const sub=[`${start} – ${end}`,where].filter(Boolean).join(' · ');
-      return `<li class="m-schedule-item is-${tone}">
-        <time class="m-schedule-time" datetime="${esc(ev.start.toISOString())}">${esc(start)}</time>
-        <span class="m-schedule-axis" aria-hidden="true"><i class="m-schedule-dot"></i></span>
-        <div class="m-schedule-card" role="group">
-          <span class="m-schedule-ico">${svg(icon,18)}</span>
-          <span class="m-schedule-copy"><b>${esc(ev.title)}</b><small>${esc(sub)}</small></span>
-        </div>
-      </li>`;
-    }).join('');
-    const dayBits=allDay.slice(0,2).map(t=>`<li class="m-schedule-empty" style="padding-top:0">All day · ${esc(t)}</li>`).join('');
-    rail.innerHTML=(rows||'')+dayBits;
-  }
   let briefTab='todo';
   function briefMiniRow(item){
     const time=item.whenMs?hm(new Date(item.whenMs)):(item.meta||'');
@@ -5042,26 +5258,7 @@
     $('#m-hello').innerHTML=first
       ?`${esc(part)}, <span class="m-hello-name">${esc(first)}</span>`
       :esc(part);
-    const day=collectHomeDayBuckets();
-    const brief=$('#m-brief');
-    if(brief){
-      const dateLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
-      const status=day.connected
-        ?(day.attention?`<span class="m-brief-status is-hot">${day.attention} need attention</span>`:(day.counts.todo||day.counts.payments||day.counts.events?'<span class="m-brief-status">On track</span>':'<span class="m-brief-status">All clear</span>'))
-        :'';
-      const tasksN=day.counts.todo,payN=day.counts.payments,evN=day.counts.events;
-      brief.innerHTML=`<div class="m-brief-head">
-          <span class="m-brief-ico" aria-hidden="true">${svg(ICON.spark,18)}</span>
-          <div class="m-brief-copy"><b>Daily brief</b><small>${esc(dateLabel)}</small></div>
-          ${status}
-        </div>
-        <p class="m-brief-prose">${esc(day.prose||day.summary)}</p>
-        <div class="m-brief-meta">
-          <span>${svg(ICON.clock,14)} ${tasksN} ${tasksN===1?'task':'tasks'}</span>
-          <span>${svg(ICON.wallet,14)} ${payN} ${payN===1?'payment':'payments'}</span>
-          <span>${svg(ICON.calendar,14)} ${evN?`${evN} ${evN===1?'event':'events'}`:'No events'}</span>
-        </div>`;
-    }
+    renderBriefV3();
     const stats=$('#m-home-stats');
     if(stats)stats.hidden=true;
     renderHomeSchedule();
@@ -5071,12 +5268,12 @@
     if(total){total.textContent=ordered.length||'';total.hidden=!ordered.length}
     if(!token&&!microsoftAccount&&!DEMO&&!ordered.length){grid.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Your day is quiet</b><p>Connect Google to surface today’s important mail.</p></div>';if(see)see.hidden=true;renderHomeHealth();return}
     if(!loopsData&&token){grid.innerHTML=skelRows(4);if(see)see.hidden=true;renderHomeHealth();return}
-    const shown=ordered.slice(0,6);
     $$('#m-prio-tabs [data-prio]').forEach(x=>{const on=x.dataset.prio===mPrioRange;x.classList.toggle('on',on);x.setAttribute('aria-selected',on?'true':'false')});
-    const emptyMsg={week:'Nothing needs you in the next 7 days.',tasks:'No tasks due in the next 7 days.',payments:'No bills due in the next 7 days.',meetings:'No meetings with others in the next 7 days.'}[mPrioRange]||'Nothing needs you right now.';
-    grid.innerHTML=ordered.length?shown.map(mobileLoopCard).join(''):`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>You’re clear</b><p>${esc(emptyMsg)}</p></div>`;
+    const emptyMsg={week:'Nothing from your mail is due in the next 7 days.',payments:'No bills or renewals due in the next 7 days.',deadlines:'No deadlines or reminders in your mail for the next 7 days.',travel:'No trips in your mail for the next 7 days.'}[mPrioRange]||'Nothing needs you right now.';
+    ensureHomeV3Styles();
+    grid.innerHTML=ordered.length?priorityGroupsHTML(ordered,8):`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>You’re clear</b><p>${esc(emptyMsg)}</p></div>`;
     if(see){
-      see.hidden=ordered.length<=6;
+      see.hidden=ordered.length<=8;
       see.innerHTML=`See All ${svg(ICON.chevron,14)}`;
     }
     renderHomeHealth();
@@ -5143,9 +5340,10 @@
     const ordered=collectPriorityActionsToday();
     const el=ensureLoopsPop();
     const body=$('#loops-pop-body'),sub=$('#loops-pop-sub');
-    if(sub)sub.textContent=ordered.length?`${ordered.length} · most urgent first`:'Nothing needs you right now';
+    if(sub)sub.textContent=ordered.length?`${ordered.length} from your mail · today and the next 7 days`:'Nothing due in the next 7 days';
+    ensureHomeV3Styles();
     if(body)body.innerHTML=ordered.length
-      ?`<div class="m-loop-list loops-pop-list">${ordered.map(mobileLoopCard).join('')}</div>`
+      ?`<div class="m-loop-list loops-pop-list">${priorityGroupsHTML(ordered)}</div>`
       :`<div class="brief-empty">Nothing needs you right now.</div>`;
     el.classList.add('show');el.setAttribute('aria-hidden','false');
     document.body.classList.add('loops-open');
@@ -5180,20 +5378,16 @@
   });
   $('#m-brief')?.addEventListener('click',e=>{
     const row=e.target.closest('[data-brief-kind]');if(!row)return;
-    const kind=row.dataset.briefKind,id=row.dataset.briefId,href=row.dataset.briefHref;
+    const kind=row.dataset.briefKind,id=row.dataset.briefId,href=row.dataset.briefHref,mail=row.dataset.briefMail;
     feel.select();
+    if(kind==='more'){openBriefPop();return}
+    if(row.dataset.briefLoop){openLoopSheet(row.dataset.briefLoop);return}
+    if(kind==='pay'&&row.dataset.briefFin&&window.DaylightMoneyUI){window.DaylightMoneyUI.open(row.dataset.briefFin);return}
+    if(id&&/^(mail-date|pay|renew):/.test(id)){const it=findPriorityItem(id);if(it){openLoopSheet(it);return}}
+    if(mail){const loops=computeLoops();const hit=loops.find(l=>l.mailId===mail);if(hit){openLoopSheet(hit.id);return}}
     if(kind==='action'&&id){openLoopSheet(id);return}
-    if(kind==='pay'){
-      if(row.dataset.briefMail){const loops=computeLoops();const hit=loops.find(l=>l.mailId===row.dataset.briefMail);if(hit){openLoopSheet(hit.id);return}}
-      setTab('inbox');mInboxFilter='payments';setLS('daylight-inbox-filter','payments');renderInbox({animate:false});return;
-    }
-    if(kind==='cal'){
-      if(row.dataset.briefWallet){openTravelRecord({walletId:row.dataset.briefWallet});return}
-      if(id?.startsWith('travel:')){openTravelRecord({walletId:id.slice(7)});return}
-      setTab('assistant');return;
-    }
-    if(kind==='task'&&row.dataset.briefMail){const loops=computeLoops();const hit=loops.find(l=>l.mailId===row.dataset.briefMail);if(hit)openLoopSheet(hit.id);else setTab('inbox');return}
-    if(href)window.open(href,'_blank','noopener');
+    if(href){window.open(href,'_blank','noopener');return}
+    if(kind==='task'||kind==='travel'){setTab('assistant');return}
   });
   $('#m-loop-grid')?.addEventListener('click',onLoopListClick);
   $('#m-loop-grid')?.addEventListener('keydown',onLoopListKey);
@@ -5201,13 +5395,14 @@
   $('#m-health-see')?.addEventListener('click',()=>{feel.select();setTab('stats')});
   $('#m-health-strip')?.addEventListener('click',()=>{feel.select();setTab('stats')});
   function collectDailyBrief(){
-    const day=collectHomeDayBuckets();
-    return {
-      todo:day.todo,waiting:day.waiting,payments:day.payments,events:day.events,
-      actions:day.todo,reminders:day.todo.filter(i=>i.kind==='task'),
-      summary:day.summary,connected:day.connected,calConnected:day.calConnected,counts:day.counts
-    };
+    const b=collectBriefToday();
+    const todo=[...b.tasks,...b.replies].map(x=>({...x,kind:x.kind==='pay'?'pay':x.kind==='travel'?'cal':'task',meta:[HOME_KIND[x.kind],x.source,chipTime(x)].filter(Boolean).join(' · ')}));
+    const payments=b.pays.map(x=>({...x,kind:'pay',meta:[x.amount,x.overdue?'Overdue':'Due today',x.source].filter(Boolean).join(' · ')}));
+    const events=[...b.travel.map(x=>({...x,kind:'cal',meta:['Travel',chipTime(x)].filter(Boolean).join(' · ')})),...b.events.map(e=>({kind:'cal',id:'ev:'+(e.id||e.start.getTime()),title:e.title,whenMs:e.start.getTime(),meta:`${hm(e.start)} – ${hm(e.end)}`,href:e.href||''}))];
+    const counts={todo:todo.length,waiting:0,payments:payments.length,events:events.length};
+    return {todo,waiting:[],payments,events,actions:todo,reminders:todo,summary:`Today · ${todo.length} to do · ${payments.length} to pay · ${events.length} on the calendar`,connected:b.connected,calConnected:true,counts};
   }
+
   function briefRowHtml(item){
     const ico=item.kind==='pay'?ICON.wallet:item.kind==='cal'?ICON.calendar:item.kind==='task'?ICON.clock:ICON.spark;
     const cls=item.kind==='pay'?' is-pay':item.kind==='cal'?' is-cal':item.kind==='task'?' is-task':'';
@@ -6158,7 +6353,7 @@
       ...(providerData.google.tasks||[]).map(t=>({...t,src:t.listName||'Google Tasks'})),
       ...(providerData.microsoft.tasks||[]).map(t=>({...t,src:t.listName||'To Do'}))
     ].filter(t=>t?.title&&t.dueDate&&dayKey(dueDay(t.dueDate))===dayKey(start)).forEach(t=>{
-      const s=dueDay(t.dueDate);
+      const s=t.hasTime?new Date(t.dueDate):dueDay(t.dueDate); // a reminder at 14:00 stays at 14:00
       push({id:'task:'+(t.id||t.title),kind:/pay|bill|invoice/i.test(t.src||'')||t.project==='Payments'?'bill':'task',title:t.title,start:s,end:s,allDay:!t.hasTime,meta:isLegacyPayTask(t)?'Unconfirmed old suggestion':(t.src||'Task'),href:t.href||''});
     });
     try{

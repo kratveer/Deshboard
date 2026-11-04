@@ -1,0 +1,200 @@
+{
+  "phone": {
+    "info": {
+      "m": true,
+      "tabs": {
+        "x": 10,
+        "y": 760,
+        "w": 370,
+        "h": 70,
+        "display": "grid",
+        "vis": "visible",
+        "op": "1"
+      },
+      "mapp": {
+        "x": 0,
+        "y": 0,
+        "w": 390,
+        "h": 844,
+        "display": "flex",
+        "vis": "visible",
+        "op": "1"
+      },
+      "brief": {
+        "x": 12,
+        "y": 146,
+        "w": 366,
+        "h": 494,
+        "display": "flex",
+        "vis": "visible",
+        "op": "1"
+      },
+      "widgets": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "display": "grid",
+        "vis": "visible",
+        "op": "1"
+      },
+      "hscroll": false,
+      "bodyBg": "rgb(243, 245, 249)"
+    },
+    "scroll": {
+      "home": {
+        "scrollable": 1753,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      },
+      "inbox": {
+        "scrollable": 2814,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      },
+      "wallet": {
+        "scrollable": 894,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      },
+      "assistant": {
+        "scrollable": 1410,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      }
+    },
+    "errors": []
+  },
+  "tablet": {
+    "info": {
+      "m": true,
+      "tabs": {
+        "x": 137,
+        "y": 1028,
+        "w": 560,
+        "h": 70,
+        "display": "grid",
+        "vis": "visible",
+        "op": "1"
+      },
+      "mapp": {
+        "x": 0,
+        "y": 0,
+        "w": 834,
+        "h": 1112,
+        "display": "flex",
+        "vis": "visible",
+        "op": "1"
+      },
+      "brief": {
+        "x": 97,
+        "y": 150,
+        "w": 640,
+        "h": 333,
+        "display": "flex",
+        "vis": "visible",
+        "op": "1"
+      },
+      "widgets": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "display": "grid",
+        "vis": "visible",
+        "op": "1"
+      },
+      "hscroll": false,
+      "bodyBg": "rgb(243, 245, 249)"
+    },
+    "scroll": {
+      "home": {
+        "scrollable": 1254,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      },
+      "inbox": {
+        "scrollable": 2546,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      },
+      "wallet": {
+        "scrollable": 582,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      },
+      "assistant": {
+        "scrollable": 1142,
+        "hiddenAfterDown": true,
+        "hiddenAfterUp": false
+      }
+    },
+    "errors": []
+  },
+  "laptop": {
+    "info": {
+      "m": true,
+      "tabs": {
+        "x": 0,
+        "y": 0,
+        "w": 248,
+        "h": 900,
+        "display": "flex",
+        "vis": "visible",
+        "op": "1"
+      },
+      "mapp": {
+        "x": 0,
+        "y": 0,
+        "w": 1440,
+        "h": 900,
+        "display": "flex",
+        "vis": "visible",
+        "op": "1"
+      },
+      "brief": {
+        "x": 464,
+        "y": 150,
+        "w": 760,
+        "h": 333,
+        "display": "flex",
+        "vis": "visible",
+        "op": "1"
+      },
+      "widgets": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "display": "grid",
+        "vis": "visible",
+        "op": "1"
+      },
+      "hscroll": false,
+      "bodyBg": "rgb(243, 245, 249)"
+    },
+    "scroll": {
+      "home": {
+        "scrollable": 1406,
+        "hiddenAfterDown": false,
+        "hiddenAfterUp": false
+      },
+      "inbox": {
+        "scrollable": 2698,
+        "hiddenAfterDown": false,
+        "hiddenAfterUp": false
+      },
+      "wallet": {
+        "scrollable": 734,
+        "hiddenAfterDown": false,
+        "hiddenAfterUp": false
+      },
+      "assistant": {
+        "scrollable": 1354,
+        "hiddenAfterDown": false,
+        "hiddenAfterUp": false
+      }
+    },
+    "errors": []
+  }
+}

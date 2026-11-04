@@ -119,9 +119,23 @@
     }
 
     const hdr = (m, n) => R.header(m, n);
+    let C_last = {};
+    const MD = () => o.dates || root.DaylightMailDates || null;
+    const BULK_CATS = new Set(['promotion', 'newsletter', 'social', 'security']);
+    /** Deadlines, reminders, travel and event dates written in the mail (never for bulk / marketing mail). */
+    function keyDatesFor(text, subject, receivedMs, category, listUnsub) {
+      const D = MD();
+      if (!D || BULK_CATS.has(category) || listUnsub) return [];
+      try { return D.extract(text, { subject, receivedMs }); } catch { return []; }
+    }
     function recordFromMeta(meta, b, prev) {
       const from = hdr(meta, 'From');
+      const lu = !!hdr(meta, 'List-Unsubscribe');
+      const kd = keyDatesFor(meta.snippet || '', hdr(meta, 'Subject'), Number(meta.internalDate) || now(), b.category, lu);
+      // a person's or service's mail that names a deadline / appointment / trip is read in full so the date is confirmed
+      if (kd.length && !b.needBody) { b = Object.assign({}, b, { needBody: true }); C_last.keyDateEscalations = (C_last.keyDateEscalations || 0) + 1; }
       return {
+        keyDates: kd,
         messageId: meta.id, threadId: meta.threadId, historyId: meta.historyId || null, labels: meta.labelIds || [], internalDate: Number(meta.internalDate) || 0,
         from, to: hdr(meta, 'To'), subject: hdr(meta, 'Subject'), date: hdr(meta, 'Date'), snippet: meta.snippet || '', listUnsubscribe: !!hdr(meta, 'List-Unsubscribe'),
         fromDomain: R.baseDomain(R.senderDomain(from)),
@@ -138,6 +152,7 @@
       const base = full ? Object.assign({}, full, { labelIds: rec.labels }) : { id: rec.messageId, threadId: rec.threadId, labelIds: rec.labels, snippet: rec.snippet, internalDate: String(rec.internalDate), historyId: rec.historyId, payload: { mimeType: 'text/plain', headers } };
       base._cache = { category: rec.category, confidence: rec.confidence, stage: rec.ruleStage, reason: rec.ruleReason, status: rec.status, bodyFetched: rec.bodyFetched };
       if (facts?.derived) base._derived = facts.derived;
+      if (rec.keyDates && rec.keyDates.length) base._keyDates = rec.keyDates;
       if (!full && rec.bodyFetched) base._bodyFromCache = true; // body processed earlier; derived results stand in for it
       return base;
     }
@@ -172,6 +187,7 @@
       const t0 = now();
       const ctx = engine.newCtx('pipeline');
       const C = { syncs: 1, ['sync_' + (opts.label || 'manual')]: 1 };
+      C_last = C;
       const cp = (await cache.getCheckpoint(acct)) || null;
       const cold = !cp || !cp.backfilledAt;
       const failures = [];
@@ -328,6 +344,19 @@
         }
         rec.category = category; rec.confidence = +confidence.toFixed(3); rec.ruleReason = reason; rec.ruleStage = rec.ruleStage + '+body';
         rec.bodyFetched = true; rec.bodyHash = c.bodyHash; rec.lastProcessedAt = now();
+        // key dates from the full text + structured booking data (schema.org)
+        {
+          const kd = keyDatesFor(c.cleanText || '', rec.subject, rec.internalDate, category, rec.listUnsubscribe);
+          const f = c.facts || {}, st = f.departureTime || f.checkinTime || f.startTime || f.startDate || f.pickupTime;
+          if (st && !isNaN(Date.parse(st))) {
+            const d = new Date(st), pad = (n) => String(n).padStart(2, '0');
+            const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, tm = /T\d\d:\d\d/.test(st) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : null;
+            const k = f.schemaType === 'FoodEstablishmentReservation' ? 'reminder' : 'travel';
+            const rest = kd.filter((x) => x.date !== iso);
+            kd.length = 0; kd.push({ kind: k, date: iso, time: tm, quote: [f.schemaType, f.reservationNumber || f.orderNumber, f.from && f.to ? f.from + ' → ' + f.to : f.place].filter(Boolean).join(' · '), source: 'schema.org', yearWritten: true }, ...rest);
+          }
+          rec.keyDates = kd.length ? kd : (rec.keyDates || []);
+        }
         const [lo, hi] = cfg.reviewBand;
         if (rec.userCategory) { category = rec.userCategory; confidence = 0.99; rec.category = category; rec.confidence = 0.99; rec.ruleReason = 'your choice'; }
         rec.status = rec.userCategory ? 'done' : (confidence >= lo && confidence < hi && R.HIGH_VALUE.has(category) ? 'review' : 'done');
