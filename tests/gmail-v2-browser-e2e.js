@@ -83,7 +83,7 @@ const inboxCards = (page) => page.evaluate(() => document.querySelectorAll('.m-s
 
     // V1 cold open (backfill)
     mock.resetStats(); gmailHttp = [];
-    await page.goto('http://127.0.0.1:8779/index.html', { waitUntil: 'domcontentloaded' }); await settle(page);
+    await page.goto('http://127.0.0.1:8779/index.html?ui=v1', { waitUntil: 'domcontentloaded' }); await settle(page);
     const s1 = await idx(page), u1 = mock.stats.units, h1 = gmailHttp.length;
     ck('V1 cold open: 30-day backfill into the persistent cache, batch used', s1.rows >= 150 && gmailHttp.includes('batch') && s1.checkpoint?.historyId, { rows: s1.rows, http: h1, units: u1, byStatus: s1.byStatus });
     const metaBody = batchBodies.find((b) => /format=metadata/.test(b)) || '';
@@ -132,7 +132,7 @@ const inboxCards = (page) => page.evaluate(() => document.querySelectorAll('.m-s
 
     // V7 two tabs refreshing at the same moment → one sync
     const page2 = await ctx.newPage(); await mockGoogle(page2); page2.on('pageerror', (e) => errs.push('tab2: ' + e.message));
-    await page2.goto('http://127.0.0.1:8779/index.html', { waitUntil: 'domcontentloaded' }); await settle(page2);
+    await page2.goto('http://127.0.0.1:8779/index.html?ui=v1', { waitUntil: 'domcontentloaded' }); await settle(page2);
     mock.resetStats(); gmailHttp = [];
     await Promise.all([page, page2].map((p) => p.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); })));
     await settle(page); await settle(page2);

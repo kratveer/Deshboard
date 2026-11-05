@@ -100,7 +100,7 @@ async function newPage(browser, g, viewport, mobile) {
   await page.clock.setFixedTime(new Date(S.NOW));
   await mockGoogle(page, g);
   const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-  await page.goto('http://127.0.0.1:8781/index.html', { waitUntil: 'domcontentloaded' });
+  await page.goto('http://127.0.0.1:8781/index.html?ui=v1', { waitUntil: 'domcontentloaded' });
   await settle(page);
   return { ctx, page, errs };
 }

@@ -12,12 +12,12 @@ srv.listen(8790, async () => {
   await page.goto('http://localhost:8790/', { waitUntil: 'load' });
   await page.waitForFunction(() => navigator.serviceWorker.controller || new Promise((r) => setTimeout(r, 100)), null, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2500);
-  const s1 = await page.evaluate(async () => { const keys = await caches.keys(); const c = keys.includes('daylight-v95') ? await caches.open('daylight-v95') : null; const urls = c ? (await c.keys()).map((k) => new URL(k.url).pathname) : []; return { keys, hasModule: urls.some((u) => u.endsWith('/gmail-sync.js')), shellCount: urls.length, sw: !!(await navigator.serviceWorker.getRegistration())?.active }; });
+  const s1 = await page.evaluate(async () => { const keys = await caches.keys(); const c = keys.includes('daylight-v97') ? await caches.open('daylight-v97') : null; const urls = c ? (await c.keys()).map((k) => new URL(k.url).pathname) : []; return { keys, hasModule: urls.some((u) => u.endsWith('/gmail-sync.js')), shellCount: urls.length, sw: !!(await navigator.serviceWorker.getRegistration())?.active }; });
   await ctx.setOffline(true);
   await page.reload({ waitUntil: 'load' }).catch(() => {});
   await page.waitForTimeout(1500);
   const s2 = await page.evaluate(() => ({ module: !!window.DaylightGmailSync, store: !!window.DaylightStore, status: document.querySelector('#sync-status')?.textContent || '' }));
-  const ok = s1.sw && s1.keys.includes('daylight-v95') && s1.hasModule && s2.module && s2.store && !errs.length;
+  const ok = s1.sw && s1.keys.includes('daylight-v97') && s1.hasModule && s2.module && s2.store && !errs.length;
   fs.writeFileSync(path.join(__dirname, 'phase1-sw-check-report.json'), JSON.stringify({ online: s1, offlineReload: s2, pageErrors: errs, ok }, null, 2));
   console.log(JSON.stringify({ online: s1, offlineReload: s2, pageErrors: errs, ok }));
   await b.close(); srv.close(); process.exitCode = ok ? 0 : 1;

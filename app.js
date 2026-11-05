@@ -131,7 +131,7 @@
         <button class="connect primary" id="google-connect" type="button">Connect with Google</button>
       </div>`;
     $('#overlay').innerHTML=`<div class="modal connections-modal" role="dialog" aria-label="Connections"><div class="modal-top"><h3>Connections</h3><button class="modal-x" id="close-modal" aria-label="Close">×</button></div>
-      ${row('google','G','google-icon','Google',g?`<span class="dot"></span>${staying?'Connected · stays signed in':'Connected for about an hour'}${prof.email?' · '+esc(prof.email):''}`:'Calendar · Gmail · Tasks · Drive · Contacts',g,g?'<button class="connect ghost" id="google-disconnect" type="button">Disconnect</button>':(needsSetup?'':'<button class="connect primary" id="google-connect" type="button">Connect</button>'))}
+      ${row('google','G','google-icon','Google',g?`<span class="dot"></span>${staying?'Connected · stays signed in':'Connected for about an hour'}${prof.email?' · '+esc(prof.email):''}`:'Gmail · read-only',g,g?'<button class="connect ghost" id="google-disconnect" type="button">Disconnect</button>':(needsSetup?'':'<button class="connect primary" id="google-connect" type="button">Connect</button>'))}
       ${needsSetup||opts.setup?setupPanel:(!g?`<div class="google-setup" id="google-setup" hidden>
         <label class="client-label" for="client-id">Google Client ID <small>public · not a secret</small></label>
         <input class="client-input" id="client-id" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="123….apps.googleusercontent.com" value="${esc(savedId)}">
@@ -468,6 +468,31 @@
     try{cls=Cls?.classifyEmail?.(full)||null}catch{}
     try{fin=F?.classify?.(full)||null}catch{}
     return {cls,clsV:Cls?.VERSION,fin,finV:F?.VERSION};
+  }
+  /* ---- V2 Item Graph: one shared model (graph + connectors + rules + actions + privacy log) ---- */
+  function v2Core(){
+    if(v2Core.o)return v2Core.o;
+    const W=window;if(!W.DaylightItemGraph||!W.DaylightConnectors)return null;
+    let idb=null;try{idb=W.indexedDB||null}catch{}
+    const graph=W.DaylightItemGraph.createGraph({indexedDB:idb});
+    const ruleStore=W.DaylightUserRules.createRuleStore(graph);
+    const registry=W.DaylightConnectors.createRegistry();
+    const gmail=W.DaylightGmailConnector.createGmailConnector({graph,ruleStore,classifier:W.DaylightClassifier,get mailCache(){return getMailV2().cache},getAccountId:()=>v2AccountKey(),
+      getStatus:async()=>({connected:Boolean(token||serverSession),account:readProfile().email||null,scopes:googleScopeBlob().split(/\s+/).filter(Boolean)})});
+    registry.register(gmail);
+    const actions=W.DaylightActions.createActions({graph,registry,ruleStore,classifier:W.DaylightClassifier});
+    const log=W.DaylightProcessingLog.createLog({graph});
+    const local=W.DaylightLocalConnector?W.DaylightLocalConnector.createLocalConnector({graph,mailKey:mid=>'gmail:'+v2AccountKey()+':'+mid}):null;
+    v2Core.o={graph,registry,gmail,ruleStore,actions,log,local};
+    W.DaylightV2=v2Core.o; W.DaylightGraph=graph; W.DaylightPrivacyLog=log;
+    return v2Core.o;
+  }
+  /** After each Gmail sync: mail cache → Item Graph (idempotent; keeps user actions and corrections). Watermark = ingest start: sync always finishes before ingest, so anything processed later has a later lastProcessedAt. */
+  async function v2IngestGmail(){
+    const c=v2Core();if(!c||!v2Enabled())return null;
+    const key='daylight-graph-ingest:'+v2AccountKey();let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}
+    const t0=Date.now();
+    try{const r=await c.gmail.ingest(v2AccountKey(),{since});try{localStorage.setItem(key,String(t0))}catch{};try{await c.local?.importLocal()}catch(e){console.warn('local import',e)};v2IngestGmail.last=c.lastIngest={...r,at:Date.now(),ms:Date.now()-t0,incremental:!!since};return r}catch(e){console.warn('graph ingest',e);v2IngestGmail.last={error:String(e?.message||e),at:Date.now()};return null}
   }
   function getMailV2(){
     if(mailV2)return mailV2;
@@ -1184,7 +1209,7 @@
     };
     const useV2=v2Enabled();
     let v2Out=null;
-    if(useV2){try{v2Out=await v2GmailSync(gmailTrigger||(force?'manual':'open'),gmailExtra)}catch(e){console.warn('gmail v2 — falling back to the Phase 1 engine',e);v2Out=null}}
+    if(useV2){try{v2Out=await v2GmailSync(gmailTrigger||(force?'manual':'open'),gmailExtra);await v2IngestGmail()}catch(e){console.warn('gmail v2 — falling back to the Phase 1 engine',e);v2Out=null}}
     v2InboxWait?.resolve(v2Out?v2Out.pools:null);
     if(v2Out)v2LastPools=v2Out.pools;
     const {report:gmailReport,pools,historyExtras,threads:sentThreads,cursor:gmailCursor}=v2Out||await gmailEngine().sync(gmailPlan);
@@ -6922,5 +6947,42 @@
   $$('.m-tabs [data-tab]').forEach(x=>x.addEventListener('click',()=>document.body.classList.remove('m-widgets')));
   setInterval(renderMobile,60000);
   applyMode();
+  /* ---- V2 app (Today · Inbox · Plan · Money · Wallet) on top of the Item Graph. Classic view: ?ui=v1 or Settings → classic. ---- */
+  (function mountV2UI(){
+    const W=window;
+    let classic=false;try{classic=/[?&]ui=v1\b/.test(location.search)||localStorage.getItem('daylight-ui')==='v1'}catch{}
+    if(/[?&]ui=v2\b/.test(location.search)){try{localStorage.removeItem('daylight-ui')}catch{};classic=false}
+    const off=()=>document.documentElement.classList.remove('v2boot');
+    if(classic||DEMO||!W.DaylightV2UI||!W.DaylightV2Model)return off();
+    let sample=false;try{sample=/[?&]v2sample=1\b/.test(location.search)||sessionStorage.getItem('daylight-v2-sample')==='1'}catch{}
+    const core=v2Core();if(!core&&!sample)return off();
+    const aiReady=()=>!!(W.DaylightAI?.getConsent?.()&&W.DaylightAI?.isEnabled?.()&&serverUrl&&serverSession);
+    const host={
+      connected:()=>Boolean(token||serverSession),
+      profile:()=>readProfile(),
+      connect:()=>connectDialog(),
+      disconnect:()=>disconnectGoogle(),
+      async syncNow(){refreshAll.force=true;await refreshAll()},
+      syncState:()=>({busy:syncBusy,lastAt:lastSyncOk||0,error:lastSyncErr||''}),
+      theme:{get:themePref,set:m=>applyThemePref(m)},
+      openScanner:()=>{try{openScan()}catch(e){console.warn('scan',e)}},
+      async deleteAll(){
+        if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}}
+        try{if(token&&W.google?.accounts?.oauth2?.revoke)W.google.accounts.oauth2.revoke(token,()=>{})}catch{}
+        try{await W.DaylightDataReset?.deleteAll?.()}catch(e){console.warn('delete all',e)}
+        location.replace(location.pathname);
+      },
+      ai:{
+        enabled:aiReady,
+        setEnabled(on){try{if(on){W.DaylightAI?.setConsent?.(true);W.DaylightAI?.setEnabled?.(true)}else W.DaylightAI?.setEnabled?.(false)}catch{}},
+        async ask(prompt,system){
+          if(!aiReady())throw new Error('AI is off');
+          const r=await fetch(serverUrl+'/api/gemini/analyse',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+serverSession},body:JSON.stringify({prompt,system,temperature:0.1,maxOutputTokens:1024,timeoutMs:20000})});
+          const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||('HTTP '+r.status));return d.text||'';
+        }
+      }
+    };
+    W.DaylightV2Host=host;
+    W.DaylightV2UI.mount({core,host,sample});
+  })();
 })();
-

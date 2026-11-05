@@ -100,7 +100,7 @@ async function newPage(browser, g, viewport, mobile) {
   await page.clock.setFixedTime(new Date(S.NOW));
   await mockGoogle(page, g);
   const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-  await page.goto('http://127.0.0.1:8781/index.html', { waitUntil: 'domcontentloaded' });
+  await page.goto('http://127.0.0.1:8781/index.html?ui=v1', { waitUntil: 'domcontentloaded' });
   await settle(page);
   return { ctx, page, errs };
 }
@@ -117,6 +117,8 @@ const inventory = (page) => page.evaluate(async () => {
   const wallet = JSON.parse(ls['daylight-wallet'] || '[]'), tasks = JSON.parse(ls['daylight-personal-tasks'] || '[]');
   return {
     mailIndex: await idbCount('daylight-mail', 'mailIndex'), mailFacts: await idbCount('daylight-mail', 'mailFacts'), aiQueue: await idbCount('daylight-mail', 'aiQueue'), checkpoint: await idbCount('daylight-mail', 'checkpoint'),
+    graphItems: await idbCount('daylight-graph', 'items'), graphLinks: await idbCount('daylight-graph', 'links'),
+    graphGmailItems: await new Promise((res) => { const r = indexedDB.open('daylight-graph'); r.onsuccess = () => { const d = r.result; if (!d.objectStoreNames.contains('items')) { d.close(); return res(0); } const q = d.transaction('items', 'readonly').objectStore('items').getAll(); q.onsuccess = () => { d.close(); res(q.result.filter((x) => (x.sources || []).some((s) => s.app === 'gmail') || x.meta?.mailId).length); }; q.onerror = () => res(-1); }; r.onerror = () => res(-1); }),
     entities: await idbCount('daylight-db', 'entities'), relationships: await idbCount('daylight-db', 'relationships'), facts: await idbCount('daylight-db', 'facts'),
     walletFromMail: wallet.filter((p) => p.mailId || /^mail:/.test(p.id || '')).length, walletManual: wallet.filter((p) => !(p.mailId || /^mail:/.test(p.id || ''))).map((p) => p.id),
     tasksSuggested: tasks.filter((t) => t.suggested || t.aiGenerated).length, tasksWithMail: tasks.filter((t) => t.mailId).length, tasksOwn: tasks.filter((t) => !(t.suggested || t.aiGenerated)).map((t) => t.title),
@@ -152,9 +154,10 @@ const inventory = (page) => page.evaluate(async () => {
   } finally { await browser.close(); srv.close(); }
   const b = out.before, a = out.after, r = out.afterReload;
   const checks = [
-    ['there was Gmail data to delete', b.mailIndex > 0 && b.walletFromMail > 0 && b.ledgerKeys > 0],
+    ['there was Gmail data to delete', b.mailIndex > 0 && b.walletFromMail > 0 && b.ledgerKeys > 0 && b.graphItems > 0],
     ['Gmail cache (messages, facts, AI queue, checkpoint) empty', a.mailIndex === 0 && a.mailFacts === 0 && a.aiQueue === 0 && a.checkpoint === 0],
     ['entities / relationships / facts for the account cleared', a.entities === 0 && a.relationships === 0 && a.facts === 0],
+    ['Item Graph had Gmail Items and now has none (items, links); only your own tasks remain', b.graphGmailItems > 0 && a.graphGmailItems === 0 && a.graphLinks === 0, { before: b.graphGmailItems, after: a.graphGmailItems, links: a.graphLinks, left: a.graphItems }],
     ['Wallet passes from Gmail removed', a.walletFromMail === 0],
     ['manual Wallet card kept', a.walletManual.includes('manual-gym')],
     ['finance ledger and Gmail keys removed', a.ledgerKeys === 0 && a.gmailKeys.length === 0],

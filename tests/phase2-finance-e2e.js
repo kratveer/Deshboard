@@ -100,7 +100,7 @@ const sheet = (page) => page.evaluate(() => {
     }, { w: WORKER, legacy: legacyTasks });
     const page = await ctx.newPage(); await mockGoogle(page);
     page.on('pageerror', (e) => errs.push(e.message));
-    await page.goto('http://127.0.0.1:8777/index.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('http://127.0.0.1:8777/index.html?ui=v1', { waitUntil: 'domcontentloaded' });
     await settle(page);
     const s1 = await state(page);
     // ---- expected ledger computed by the engine on the same fixtures
@@ -176,7 +176,7 @@ const sheet = (page) => page.evaluate(() => {
     const mctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await mctx.addInitScript(({ w }) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('daylight-api', w); localStorage.setItem('daylight-session', 'S'.repeat(43)); sessionStorage.setItem('seeded', '1'); } }, { w: WORKER });
     const mp = await mctx.newPage(); await mockGoogle(mp); mp.on('pageerror', (e) => errs.push('mobile: ' + e.message));
-    await mp.goto('http://127.0.0.1:8777/index.html', { waitUntil: 'domcontentloaded' }); await settle(mp);
+    await mp.goto('http://127.0.0.1:8777/index.html?ui=v1', { waitUntil: 'domcontentloaded' }); await settle(mp);
     await mp.evaluate(() => document.querySelector('[data-tab="inbox"]').click()); await mp.waitForTimeout(1200);
     const cards = await mp.evaluate(() => [...document.querySelectorAll('.m-swipe')].map((c) => c.innerText.split('\n').filter((x) => x && !/^(Snooze|Task|Done)$/.test(x)).join(' · ').slice(0, 160)));
     const badTags = cards.filter((t) => /(receipt|refund|You paid|Payment received|platba proběhla|Zahlung erhalten)/i.test(t) && /(Due |Overdue|Pending)/.test(t));

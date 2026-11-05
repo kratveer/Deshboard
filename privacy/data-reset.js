@@ -13,7 +13,7 @@
     'daylight-meeting-times', 'daylight-followup-suggested', 'daylight-alerted', 'daylight-orders',
     'daylight-finance-corrections', 'daylight-finance-confirmed', 'daylight-google-scopes', 'daylight-gmail-accounts', 'daylight-profile'
   ];
-  const GMAIL_PREFIXES = ['daylight-finance-ledger', 'daylight-gmail-'];
+  const GMAIL_PREFIXES = ['daylight-finance-ledger', 'daylight-gmail-', 'daylight-graph-ingest'];
   // everything Daylight ever writes starts with one of these
   const ALL_PREFIXES = ['daylight-', 'dl-'];
 
@@ -79,6 +79,8 @@
       if (root.DaylightGraph?.deleteBySource) report.graphItems = await root.DaylightGraph.deleteBySource('gmail', o.accountId || null);
       else report.databases.push(await deleteDb('daylight-graph'));
     } catch { report.databases.push(await deleteDb('daylight-graph')); }
+    // Wallet passes and tasks pruned above: drop their Items too (and any booking they were merged into loses that source)
+    try { const r = await root.DaylightV2?.local?.importLocal?.(); if (r) report.graphItems += r.removed || 0; } catch {}
     // account-scoped store rows (entities, facts, actions, reminders, sync state)
     try {
       const Store = root.DaylightStore;

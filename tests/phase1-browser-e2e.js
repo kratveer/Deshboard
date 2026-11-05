@@ -94,7 +94,7 @@ async function scenario(browser, port, name, setup) {
 
   const t0 = Date.now();
   gmail.resetStats();
-  await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${port}/index.html?ui=v1`, { waitUntil: 'domcontentloaded' });
   const settle = async (timeoutMs) => {
     await page.waitForFunction(() => {
       const s = document.querySelector('#sync-status')?.textContent || '';
