@@ -490,7 +490,7 @@
   /** After each Gmail sync: mail cache → Item Graph (idempotent; keeps user actions and corrections). Watermark = ingest start: sync always finishes before ingest, so anything processed later has a later lastProcessedAt. */
   async function v2IngestGmail(){
     const c=v2Core();if(!c||!v2Enabled())return null;
-    const key='daylight-graph-ingest:'+v2AccountKey();let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}
+    const key='daylight-graph-ingest:x2:'+v2AccountKey(); /* x2: extraction fixes (Phase E) → one full re-ingest */let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}
     const t0=Date.now();
     try{const r=await c.gmail.ingest(v2AccountKey(),{since});try{localStorage.setItem(key,String(t0))}catch{};try{await c.local?.importLocal()}catch(e){console.warn('local import',e)};v2IngestGmail.last=c.lastIngest={...r,at:Date.now(),ms:Date.now()-t0,incremental:!!since};return r}catch(e){console.warn('graph ingest',e);v2IngestGmail.last={error:String(e?.message||e),at:Date.now()};return null}
   }
@@ -6960,12 +6960,21 @@
     const host={
       connected:()=>Boolean(token||serverSession),
       profile:()=>readProfile(),
+      accountId:()=>{const p=readProfile();return (p.sub||p.email)?v2AccountKey():null},
       connect:()=>connectDialog(),
       disconnect:()=>disconnectGoogle(),
       async syncNow(){refreshAll.force=true;await refreshAll()},
       syncState:()=>({busy:syncBusy,lastAt:lastSyncOk||0,error:lastSyncErr||''}),
       theme:{get:themePref,set:m=>applyThemePref(m)},
       openScanner:()=>{try{openScan()}catch(e){console.warn('scan',e)}},
+      /* developer diagnostics: real counters from the mail cache (no estimates) */
+      async syncDiagnostics(){
+        if(!v2Enabled())return {engine:'legacy'};
+        const v=getMailV2(),M=W.DaylightSyncMetrics,acct=v2AccountKey();
+        const rows=await v.cache.metrics(acct).catch(()=>[]);const idx=await v.cache.all(acct).catch(()=>[]);const cp=await v.cache.getCheckpoint(acct).catch(()=>null)||{};
+        const status={},cats={};idx.forEach(r=>{status[r.status]=(status[r.status]||0)+1;const l=r.labels||[];const c=l.includes('SENT')&&!l.some(x=>/^CATEGORY_/.test(x))?'sent':((l.find(x=>/^CATEGORY_/.test(x))||'CATEGORY_PERSONAL').replace('CATEGORY_','').toLowerCase().replace('personal','primary'));cats[c]=cats[c]||{indexed:0,skipped:0,bodies:0};cats[c].indexed++;if(r.status==='skipped')cats[c].skipped++;if(r.bodyFetched)cats[c].bodies++});
+        return {engine:'v2',account:acct,today:M?M.summarise(rows,{days:1}):null,week:M?M.summarise(rows,{days:7}):null,last:lastGmailReport?{at:lastGmailReport.at,discovery:lastGmailReport.discovery||null,units:lastGmailReport.units??null}:null,index:{total:idx.length,status,categories:cats},checkpoint:{windowDays:cp.windowDays||null,lastMode:cp.lastMode||null,lastFullAt:cp.lastFullAt||null},ingest:core&&core.lastIngest||null};
+      },
       async deleteAll(){
         if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}}
         try{if(token&&W.google?.accounts?.oauth2?.revoke)W.google.accounts.oauth2.revoke(token,()=>{})}catch{}

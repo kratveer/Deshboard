@@ -71,6 +71,7 @@
       if (input.isSent) type = 'follow_up';
       else if (cat === 'security' || RX.security.test(input.subject || '')) type = 'urgent_action';
       else if (cat === 'bill') type = 'invoice';
+      else if ((cat === 'payment' || cat === 'refund') && !automated && RX.request.test(txt)) { type = 'personal'; reasons.push('a person asking about a payment, not a payment record'); }
       else if (cat === 'payment' || cat === 'refund') type = 'financial';
       else if (cat === 'receipt' || cat === 'food') type = RX.delivery.test(txt) ? 'delivery' : 'receipt';
       else if (cat === 'subscription') type = 'subscription';

@@ -32,7 +32,10 @@
       const c = ctx || {};
       const acct = c.accountId || rec.accountId || 'default';
       const src = (role) => ({ app: 'gmail', accountId: acct, itemId: rec.messageId, url: gmailUrl(rec.threadId || rec.messageId), role: role || 'primary' });
-      const f = (factsRow && factsRow.fields) || {};
+      const f0 = (factsRow && factsRow.fields) || {};
+      // rules store dueDate as { date, raw, confidence }; schema.org / AI may give a plain string
+      const dueStr = f0.dueDate && typeof f0.dueDate === 'object' ? (f0.dueDate.date || null) : (f0.dueDate || null);
+      const f = Object.assign({}, f0, { dueDate: dueStr });
       const email = emailOf(rec.from), domain = (rec.fromDomain || email.split('@')[1] || '').toLowerCase();
       const cls = Cls.classify({
         sourceApp: 'gmail', from: rec.from, fromEmail: email, fromDomain: domain, subject: rec.subject, snippet: rec.snippet, labels: rec.labels,
@@ -68,21 +71,23 @@
       }
 
       // money
-      const money = MONEY_CATS.has(rec.userCategory || rec.category) && amount && amount.value != null;
+      const money = MONEY_CATS.has(rec.userCategory || rec.category) && amount && amount.value != null && cls.type !== 'personal'; // a person writing about money is a message, not a transaction
       if (money) {
         const cat = rec.userCategory || rec.category;
         const type = cat === 'bill' ? 'bill' : cat === 'subscription' ? 'subscription' : 'transaction';
         const k = type === 'subscription' ? `sub:${acct}:${domain}` : `money:${acct}:${domain}:${ref || f.dueDate || (amount.value + ':' + (rec.internalDate ? new Date(rec.internalDate).toISOString().slice(0, 10) : ''))}`;
-        const dueMs = f.dueDate && !isNaN(Date.parse(f.dueDate)) ? Date.parse(f.dueDate) : null;
+        const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f.dueDate || ''));
+        const dueMs = dm ? new Date(+dm[1], +dm[2] - 1, +dm[3], 23, 59).getTime() : (f.dueDate && !isNaN(Date.parse(f.dueDate)) ? Date.parse(f.dueDate) : null); // a due date means the end of that day, local time
         items.push({ key: k, accountId: acct, type, title: `${f.merchant || nameOf(rec.from)} · ${amount.value}${amount.currency ? ' ' + amount.currency : ''}`, description: rec.subject || '', dueAt: dueMs, priority: cls.importance, sources: [src('evidence')],
           extractedFacts: factList([['amount', amount.value], ['currency', amount.currency], ['dueDate', f.dueDate], ['reference', ref], ['merchant', f.merchant || nameOf(rec.from)], ['kind', cat]], emailId), meta: { category: cat } });
         links.push([emailId, iid(k), 'evidence']);
         if (domain && !FREEMAIL.test(domain + '.')) links.push([iid(k), iid(`org:${domain}`), 'merchant']);
       }
       // booking (one per reference across confirmation / change emails)
-      if (['booking', 'travel'].includes(cls.type) && (ref || f.schemaType)) {
+      const travelDate = (rec.keyDates || []).find((x) => x.kind === 'travel');
+      if (['booking', 'travel'].includes(cls.type) && (ref || f.schemaType || travelDate)) {
         const k = `booking:${acct}:${String(ref || rec.threadId).toUpperCase()}`;
-        const start = (rec.keyDates || []).find((x) => x.kind === 'travel');
+        const start = travelDate;
         const startMs = start && D ? D.toMs(start) : null;
         items.push({ key: k, accountId: acct, type: 'booking', title: rec.subject || 'Booking', description: start?.quote || '', dueAt: startMs, priority: cls.importance, sources: [src('evidence')],
           extractedFacts: factList([['reference', ref], ['start', start ? start.date + (start.time ? ' ' + start.time : '') : null], ['schemaType', f.schemaType]], emailId, f.schemaType ? 'schema' : 'rule') });
@@ -116,10 +121,34 @@
       const since = (opts && opts.since) || 0; // incremental: only messages processed since the last ingest
       const live = rows.filter((r) => !['skipped', 'meta-pending', 'deleted'].includes(r.status) && (!since || (r.lastProcessedAt || 0) >= since));
       const facts = await o.mailCache.getFacts(acct, live.map((r) => r.messageId));
-      const rules = Rules ? await Rules.all() : [];
+      const rules = Rules ? (await Rules.all()).filter((r) => !r.accountId || r.accountId === acct) : []; // another account's rules never apply here
       const out = [], linkList = [];
       live.forEach((r) => { const n = normalise(r, facts.get(r.messageId), { accountId: acct, rules, now: (opts && opts.now) || now(), vipSenders: (opts && opts.vipSenders) || [] }); out.push(...n.items); linkList.push(...n.links); });
+      // a re-read email that no longer produces a derived Item (fixed extraction, reclassified, user rule) stops supporting it
+      const stale = [];
+      if (graph.detachSources && live.length) {
+        const produced = new Map(); out.forEach((p) => (p.sources || []).forEach((s) => { if (s.app === 'gmail') { const k = String(s.itemId); if (!produced.has(k)) produced.set(k, new Set()); produced.get(k).add(G.itemId(p.key)); } }));
+        const liveIds = new Set(live.map((r) => String(r.messageId)));
+        (await graph.query({ accountId: acct })).forEach((it) => {
+          if (it.type === 'email' || it.type === 'person' || it.type === 'organisation') return;
+          (it.sources || []).forEach((s) => { if (s.app === 'gmail' && s.role === 'evidence' && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id)) stale.push({ itemId: it.id, app: 'gmail', accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`gmail:${acct}:${s.itemId}`) }); });
+        });
+      }
       const stored = await graph.upsertMany(out);
+      if (stale.length) {
+        // keep what the user did: a stale Item's status/snooze/notes move to the Item of the same kind the email now produces
+        const olds = await graph.getMany([...new Set(stale.map((x) => x.itemId))]);
+        for (const o2 of olds) {
+          const mids = stale.filter((x) => x.itemId === o2.id).map((x) => String(x.sourceItemId));
+          const cand = stored.filter((n) => n.type === o2.type && n.id !== o2.id && (n.sources || []).some((s2) => s2.app === 'gmail' && mids.includes(String(s2.itemId))));
+          if (cand.length !== 1) continue;
+          const n = cand[0]; let changed = false;
+          ['status', 'snoozedUntil', 'pinned', 'userPriority', 'plannedAt', 'plannedMinutes'].forEach((k) => { if (o2[k] != null && o2[k] !== false && o2[k] !== 'open' && (n[k] == null || n[k] === 'open' || n[k] === false)) { n[k] = o2[k]; changed = true; } });
+          ['notes', 'actionHistory', 'userCorrections'].forEach((k) => { if ((o2[k] || []).length) { n[k] = [...(o2[k] || []), ...(n[k] || [])]; changed = true; } });
+          if (changed) await graph.putItem(n);
+        }
+        await graph.detachSources(stale);
+      }
       if (graph.linkMany) await graph.linkMany(linkList, acct); else for (const [a, b, kind] of linkList) await graph.link(a, b, kind, acct);
       // Gmail deleted / trashed → drop the email Item (derived Items survive while another email still supports them)
       let removed = 0;

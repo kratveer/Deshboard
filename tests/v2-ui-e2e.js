@@ -176,6 +176,19 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     const priv = await page.evaluate(() => ({ text: document.querySelector('.v-sheet .bd').textContent, hasExport: !!document.querySelector('.v-sheet [data-export]'), hasDelete: !!document.querySelector('.v-sheet [data-deleteall]') }));
     check('Privacy Centre: what is stored, what left the device, export, delete everything', /What is stored here/.test(priv.text) && /What left your device/.test(priv.text) && priv.hasExport && priv.hasDelete);
     await page.click('.v-sheet [data-close]'); await page.waitForTimeout(400);
+    // Intelligence Diagnostics (developer view)
+    await page.click('[data-open-settings]'); await page.waitForTimeout(400); await page.click('.v-sheet [data-diag]');
+    await page.waitForSelector('.v-sheet .v-dtab', { timeout: 20000 }); await page.waitForTimeout(500);
+    const dg = await page.evaluate(() => ({ text: document.querySelector('.v-sheet .bd').innerText, prov: window.DaylightV2UI.provenanceCheck() }));
+    const unitsRow = /Quota units today \/ 7 days\s+(\d+)/.exec(dg.text);
+    check('Diagnostics: provenance check finds no card without a real Item/source', dg.prov.checked > 10 && dg.prov.problems.length === 0, dg.prov);
+    check('Diagnostics: real quota counters from this sync are shown (units > 0)', unitsRow && Number(unitsRow[1]) > 0, unitsRow && unitsRow[1]);
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.v-sheet [data-diagexport=redacted]')]);
+    const rep = JSON.parse(fs.readFileSync(await dl.path(), 'utf8'));
+    const subj = await page.evaluate(() => window.DaylightV2UI.state.items.filter((x) => x.type === 'email').map((x) => x.title).filter((t) => t.length > 8));
+    const leaked = subj.filter((t) => JSON.stringify(rep).includes(t));
+    check('Diagnostics: redacted export has counts but no email subjects', rep.kind === 'daylight-validation-report' && rep.classification.emails > 0 && leaked.length === 0, { leaked: leaked.slice(0, 3) });
+    await page.click('.v-sheet [data-close]'); await page.waitForTimeout(400);
     // Ask
     await page.click('[data-ask]'); await page.waitForTimeout(400);
     await page.fill('[data-askform] input', 'what bills do I have to pay'); await page.click('[data-askform] [type=submit]'); await page.waitForTimeout(600);

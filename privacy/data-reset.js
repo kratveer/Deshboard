@@ -13,7 +13,7 @@
     'daylight-meeting-times', 'daylight-followup-suggested', 'daylight-alerted', 'daylight-orders',
     'daylight-finance-corrections', 'daylight-finance-confirmed', 'daylight-google-scopes', 'daylight-gmail-accounts', 'daylight-profile'
   ];
-  const GMAIL_PREFIXES = ['daylight-finance-ledger', 'daylight-gmail-', 'daylight-graph-ingest'];
+  const GMAIL_PREFIXES = ['daylight-finance-ledger', 'daylight-gmail-', 'daylight-graph-ingest', 'daylight-v2-validation', 'daylight-v2-missed'];
   // everything Daylight ever writes starts with one of these
   const ALL_PREFIXES = ['daylight-', 'dl-'];
 

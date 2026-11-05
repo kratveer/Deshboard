@@ -228,6 +228,30 @@
         if (del.length || keep.length) emit({ kind: 'delete', app, count: del.length });
         return del.length;
       },
+      /** Drop specific source references from specific Items (an email no longer supports a derived Item). Items left with no source are deleted. */
+      async detachSources(list) {
+        if (!list.length) return 0;
+        const ids = [...new Set(list.map((x) => x.itemId))];
+        const its = (await b.getMany('items', ids)).filter(Boolean);
+        const del = [], keep = [];
+        its.forEach((it) => {
+          const drop = list.filter((x) => x.itemId === it.id);
+          const rest = (it.sources || []).filter((s) => !drop.some((d) => d.app === s.app && String(d.sourceItemId) === String(s.itemId) && (!d.accountId || d.accountId === s.accountId)));
+          if (rest.length === (it.sources || []).length) return;
+          if (!rest.length) { del.push(it.id); return; }
+          const p0 = rest.find((x) => x.role === 'primary') || rest[0];
+          const dropIds = new Set(drop.map((d) => d.emailItemId).filter(Boolean));
+          keep.push(Object.assign({}, it, { sources: rest, sourceApp: p0.app, sourceAccountId: p0.accountId, sourceItemId: p0.itemId, sourceUrl: p0.url, extractedFacts: (it.extractedFacts || []).filter((f) => !dropIds.has(f.sourceItemId)), relatedItemIds: (it.relatedItemIds || []).filter((x) => !dropIds.has(x)) }));
+        });
+        const delSet = new Set(del);
+        await b.delMany('items', del); if (keep.length) await b.putMany('items', keep);
+        const links = await b.all('links');
+        const dropLinks = links.filter((l) => delSet.has(l.from) || delSet.has(l.to) || list.some((x) => x.emailItemId && ((l.from === x.emailItemId && l.to === x.itemId) || (l.to === x.emailItemId && l.from === x.itemId))));
+        await b.delMany('links', dropLinks.map((l) => l.id));
+        if (del.length) { const all = await b.all('items'); const fix = all.filter((x) => (x.relatedItemIds || []).some((r) => delSet.has(r))).map((x) => Object.assign(x, { relatedItemIds: x.relatedItemIds.filter((r) => !delSet.has(r)) })); if (fix.length) await b.putMany('items', fix); }
+        if (del.length || keep.length) emit({ kind: 'detach', count: del.length + keep.length });
+        return del.length;
+      },
       // ---- rules, actions, log (used by user-rules, apply-action, processing-log) ----
       rules: { all: () => b.all('rules'), put: (r) => b.put('rules', r), del: (id) => b.del('rules', id), get: (id) => b.get('rules', id) },
       actions: { all: () => b.all('actions'), put: (a) => b.put('actions', a), get: (id) => b.get('actions', id) },

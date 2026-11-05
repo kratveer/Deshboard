@@ -286,7 +286,10 @@
   }
   function extractRef(text) {
     const m = /(?:booking (?:reference|ref|code|number)|confirmation (?:number|code|no\.?)|reservation (?:number|code)|pnr|číslo rezervace|kód rezervace|buchungsnummer|order (?:number|no\.?|#)|invoice (?:number|no\.?|#)|číslo (?:objednávky|faktury)|variabilní symbol)\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,19})/i.exec(text);
-    return m ? m[1].toUpperCase() : null;
+    if (m) return m[1].toUpperCase();
+    // "booking RJ55120", "reservation ABX42K": a bare code right after the word, only if it mixes letters and digits
+    const b = /\b(?:booking|reservation|rezervace|buchung)\s*[:#]?\s*([A-Z]{1,4}\d[A-Z0-9]{3,11}|\d{2,}[A-Z][A-Z0-9]{2,10})\b/.exec(text);
+    return b ? b[1].toUpperCase() : null;
   }
   function merchantOf(from) { const name = String(from || '').replace(/<[^>]*>/g, '').replace(/"/g, '').trim(); return name || baseDomain(senderDomain(from)) || null; }
 

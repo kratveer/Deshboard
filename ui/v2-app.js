@@ -86,7 +86,7 @@
     S.mounted = true;
     doc.body.classList.add('v2ui');
     S.core.graph.onChange(() => scheduleLoad());
-    load().then(() => { if (!S.sample && S.core.local) S.core.local.importLocal().catch(() => {}); });
+    load().then(() => { if (!S.sample && S.core.local) S.core.local.importLocal().catch(() => {}); try { if (/[?&]diag=1\b/.test(location.search)) S.diagOnLoad = true; } catch {} });
     setInterval(() => { if (doc.visibilityState === 'visible') { S.core.actions.wakeSnoozed().catch(() => {}); render(); } }, 60000);
     setInterval(renderRing, 1500);
     root.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openAsk(); } });
@@ -109,10 +109,16 @@
   function scheduleLoad() { clearTimeout(loadTimer); loadTimer = setTimeout(load, 120); }
   async function load() {
     const g = S.core.graph;
-    const [items, actions, rules] = await Promise.all([g.query(), g.actions.all(), S.core.ruleStore.all()]);
-    S.items = items; S.byId = M.index(items); S.actions = actions; S.rules = rules; S.loadedAt = nowMs();
+    const [all, actions, rules] = await Promise.all([g.query(), g.actions.all(), S.core.ruleStore.all()]);
+    // multi-account isolation: only the signed-in account's Items (plus this device's own tasks and passes) are ever shown
+    const acct = S.sample ? 'sample' : ((S.host.accountId && S.host.accountId()) || null);
+    S.account = acct;
+    const items = all.filter((x) => x.accountId === 'local' || (acct && x.accountId === acct));
+    S.hiddenOtherAccounts = all.length - items.length;
+    S.items = items; S.byId = M.index(items); const vis = new Set(items.map((x) => x.id)); S.actions = actions.filter((a) => vis.has(a.itemId)); S.rules = rules.filter((r) => !r.accountId || r.accountId === acct || r.accountId === 'local'); S.loadedAt = nowMs();
     render();
     refreshOpenSheet();
+    if (S.diagOnLoad && items.length) { S.diagOnLoad = false; openDiagnostics(); }
   }
 
   function build() {
@@ -178,6 +184,7 @@
   }
   function renderRing() {
     const r = $('[data-ring]'); if (!r) return;
+    if (!S.sample && S.host.accountId && S.loadedAt && S.host.accountId() !== S.account) scheduleLoad();
     const st = (S.host.syncState && S.host.syncState()) || {};
     const on = connected();
     r.classList.toggle('off', !on); r.classList.toggle('busy', !!st.busy); r.classList.toggle('err', !!st.error && !st.busy);
@@ -703,6 +710,7 @@
     h += `<div class="v-section"><h4>Privacy</h4><button class="v-setrow" type="button" data-privacy>${ic('shield', 20)} Privacy Centre<span class="r">${ic('right', 18)}</span></button>
       <button class="v-setrow" type="button" data-classic>${ic('undo', 20)} Switch to the classic view<span class="r">${ic('right', 18)}</span></button>
       ${S.sample ? `<button class="v-setrow" type="button" data-exit-sample>${ic('x', 20)} Leave sample data<span class="r"></span></button>` : ''}</div>`;
+    h += `<div class="v-section"><h4>Developer</h4><button class="v-setrow" type="button" data-diag>${ic('gear', 20)} Intelligence Diagnostics<span class="r">${ic('right', 18)}</span></button><button class="v-setrow" type="button" data-label>${ic('check', 20)} Review emails (validation)<span class="r">${ic('right', 18)}</span></button></div>`;
     h += `<p class="v-muted" style="font-size:12px;text-align:center;margin-top:24px">Daylight V2 · read-only Gmail release</p>`;
     return h;
   }
@@ -748,6 +756,103 @@
     try { S.core.log.add({ kind: 'export', dest: 'Downloaded to this device', what: `${data.items.length} items exported`, bytes: blob.size }); } catch {}
   }
 
+
+  // ---------- Intelligence Diagnostics (developer) ----------
+  const VKEY = () => 'daylight-v2-validation:' + (S.account || 'none');
+  const MKEY = () => 'daylight-v2-missed:' + (S.account || 'none');
+  function provenanceCheck() {
+    const now = nowMs(), seen = new Set(), bad = [];
+    const fns = { today: renderToday, inbox: renderInbox, plan: renderPlan, money: renderMoney, wallet: renderWallet };
+    const savedSeg = S.inbox.seg;
+    const run = (name, fn) => { const el = doc.createElement('div'); try { fn(el, now); } catch (e) { bad.push({ where: name, error: String(e && e.message || e) }); return; } $$('[data-open],[data-sw],[data-person]', el).forEach((n) => { const id = n.dataset.open || n.dataset.sw || n.dataset.person; seen.add(id); const it = S.byId.get(id); if (!it) bad.push({ where: name, id, why: 'not in the graph' }); else if (!(it.sources || []).length) bad.push({ where: name, id, why: 'no source' }); }); };
+    Object.entries(fns).forEach(([k, fn]) => run(k, fn));
+    ['people', 'updates'].forEach((sg) => { S.inbox.seg = sg; run('inbox/' + sg, renderInbox); });
+    S.inbox.seg = savedSeg;
+    return { checked: seen.size, problems: bad };
+  }
+  const tbl = (rows, head) => `<table class="v-dtab">${head ? `<tr>${head.map((x) => `<th>${esc(x)}</th>`).join('')}</tr>` : ''}${rows.map((r) => `<tr>${r.map((x, i) => `<${i ? 'td' : 'th'}>${esc(x == null ? '—' : x)}</${i ? 'td' : 'th'}>`).join('')}</tr>`).join('')}</table>`;
+  async function diagData() {
+    const D = root.DaylightV2Diagnostics;
+    const vis = new Set(S.items.map((x) => x.id));
+    const links = (await S.core.graph.links()).filter((l) => vis.has(l.from) || vis.has(l.to));
+    const a = D.analyse({ items: S.items, links, actions: S.actions, rules: S.rules, now: nowMs() });
+    const needs = M.needsYou(S.items, nowMs()).map((x) => x.item.id);
+    const score = D.scoreLabels(S.items, LS.get(VKEY(), {}), needs);
+    const sync = !S.sample && S.host.syncDiagnostics ? await S.host.syncDiagnostics().catch((e) => ({ error: String(e) })) : null;
+    return { a, score, sync, prov: provenanceCheck(), missed: LS.get(MKEY(), []) };
+  }
+  async function openDiagnostics() {
+    const sh = openSheet({ title: 'Intelligence Diagnostics', back: true, full: true, html: '<div class="v-skel"></div><div class="v-skel" style="margin-top:10px"></div>' });
+    const { a, score, sync, prov, missed } = await diagData();
+    const now = nowMs();
+    const T = (o) => Object.entries(o || {}).sort((x, y) => y[1] - x[1]);
+    let h = `<p class="v-muted" style="font-size:12.5px;margin:0 0 8px">Developer view · account ${esc(S.account || 'none')} · every number is counted from this device's stored data${S.sample ? ' (SAMPLE DATA)' : ''}. ${S.hiddenOtherAccounts ? `${S.hiddenOtherAccounts} items of other accounts on this device are hidden.` : ''}</p>`;
+    h += `<div class="v-section"><h4>Provenance</h4>${tbl([['Cards checked on all tabs', prov.checked], ['Cards without a graph Item or source', prov.problems.length], ['Items with no source', a.provenance.noSource.length], ['Facts citing a missing email', a.provenance.orphanFacts.length], ['Broken links', a.provenance.brokenLinks], ['Gmail-derived items without their email', a.provenance.derivedNoEvidence.length]])}${prov.problems.length ? `<pre class="v-pre">${esc(JSON.stringify(prov.problems.slice(0, 10), null, 1))}</pre>` : ''}</div>`;
+    if (sync && sync.engine === 'v2') {
+      const t = sync.today, w = sync.week;
+      h += `<div class="v-section"><h4>Sync and Gmail quota (real counters)</h4>${tbl([
+        ['Syncs today / 7 days', t ? t.syncs.total ?? (t.syncs.scheduled + t.syncs.manual + t.syncs.open + t.syncs.catchUp + t.syncs.connect) : null, w ? (w.syncs.scheduled + w.syncs.manual + w.syncs.open + w.syncs.catchUp + w.syncs.connect) : null],
+        ['Quota units today / 7 days', t && t.quota.units, w && w.quota.units],
+        ['history.list / messages.list', t && `${t.quota.historyList} / ${t.quota.messagesList}`, w && `${w.quota.historyList} / ${w.quota.messagesList}`],
+        ['metadata GET / full GET', t && `${t.quota.metadataGets} / ${t.quota.fullGets}`, w && `${w.quota.metadataGets} / ${w.quota.fullGets}`],
+        ['Batch requests (parts)', t && `${t.quota.batchRequests} (${t.quota.batchedParts})`, w && `${w.quota.batchRequests} (${w.quota.batchedParts})`],
+        ['Failed / deferred', t && `${t.failed} / ${t.deferred}`, w && `${w.failed} / ${w.deferred}`],
+        ['Cold / warm sync time', t && t.duration.coldMs != null ? (t.duration.coldMs / 1000).toFixed(1) + ' s' : null, t && t.duration.warmMs != null ? (t.duration.warmMs / 1000).toFixed(1) + ' s' : null],
+        ['AI requests · est. cost (USD)', t && `${t.ai.requests} · $${t.ai.estimatedCostUsd}`, w && `${w.ai.requests} · $${w.ai.estimatedCostUsd}`]
+      ], ['', 'Today', '7 days'])}
+      ${sync.last && sync.last.discovery ? `<p class="v-muted" style="font-size:12.5px">Last sync in this session: discovered ${sync.last.discovery.discovered}, metadata ${sync.last.discovery.metadataFetched}, bodies ${sync.last.discovery.bodiesFetched}, skipped ${sync.last.discovery.skipped}. Units by call: ${esc(Object.entries(sync.last.discovery.unitsByKind || {}).map(([k, v]) => k + ' ' + v).join(', ') || '—')}</p>` : '<p class="v-muted" style="font-size:12.5px">No sync has run in this session yet; the counters above come from stored daily metrics.</p>'}
+      ${tbl(Object.entries(sync.index.categories).map(([c, v]) => [c, v.indexed, v.skipped, v.bodies]), ['Gmail category', 'Indexed', 'Skipped (no content read)', 'Bodies read'])}
+      ${tbl(T(sync.index.status), ['Index status', 'Count'])}
+      <p class="v-muted" style="font-size:12.5px">Window ${sync.checkpoint.windowDays || '—'} days · last mode ${esc(sync.checkpoint.lastMode || '—')}${sync.ingest ? ` · last graph ingest ${sync.ingest.emails} emails → ${sync.ingest.items} items${sync.ingest.incremental ? ' (incremental)' : ''}` : ''}</p></div>`;
+    } else h += `<div class="v-section"><h4>Sync</h4><p class="v-muted">${S.sample ? 'Sample mode: no Gmail sync.' : 'No V2 sync data on this device.'}</p></div>`;
+    h += `<div class="v-section"><h4>Classification (${a.classification.emails} emails)</h4>${tbl(T(a.classification.types).map(([k, v]) => [M.TYPE_LABEL[k] || k, v, (Math.round((v / a.classification.emails) * 1000) / 10) + ' %']), ['Type', 'Emails', 'Share'])}
+      ${tbl(T(a.classification.bands), ['Importance band', 'Emails'])}
+      ${tbl([['Low confidence (< 0.7)', a.classification.lowConfidence.length], ['Changed by you', a.classification.userSet], ['Typed by your rules', a.classification.viaRule], ['Rules (on)', `${a.classification.rules} (${a.classification.rulesOn})`]])}
+      <details><summary class="v-muted" style="font-size:13px;cursor:pointer;margin-top:6px">Pipeline category → V2 type</summary>${tbl(Object.entries(a.classification.matrix).map(([pc, m]) => [pc, Object.entries(m).map(([t, n]) => `${t} ${n}`).join(', ')]), ['Pipeline', 'V2 types'])}</details></div>`;
+    const ex = a.extraction;
+    const cr = (k, o) => Object.entries(o).map(([f, v]) => `${f} ${v.pct == null ? '—' : v.pct + ' %'}`).join(' · ');
+    h += `<div class="v-section"><h4>Extraction coverage</h4>${tbl(['bill', 'transaction', 'subscription', 'booking', 'deadline', 'appointment'].map((k) => [k, Object.values(ex[k])[0]?.of ?? 0, cr(k, ex[k])]), ['Item', 'Count', 'Fields present'])}
+      ${tbl([['Malformed facts (objects, [object Object])', ex.badFacts.length], ['Money emails with no bill/payment Item', ex.moneyNoItem.length], ['Travel emails with no booking Item', ex.travelNoItem.length]])}
+      ${ex.moneyNoItem.length || ex.travelNoItem.length ? `<div class="v-mini" style="margin-top:8px">${[...ex.moneyNoItem, ...ex.travelNoItem].slice(0, 12).map((id) => { const it = S.byId.get(id); return `<button type="button" data-open="${id}">${src(it)}<span style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(it.title)}</span><span class="r">${esc(M.TYPE_LABEL[M.ctype(it)] || '')}</span></button>`; }).join('')}</div>` : ''}</div>`;
+    h += `<div class="v-section"><h4>Duplicates (${a.duplicates.length})</h4>${a.duplicates.length ? `<div class="v-mini">${a.duplicates.slice(0, 12).map((d) => `<button type="button" data-open="${d.a}"><span style="flex:1">${esc((S.byId.get(d.a) || {}).title || d.a)} ⇄ ${esc((S.byId.get(d.b) || {}).title || d.b)}</span><span class="r">${esc(d.why)}</span></button>`).join('')}</div>` : '<p class="v-muted" style="font-size:13.5px">No likely duplicates found.</p>'}</div>`;
+    h += `<div class="v-section"><h4>Actions</h4>${tbl([['Total', a.actions.total], ['Undone', a.actions.undone], ['Pending write-backs', a.actions.pendingWrites], ...T(a.actions.byKind)])}</div>`;
+    h += `<div class="v-section"><h4>Your validation labels</h4>${score.labelled ? tbl([['Emails labelled', score.labelled], ['Type correct', `${score.correct} (${score.accuracy} %)`], ['Marked important', score.importance.markedImportant], ['…shown in Needs you', `${score.importance.surfaced} (${score.importance.recall ?? '—'} %)`], ['Marked not important but shown', score.importance.falseAlarms.length], ['Missed emails you reported', missed.length]]) + (Object.keys(score.confusions).length ? tbl(Object.entries(score.confusions), ['Daylight said → should be', 'Count']) : '') : '<p class="v-muted" style="font-size:13.5px">Nothing labelled yet. Use Review emails to mark what Daylight got right and wrong.</p>'}
+      <div class="v-actions"><button class="v-pbtn solid" type="button" data-label>Review emails</button><button class="v-pbtn" type="button" data-missed>Report a missed email</button></div></div>`;
+    h += `<div class="v-section"><h4>Export</h4><div class="v-actions"><button class="v-pbtn" type="button" data-diagexport="redacted">${ic('down', 16)} Redacted report (for testers)</button><button class="v-pbtn" type="button" data-diagexport="full">Full report (stays with you)</button></div><p class="v-muted" style="font-size:12.5px">The redacted report has counts, rates and sender domains only — no subjects, previews, names, amounts or references.</p></div>`;
+    if (S.sheets[S.sheets.length - 1]?.el === sh) $('.bd', sh).innerHTML = h;
+  }
+  async function exportDiag(kind) {
+    const { a, score, sync, prov, missed } = await diagData();
+    const D = root.DaylightV2Diagnostics;
+    const data = kind === 'redacted' ? Object.assign(D.redactedReport({ analysis: a, score, items: S.items, missed, sync: sync && sync.engine === 'v2' ? { today: sync.today && { quota: sync.today.quota, syncs: sync.today.syncs, failed: sync.today.failed, duration: sync.today.duration }, week: sync.week && { quota: sync.week.quota, syncs: sync.week.syncs }, index: sync.index, checkpoint: sync.checkpoint } : null, now: nowMs() }), { provenance2: { cardsChecked: prov.checked, cardProblems: prov.problems.length } })
+      : { kind: 'daylight-diagnostics-full', createdAt: new Date().toISOString(), account: S.account, analysis: a, score, sync, provenance: prov, labels: LS.get(VKEY(), {}), missed, titles: Object.fromEntries(S.items.filter((x) => x.type === 'email').map((x) => [x.id, { title: x.title, from: M.sender(x), type: M.ctype(x), band: x.classification && x.classification.band }])) };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const el = doc.createElement('a'); el.href = URL.createObjectURL(blob); el.download = `daylight-${kind === 'redacted' ? 'validation-redacted' : 'diagnostics-full'}-${new Date().toISOString().slice(0, 10)}.json`; doc.body.append(el); el.click(); setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 1000);
+    try { S.core.log.add({ kind: 'export', dest: 'Downloaded to this device', what: kind === 'redacted' ? 'redacted validation report' : 'full diagnostics report', bytes: blob.size }); } catch {}
+  }
+  function openLabeler(onlyNew) {
+    const html = () => {
+      const now = nowMs(), labels = LS.get(VKEY(), {});
+      const needs = new Set(M.needsYou(S.items, now).map((x) => x.item.id));
+      const emails = S.items.filter((x) => x.type === 'email' && now - (x.createdAt || 0) < 30 * DAYMS).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const list = (S.labelFilter === 'todo') ? emails.filter((e) => !labels[e.id]) : emails;
+      const done = emails.filter((e) => labels[e.id]).length;
+      return `<p class="v-muted" style="font-size:13px;margin:0 0 8px">Mark whether Daylight typed each email correctly and whether it matters to you. Labels stay on this device; only counts go into the redacted report.</p>
+        <div class="v-row2" style="margin-bottom:10px"><span class="v-chip on">${done} / ${emails.length} labelled</span><button class="v-chip${S.labelFilter === 'todo' ? ' on' : ''}" type="button" data-lfilter>${S.labelFilter === 'todo' ? 'Showing unlabelled' : 'Show unlabelled only'}</button></div>
+        <div class="v-group">${list.slice(0, 60).map((e) => { const l = labels[e.id] || {}; const shown = needs.has(e.id) || (e.relatedItemIds || []).some((x) => needs.has(x)); return `<div class="v-lrow" data-lid="${e.id}"><button type="button" class="v-lmain" data-open="${e.id}"><b>${esc(M.sender(e))}</b><span>${esc(e.title)}</span><small><span class="v-chiptype" style="${kvar(e)}">${esc(M.TYPE_LABEL[M.ctype(e)] || '—')}</span> ${esc(e.classification?.band || '')} ${e.classification?.importance ?? ''}${shown ? ' · in Needs you' : ''}</small></button>
+          <div class="v-lbtns"><button type="button" class="v-chip${l.ok === true ? ' on' : ''}" data-lok="${e.id}">Type right</button><button type="button" class="v-chip${l.ok === false ? ' on' : ''}" data-lwrong="${e.id}">Wrong${l.expected ? ': ' + esc(M.TYPE_LABEL[l.expected] || l.expected) : ''}</button><button type="button" class="v-chip${l.important === true ? ' on' : ''}" data-limp="${e.id}|1">Matters</button><button type="button" class="v-chip${l.important === false ? ' on' : ''}" data-limp="${e.id}|0">Doesn't</button></div></div>`; }).join('')}</div>
+        ${list.length > 60 ? `<p class="v-muted" style="font-size:12.5px">Showing the newest 60.</p>` : ''}`;
+    };
+    openSheet({ title: 'Review emails', back: true, full: true, html: html(), refresh: html });
+  }
+  function setLabel(id, patch) { const l = LS.get(VKEY(), {}); l[id] = Object.assign({}, l[id] || {}, patch, { at: nowMs() }); LS.set(VKEY(), l); refreshOpenSheet(); }
+  function openMissed() {
+    openSheet({ title: 'Report a missed email', back: true, html: `<p class="v-muted" style="font-size:13.5px;margin:0 0 8px">Something important arrived in Gmail but Daylight didn't show it (or showed it wrongly). This stays on this device; the redacted report includes only the kind and sender domain.</p>
+      <form data-missedform><div class="v-field"><label for="v-mk">What was it?</label><select class="v-input" id="v-mk" name="kind"><option value="bill">Bill or payment request</option><option value="receipt">Receipt or order</option><option value="booking">Booking or ticket</option><option value="deadline">Deadline or appointment</option><option value="message">A person waiting for a reply</option><option value="other">Other</option></select></div>
+      <div class="v-field"><label for="v-md">Sender's domain (e.g. cez.cz)</label><input class="v-input" id="v-md" name="domain" autocomplete="off"></div>
+      <div class="v-field"><label for="v-mn">Note for yourself (not exported in the redacted report)</label><textarea class="v-input" id="v-mn" name="note"></textarea></div>
+      <button class="v-bigbtn" type="submit" style="width:100%;min-width:0">Save</button></form>` });
+  }
   // ---------- wallet add / trips ----------
   function openAddPass() {
     openSheet({ title: 'Add to Wallet', html: `<div class="v-opts">${S.host.openScanner && !S.sample ? `<button class="v-opt" type="button" data-scan>${ic('scan', 20)} Scan a ticket or card<span>camera</span></button>` : ''}</div>
@@ -868,6 +973,17 @@
     if (d.deleteall !== undefined) return confirmIn(t, 'Delete everything Daylight stored on this device — items, rules, history, Wallet, settings? This cannot be undone.', 'Delete everything', async () => { if (S.sample) { location.reload(); return; } await S.host.deleteAll(); });
     if (d.export !== undefined) return exportData();
     if (d.privacy !== undefined) return openPrivacy();
+    if (d.diag !== undefined) return openDiagnostics();
+    if (d.label !== undefined) return openLabeler();
+    if (d.missed !== undefined) return openMissed();
+    if (d.diagexport) return exportDiag(d.diagexport);
+    if (d.lfilter !== undefined) { S.labelFilter = S.labelFilter === 'todo' ? null : 'todo'; return refreshOpenSheet(); }
+    if (d.lok) return setLabel(d.lok, { ok: true, expected: null });
+    if (d.limp) { const [id, v] = d.limp.split('|'); return setLabel(id, { important: v === '1' }); }
+    if (d.lwrong) { const id = d.lwrong; const types = ['urgent_action', 'personal', 'university_work', 'invoice', 'receipt', 'financial', 'subscription', 'booking', 'travel', 'delivery', 'documents', 'deadline', 'appointment', 'follow_up', 'newsletter', 'marketing', 'social_notification', 'automated'];
+      const box = t.closest('.v-lrow'); let pick = $('.v-lpick', box); if (pick) { pick.remove(); return; }
+      box.insertAdjacentHTML('beforeend', `<div class="v-lpick">${types.map((ty) => `<button type="button" class="v-chip" data-lexp="${id}|${ty}">${esc(M.TYPE_LABEL[ty])}</button>`).join('')}</div>`); return; }
+    if (d.lexp) { const [id, ty] = d.lexp.split('|'); return setLabel(id, { ok: false, expected: ty }); }
     if (d.classic !== undefined) { try { localStorage.setItem('daylight-ui', 'v1'); } catch {} location.reload(); return; }
     if (d.theme) { S.host.theme && S.host.theme.set && S.host.theme.set(d.theme); refreshOpenSheet(); return; }
     if (d.motion) { LS.set('daylight-v2-motion', d.motion); $('#v2').classList.toggle('reduced', reduced()); refreshOpenSheet(); return; }
@@ -944,6 +1060,7 @@
       else { try { const list = JSON.parse(localStorage.getItem('daylight-wallet') || '[]'); list.unshift(pass); localStorage.setItem('daylight-wallet', JSON.stringify(list.slice(0, 80))); } catch {} if (S.core.local) await S.core.local.importLocal(); }
       toast('Saved to Wallet'); return load();
     }
+    if (f.dataset.missedform !== undefined) { const l = LS.get(MKEY(), []); l.push({ kind: fd.get('kind'), senderDomain: String(fd.get('domain') || '').trim().toLowerCase().replace(/^.*@/, '') || null, note: String(fd.get('note') || '').slice(0, 500), at: nowMs() }); LS.set(MKEY(), l); closeSheet(); toast('Saved — thank you'); return; }
     if (f.dataset.limit) { const v = Number(fd.get('limit')); const l = LS.get('daylight-v2-limits', {}); if (v > 0) l[f.dataset.limit] = v; else delete l[f.dataset.limit]; LS.set('daylight-v2-limits', l); closeSheet(); toast('Limit saved'); return render(); }
   }
 
@@ -989,6 +1106,6 @@
   // live countdown on the Now card
   setInterval(() => { const el = doc.querySelector('[data-countdown]'); if (!el) return; const at = Number(el.dataset.countdown); const mins = Math.round((at - nowMs()) / 60000); el.textContent = mins > 0 ? `In ${mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min'}` : mins > -5 ? 'Now' : `Started ${-mins} min ago`; }, 30000);
 
-  const api = { mount, render, load, setTab, openItem, openAsk, openSettings, state: S, act };
+  const api = { mount, render, load, setTab, openItem, openAsk, openSettings, openDiagnostics, provenanceCheck, state: S, act };
   root.DaylightV2UI = api;
 })(typeof window !== 'undefined' ? window : globalThis);

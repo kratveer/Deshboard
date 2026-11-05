@@ -175,6 +175,27 @@ const clock = { t: NOW }; const now = () => clock.t;
   const after = await g.counts();
   ok('Gmail disconnect deletes every Gmail Item, link and Gmail-created rule from the graph', before > 0 && dis.deleted === before && after.total === 0 && after.links === 0 && after.rules === 0, { before, dis, after });
 
+  // ---- Phase E fixes (found by the two-account E2E) ----
+  {
+    const n1 = gmail.normalise({ messageId: 'x1', threadId: 'tx1', from: 'PRE <faktury@pre.cz>', subject: 'Faktura 88812', snippet: '', labels: ['INBOX'], category: 'bill', internalDate: NOW }, { fields: { amount: { value: 2310, currency: 'CZK' }, dueDate: { date: '2026-11-12', raw: '12. 11. 2026', confidence: 0.88 }, reference: '88812' } }, { accountId: 'a', now: NOW });
+    const bill = n1.items.find((x) => x.type === 'bill');
+    ok('fix: a rules due date ({date,…}) becomes the bill due date (was "[object Object]")', bill && bill.dueAt === new Date(2026, 10, 12, 23, 59).getTime() && !JSON.stringify(n1.items).includes('[object Object]'), bill && bill.dueAt);
+    const n2 = gmail.normalise({ messageId: 'x2', threadId: 'tx2', from: 'RegioJet <info@regiojet.cz>', subject: 'Your ticket Brno → Praha, booking RJ55120', snippet: 'Departure 14 Nov 2026 08:15', labels: ['INBOX'], category: 'travel', internalDate: NOW, keyDates: [{ kind: 'travel', date: '2026-11-14', time: '08:15', quote: 'Departure 14 Nov 2026 08:15' }] }, { fields: { reference: 'RJ55120' } }, { accountId: 'a', now: NOW });
+    ok('fix: a travel email with a date becomes a booking Item', n2.items.some((x) => x.type === 'booking' && /RJ55120/.test(x.key)));
+    const n3 = gmail.normalise({ messageId: 'x3', threadId: 'tx3', from: 'Landlord Jana <jana.landlord@gmail.com>', subject: 'Rent for November — please confirm', snippet: 'Hi, could you confirm you sent the rent of 14 000 CZK by Friday?', labels: ['INBOX'], category: 'payment', internalDate: NOW }, { fields: { amount: { value: 14000, currency: 'CZK' } } }, { accountId: 'a', now: NOW });
+    ok('fix: a person asking about a payment is a message to answer, not a transaction', n3.classification.type === 'personal' && !n3.items.some((x) => x.type === 'transaction'));
+    // re-ingest cleans up an Item the email no longer produces (e.g. the old "[object Object]" bill key)
+    const g5 = IG.createGraph({ backend: 'memory', now });
+    const rec = { messageId: 'm5', threadId: 't5', from: 'PRE <faktury@pre.cz>', subject: 'Faktura', snippet: '', labels: ['INBOX'], category: 'bill', internalDate: NOW, status: 'classified', lastProcessedAt: NOW };
+    const fc = { all: async () => [rec], getFacts: async () => new Map([['m5', { fields: { amount: { value: 99, currency: 'CZK' }, dueDate: { date: '2026-11-20' } } }]]) };
+    await g5.upsertMany([{ key: 'gmail:a:m5', accountId: 'a', type: 'email', title: 'Faktura', sources: [{ app: 'gmail', accountId: 'a', itemId: 'm5' }] }, { key: 'money:a:pre.cz:[object Object]', accountId: 'a', type: 'bill', title: 'PRE · 99 CZK', status: 'done', sources: [{ app: 'gmail', accountId: 'a', itemId: 'm5', role: 'evidence' }] }]);
+    await g5.link(IG.itemId('gmail:a:m5'), IG.itemId('money:a:pre.cz:[object Object]'), 'evidence', 'a');
+    const gc5 = GC.createGmailConnector({ graph: g5, mailCache: fc, classifier: CL, now, getAccountId: () => 'a' });
+    await gc5.ingest('a', {});
+    const bills5 = await g5.query({ type: 'bill' });
+    ok('fix: re-ingest removes the stale bill, keeps one correct bill and carries over your Done', bills5.length === 1 && bills5[0].key === 'money:a:pre.cz:2026-11-20' && bills5[0].status === 'done' && !(await g5.links()).some((l) => l.to === IG.itemId('money:a:pre.cz:[object Object]')), bills5.map((x) => x.key));
+    ok('fix: "booking RJ55120" is read as a reference', R.extractRef('Your ticket Brno → Praha, booking RJ55120') === 'RJ55120' && R.extractRef('Thanks for booking with us today') === null);
+  }
   console.log(`V2 graph unit: ${pass}/${pass + fail} passed`);
   process.exitCode = fail ? 1 : 0;
 })();
