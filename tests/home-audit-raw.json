@@ -2,7 +2,7 @@
   "now": "2026-11-04T08:15:00.000Z",
   "mobile": {
     "home": {
-      "brief": "Daily brief\nWednesday 4 November\n3 overdue\n\nTo do today\nSubmit TBZ SI revisions \nPrepare seminar slides\n14:00\n \nRevision due: manuscript OL-2026-0123\n23:59\nOverdue\nWater plants\noverdue\n \nRenew passport photos\noverdue\nPay\nStudio Pixel\n€480 · overdue\n \nČEZ Prodej\n1,250 Kč\n \nPetr Novák\n18,500 Kč\nTravel\nYour boarding pass FR1234 PRG–DUB\n21:40\nReply to\nLi Wei \nProf. Jan Novák \nEva Horáková\n13 events on your calendar · next Daily standup at 09:00\n\nTasks 8\nPayments 3\nTravel 1\nDeadlines 1",
+      "brief": "Daily brief\nWednesday 4 November\n12 Actions\n\nTo do today: Submit TBZ SI revisions, Prepare seminar slides at 14:00 and Revision due: manuscript OL-2026-0123 by 23:59. Overdue: Water plants and Renew passport photos. Pay Studio Pixel (€480, overdue), ČEZ Prodej (1,250 Kč) and Petr Novák (18,500 Kč). Travel: Your boarding pass FR1234 PRG–DUB at 21:40. Reply to Li Wei, Prof. Jan Novák and Eva Horáková.\n\nTasks 8\nPayments 3\nTravel 1\nDeadlines 1",
       "briefRows": [
         {
           "kind": "task",
@@ -16,56 +16,56 @@
           "id": "task:p1",
           "href": "",
           "mail": "",
-          "text": "Prepare seminar slides 14:00"
+          "text": "Prepare seminar slides at 14:00"
         },
         {
           "kind": "deadline",
           "id": "mail-date:g09:2026-11-0423:59",
           "href": "https://mail.google.com/mail/u/0/#all/t-g09",
           "mail": "g09",
-          "text": "Revision due: manuscript OL-2026-0123 23:59"
+          "text": "Revision due: manuscript OL-2026-0123 by 23:59"
         },
         {
           "kind": "task",
           "id": "task:p2",
           "href": "",
           "mail": "",
-          "text": "Water plants overdue"
+          "text": "Water plants"
         },
         {
           "kind": "task",
           "id": "task:gt07",
           "href": "https://tasks.google.com/task/gt07",
           "mail": "",
-          "text": "Renew passport photos overdue"
+          "text": "Renew passport photos"
         },
         {
           "kind": "pay",
           "id": "pay:t-g03",
           "href": "https://mail.google.com/mail/u/0/#all/t-g03",
           "mail": "g03",
-          "text": "Studio Pixel €480 · overdue"
+          "text": "Studio Pixel (€480, overdue)"
         },
         {
           "kind": "pay",
           "id": "pay:t-g01",
           "href": "https://mail.google.com/mail/u/0/#all/t-g01",
           "mail": "g01",
-          "text": "ČEZ Prodej 1,250 Kč"
+          "text": "ČEZ Prodej (1,250 Kč)"
         },
         {
           "kind": "pay",
           "id": "pay:t-g19",
           "href": "https://mail.google.com/mail/u/0/#all/t-g19",
           "mail": "g19",
-          "text": "Petr Novák 18,500 Kč"
+          "text": "Petr Novák (18,500 Kč)"
         },
         {
           "kind": "travel",
           "id": "mail-date:w01:2026-11-0421:40",
           "href": "https://mail.google.com/mail/u/0/#all/t-w01",
           "mail": "w01",
-          "text": "Your boarding pass FR1234 PRG–DUB 21:40"
+          "text": "Your boarding pass FR1234 PRG–DUB at 21:40"
         },
         {
           "kind": "reply",
@@ -89,136 +89,42 @@
           "text": "Eva Horáková"
         }
       ],
-      "scheduleProse": "You have 13 events today, starting with Gym at 07:30. You’re in Daily standup until 09:30. Next is Lab meeting – Fock state data at 10:00. four events overlap today.",
-      "schedule": [
-        {
-          "time": "22:00–01:00",
-          "title": "Night observation run",
-          "text": "22:00–01:00 · Night observation run",
-          "link": "https://www.google.com/calendar/event?eid=e00"
-        },
-        {
-          "time": "07:30–08:15",
-          "title": "Gym",
-          "text": "07:30–08:15 · Gym",
-          "link": "https://www.google.com/calendar/event?eid=e01"
-        },
-        {
-          "time": "09:00–09:30",
-          "title": "Daily standup",
-          "text": "09:00–09:30 · Daily standup",
-          "link": "https://www.google.com/calendar/event?eid=e02"
-        },
-        {
-          "time": "10:00–11:00",
-          "title": "Lab meeting – Fock state data",
-          "text": "10:00–11:00 · FZU room 214 · Lab meeting – Fock state data",
-          "link": "https://www.google.com/calendar/event?eid=e03"
-        },
-        {
-          "time": "10:30–11:15",
-          "title": "Call with Anita",
-          "text": "10:30–11:15 · Call with Anita",
-          "link": "https://www.google.com/calendar/event?eid=e04"
-        },
-        {
-          "time": "11:00–11:30",
-          "title": "Call with Bangalore team",
-          "text": "11:00–11:30 · Call with Bangalore team",
-          "link": "https://www.google.com/calendar/event?eid=e05"
-        },
-        {
-          "time": "12:00–13:00",
-          "title": "Lunch with Marek",
-          "text": "12:00–13:00 · Lunch with Marek",
-          "link": "https://www.google.com/calendar/event?eid=e06"
-        },
-        {
-          "time": "13:00–14:00",
-          "title": "Write SI section (focus)",
-          "text": "13:00–14:00 · Write SI section (focus)",
-          "link": "https://www.google.com/calendar/event?eid=e07"
-        },
-        {
-          "time": "15:00–15:45",
-          "title": "Dentist",
-          "text": "15:00–15:45 · Zubař Malá, Vinohradská 12 · Dentist",
-          "link": "https://www.google.com/calendar/event?eid=e09"
-        },
-        {
-          "time": "16:30–17:30",
-          "title": "Seminar: quantum optics",
-          "text": "16:30–17:30 · Seminar: quantum optics",
-          "link": "https://www.google.com/calendar/event?eid=e10"
-        },
-        {
-          "time": "17:00–18:00",
-          "title": "Parents' evening (school)",
-          "text": "17:00–18:00 · Parents' evening (school)",
-          "link": "https://www.google.com/calendar/event?eid=f01"
-        },
-        {
-          "time": "17:45–18:30",
-          "title": "Yoga",
-          "text": "17:45–18:30 · Yoga",
-          "link": "https://www.google.com/calendar/event?eid=e11"
-        },
-        {
-          "time": "19:15–19:45",
-          "title": "Taxi to airport",
-          "text": "19:15–19:45 · Taxi to airport",
-          "link": "https://www.google.com/calendar/event?eid=e12"
-        },
-        {
-          "time": "21:40–00:05",
-          "title": "Flight to Dublin (FR 1234)",
-          "text": "21:40–00:05 · Prague PRG · Flight to Dublin (FR 1234)",
-          "link": "https://www.google.com/calendar/event?eid=e13"
-        }
-      ],
-      "allDay": [
-        {
-          "text": "All day · Diwali preparations",
-          "link": "https://www.google.com/calendar/event?eid=a01"
-        },
-        {
-          "text": "All day · Klára's birthday",
-          "link": "https://www.google.com/calendar/event?eid=a02"
-        }
-      ],
+      "scheduleProse": "Morning: Gym at 07:30, Daily standup at 09:00 (now), Lab meeting – Fock state data at 10:00, Call with Anita at 10:30 and Call with Bangalore team at 11:00. Afternoon: Lunch with Marek at 12:00, Write SI section (focus) at 13:00, Dentist at 15:00 and Seminar: quantum optics at 16:30. Evening: Parents' evening (school) at 17:00, Yoga at 17:45, Taxi to airport at 19:15 and Flight to Dublin (FR 1234) at 21:40. All day: Diwali preparations and Klára's birthday.",
+      "schedule": [],
+      "allDay": [],
       "priorityTotal": "11",
       "priority": [
         {
           "id": "pay:t-g03",
-          "text": "Overdue €480 Studio Pixel Invoice INV-2041 from Studio Pixel Payment"
+          "text": "ST Studio Pixel Overdue Invoice INV-2041 from Studio Pixel €480 Payment"
         },
         {
           "id": "pay:t-g01",
-          "text": "Due 1,250 Kč ČEZ Prodej Vyúčtování elektřiny za říjen Payment"
+          "text": "ČE ČEZ Prodej Wed, 4 Nov Vyúčtování elektřiny za říjen 1,250 Kč Payment"
         },
         {
           "id": "pay:t-g19",
-          "text": "Due 18,500 Kč Petr Novák Nájem listopad Payment"
+          "text": "PE Petr Novák Wed, 4 Nov Nájem listopad 18,500 Kč Payment"
         },
         {
           "id": "mail-date:w01:2026-11-0421:40",
-          "text": "21:40 Your boarding pass FR1234 PRG–DUB Ryanair · Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
+          "text": "RY Ryanair Wed, 4 Nov, 21:40 Your boarding pass FR1234 PRG–DUB — Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
         },
         {
           "id": "mail-date:g09:2026-11-0423:59",
-          "text": "23:59 Revision due: manuscript OL-2026-0123 Organic Letters · Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
+          "text": "OR Organic Letters Wed, 4 Nov, 23:59 Revision due: manuscript OL-2026-0123 — Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
         },
         {
           "id": "mail-date:n01:2026-11-0610:30",
-          "text": "10:30 Připomínka termínu Zubní klinika Malá · Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
+          "text": "ZU Zubní klinika Malá Fri, 6 Nov, 10:30 Připomínka termínu — Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
         },
         {
           "id": "pay:t-n03",
-          "text": "Due 2,340 Kč Kooperativa Pojistné – výzva k úhradě Payment"
+          "text": "KO Kooperativa Sat, 7 Nov Pojistné – výzva k úhradě 2,340 Kč Payment"
         },
         {
           "id": "mail-date:n04:2026-11-0807:05",
-          "text": "07:05 Jízdenka Praha – Ostrava RegioJet · Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
+          "text": "RE RegioJet Sun, 8 Nov, 07:05 Jízdenka Praha – Ostrava — Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
         }
       ],
       "seeAll": true
@@ -230,35 +136,35 @@
         "cards": [
           {
             "id": "pay:t-g03",
-            "text": "Overdue €480 Studio Pixel Invoice INV-2041 from Studio Pixel Payment"
+            "text": "ST Studio Pixel Overdue Invoice INV-2041 from Studio Pixel €480 Payment"
           },
           {
             "id": "pay:t-g01",
-            "text": "Due 1,250 Kč ČEZ Prodej Vyúčtování elektřiny za říjen Payment"
+            "text": "ČE ČEZ Prodej Wed, 4 Nov Vyúčtování elektřiny za říjen 1,250 Kč Payment"
           },
           {
             "id": "pay:t-g19",
-            "text": "Due 18,500 Kč Petr Novák Nájem listopad Payment"
+            "text": "PE Petr Novák Wed, 4 Nov Nájem listopad 18,500 Kč Payment"
           },
           {
             "id": "mail-date:w01:2026-11-0421:40",
-            "text": "21:40 Your boarding pass FR1234 PRG–DUB Ryanair · Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
+            "text": "RY Ryanair Wed, 4 Nov, 21:40 Your boarding pass FR1234 PRG–DUB — Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
           },
           {
             "id": "mail-date:g09:2026-11-0423:59",
-            "text": "23:59 Revision due: manuscript OL-2026-0123 Organic Letters · Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
+            "text": "OR Organic Letters Wed, 4 Nov, 23:59 Revision due: manuscript OL-2026-0123 — Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
           },
           {
             "id": "mail-date:n01:2026-11-0610:30",
-            "text": "10:30 Připomínka termínu Zubní klinika Malá · Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
+            "text": "ZU Zubní klinika Malá Fri, 6 Nov, 10:30 Připomínka termínu — Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
           },
           {
             "id": "pay:t-n03",
-            "text": "Due 2,340 Kč Kooperativa Pojistné – výzva k úhradě Payment"
+            "text": "KO Kooperativa Sat, 7 Nov Pojistné – výzva k úhradě 2,340 Kč Payment"
           },
           {
             "id": "mail-date:n04:2026-11-0807:05",
-            "text": "07:05 Jízdenka Praha – Ostrava RegioJet · Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
+            "text": "RE RegioJet Sun, 8 Nov, 07:05 Jízdenka Praha – Ostrava — Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
           }
         ],
         "empty": ""
@@ -269,19 +175,19 @@
         "cards": [
           {
             "id": "pay:t-g03",
-            "text": "Overdue €480 Studio Pixel Invoice INV-2041 from Studio Pixel Payment"
+            "text": "ST Studio Pixel Overdue Invoice INV-2041 from Studio Pixel €480 Payment"
           },
           {
             "id": "pay:t-g01",
-            "text": "Due 1,250 Kč ČEZ Prodej Vyúčtování elektřiny za říjen Payment"
+            "text": "ČE ČEZ Prodej Wed, 4 Nov Vyúčtování elektřiny za říjen 1,250 Kč Payment"
           },
           {
             "id": "pay:t-g19",
-            "text": "Due 18,500 Kč Petr Novák Nájem listopad Payment"
+            "text": "PE Petr Novák Wed, 4 Nov Nájem listopad 18,500 Kč Payment"
           },
           {
             "id": "pay:t-n03",
-            "text": "Due 2,340 Kč Kooperativa Pojistné – výzva k úhradě Payment"
+            "text": "KO Kooperativa Sat, 7 Nov Pojistné – výzva k úhradě 2,340 Kč Payment"
           }
         ],
         "empty": ""
@@ -292,19 +198,19 @@
         "cards": [
           {
             "id": "mail-date:g09:2026-11-0423:59",
-            "text": "23:59 Revision due: manuscript OL-2026-0123 Organic Letters · Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
+            "text": "OR Organic Letters Wed, 4 Nov, 23:59 Revision due: manuscript OL-2026-0123 — Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
           },
           {
             "id": "mail-date:n01:2026-11-0610:30",
-            "text": "10:30 Připomínka termínu Zubní klinika Malá · Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
+            "text": "ZU Zubní klinika Malá Fri, 6 Nov, 10:30 Připomínka termínu — Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
           },
           {
             "id": "mail-date:n02:2026-11-0909:15",
-            "text": "09:15 Passport appointment confirmation Embassy of India · Your passport renewal appointment is scheduled for 9 November 2026 at 09:15. Reminder"
+            "text": "EM Embassy of India Mon, 9 Nov, 09:15 Passport appointment confirmation — Your passport renewal appointment is scheduled for 9 November 2026 at 09:15. Reminder"
           },
           {
             "id": "mail-date:n07:2026-11-10",
-            "text": "By Thesis committee Prof. Jan Novák · Please send me your progress report by 10 November 2026. Deadline"
+            "text": "PR Prof. Jan Novák Tue, 10 Nov Thesis committee — Please send me your progress report by 10 November 2026. Deadline"
           }
         ],
         "empty": ""
@@ -315,15 +221,15 @@
         "cards": [
           {
             "id": "mail-date:w01:2026-11-0421:40",
-            "text": "21:40 Your boarding pass FR1234 PRG–DUB Ryanair · Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
+            "text": "RY Ryanair Wed, 4 Nov, 21:40 Your boarding pass FR1234 PRG–DUB — Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
           },
           {
             "id": "mail-date:n04:2026-11-0807:05",
-            "text": "07:05 Jízdenka Praha – Ostrava RegioJet · Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
+            "text": "RE RegioJet Sun, 8 Nov, 07:05 Jízdenka Praha – Ostrava — Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
           },
           {
             "id": "mail-date:n05c:2026-11-0911:40",
-            "text": "11:40 Schedule change W6K2PQ Wizz Air · Your flight W6 2345 on 9 Nov 2026 now departs at 11:40 instead of 10:55. Travel"
+            "text": "WI Wizz Air Mon, 9 Nov, 11:40 Schedule change W6K2PQ — Your flight W6 2345 on 9 Nov 2026 now departs at 11:40 instead of 10:55. Travel"
           }
         ],
         "empty": ""
@@ -331,7 +237,6 @@
     },
     "fetchedIds": [
       "g18",
-      "g15",
       "g07b",
       "g13",
       "g17",
@@ -351,6 +256,7 @@
       "n06c",
       "g08",
       "w07",
+      "w06",
       "n01",
       "n04",
       "w04",
@@ -376,47 +282,47 @@
     "priorityAll": [
       {
         "id": "pay:t-g03",
-        "text": "Overdue €480 Studio Pixel Invoice INV-2041 from Studio Pixel Payment"
+        "text": "ST Studio Pixel Overdue Invoice INV-2041 from Studio Pixel €480 Payment"
       },
       {
         "id": "pay:t-g01",
-        "text": "Due 1,250 Kč ČEZ Prodej Vyúčtování elektřiny za říjen Payment"
+        "text": "ČE ČEZ Prodej Wed, 4 Nov Vyúčtování elektřiny za říjen 1,250 Kč Payment"
       },
       {
         "id": "pay:t-g19",
-        "text": "Due 18,500 Kč Petr Novák Nájem listopad Payment"
+        "text": "PE Petr Novák Wed, 4 Nov Nájem listopad 18,500 Kč Payment"
       },
       {
         "id": "mail-date:w01:2026-11-0421:40",
-        "text": "21:40 Your boarding pass FR1234 PRG–DUB Ryanair · Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
+        "text": "RY Ryanair Wed, 4 Nov, 21:40 Your boarding pass FR1234 PRG–DUB — Flight FR1234 Prague (PRG) to Dublin (DUB) on 4 Nov 2026, departs 21:40, gate closes 21:10, seat 14C. Travel"
       },
       {
         "id": "mail-date:g09:2026-11-0423:59",
-        "text": "23:59 Revision due: manuscript OL-2026-0123 Organic Letters · Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
+        "text": "OR Organic Letters Wed, 4 Nov, 23:59 Revision due: manuscript OL-2026-0123 — Dear author, your revised manuscript OL-2026-0123 is due on 4 November 2026 at 23:59 EST. Deadline"
       },
       {
         "id": "mail-date:n01:2026-11-0610:30",
-        "text": "10:30 Připomínka termínu Zubní klinika Malá · Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
+        "text": "ZU Zubní klinika Malá Fri, 6 Nov, 10:30 Připomínka termínu — Dobrý den, připomínáme termín návštěvy v pátek 6. 11. 2026 v 10:30. Reminder"
       },
       {
         "id": "pay:t-n03",
-        "text": "Due 2,340 Kč Kooperativa Pojistné – výzva k úhradě Payment"
+        "text": "KO Kooperativa Sat, 7 Nov Pojistné – výzva k úhradě 2,340 Kč Payment"
       },
       {
         "id": "mail-date:n04:2026-11-0807:05",
-        "text": "07:05 Jízdenka Praha – Ostrava RegioJet · Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
+        "text": "RE RegioJet Sun, 8 Nov, 07:05 Jízdenka Praha – Ostrava — Odjezd 8. 11. 2026 v 7:05 z Praha hl. Travel"
       },
       {
         "id": "mail-date:n02:2026-11-0909:15",
-        "text": "09:15 Passport appointment confirmation Embassy of India · Your passport renewal appointment is scheduled for 9 November 2026 at 09:15. Reminder"
+        "text": "EM Embassy of India Mon, 9 Nov, 09:15 Passport appointment confirmation — Your passport renewal appointment is scheduled for 9 November 2026 at 09:15. Reminder"
       },
       {
         "id": "mail-date:n05c:2026-11-0911:40",
-        "text": "11:40 Schedule change W6K2PQ Wizz Air · Your flight W6 2345 on 9 Nov 2026 now departs at 11:40 instead of 10:55. Travel"
+        "text": "WI Wizz Air Mon, 9 Nov, 11:40 Schedule change W6K2PQ — Your flight W6 2345 on 9 Nov 2026 now departs at 11:40 instead of 10:55. Travel"
       },
       {
         "id": "mail-date:n07:2026-11-10",
-        "text": "By Thesis committee Prof. Jan Novák · Please send me your progress report by 10 November 2026. Deadline"
+        "text": "PR Prof. Jan Novák Tue, 10 Nov Thesis committee — Please send me your progress report by 10 November 2026. Deadline"
       }
     ],
     "money": {
@@ -743,15 +649,6 @@
           "title": "Google",
           "time": "45 min ago",
           "snippet": "New sign-in to your Google Account on a Windows device.",
-          "tag": "Mail",
-          "unreadMark": false
-        },
-        {
-          "section": "This Week",
-          "id": "t-g15",
-          "title": "GitHub",
-          "time": "25 min ago",
-          "snippet": "A new issue was opened in kratveer/Deshboard.",
           "tag": "Mail",
           "unreadMark": false
         },
@@ -1161,18 +1058,18 @@
           "snippet": "New sign-in to your Google Account on a Windows device.",
           "tag": "Mail",
           "unreadMark": false
-        },
-        {
-          "section": "This Week",
-          "id": "t-g15",
-          "title": "GitHub",
-          "time": "25 min ago",
-          "snippet": "A new issue was opened in kratveer/Deshboard.",
-          "tag": "Mail",
-          "unreadMark": false
         }
       ],
       "promotions": [
+        {
+          "section": "Recent",
+          "id": "t-w06",
+          "title": "Ryanair",
+          "time": "23 h ago",
+          "snippet": "Grab a seat sale: flights to Rome, Milan and Malta from €19.99. Book by ",
+          "tag": "Promotion",
+          "unreadMark": false
+        },
         {
           "section": "Recent",
           "id": "t-w07",
@@ -1204,15 +1101,15 @@
     },
     "inboxHasSearch": false,
     "inboxDetail": {
-      "id": "t-w07",
+      "id": "t-w06",
       "gmailLinks": [],
       "openButtons": [],
-      "sheetText": "‹ Email ☆ ⋯ B Booking.com Gmail 21 h ago Details Notes Activity B Booking.com Last-minute deals for this weekend 3 Nov, 12:00 Getaway deals: up to 25% off stays this weekend. Suggested Daylight reads this as: Promotion (90% sure). Nothing to pay. Linked records Last-minute deals for this weekend Hotel booking Money · Promotion Daylight reads this as: Promotion (90% sure). Nothing to pay. See evide"
+      "sheetText": "‹ Email ☆ ⋯ R Ryanair Gmail 23 h ago Details Notes Activity R Ryanair Flights from €19.99 — this weekend only 3 Nov, 10:00 Grab a seat sale: flights to Rome, Milan and Malta from €19.99. Book by Sunday. Suggested Daylight reads this as: Promotion (90% sure). Nothing to pay. Linked records Flights from €19.99 — this weekend only Flight ticket Money · Promotion Daylight reads this as: Promotion (90%"
     },
     "wallet": {
       "dom": [
         {
-          "section": "Upcoming 2",
+          "section": "Upcoming\n3",
           "passes": [
             {
               "wid": "mail:g05",
@@ -1221,64 +1118,68 @@
             {
               "wid": "mail:w02",
               "text": "DOCUMENT Upcoming Your booking is confirmed at Hotel Lisboa Booking.com · → tal price"
+            },
+            {
+              "wid": "mail:w06",
+              "text": "TICKET Upcoming — → ROME Flights from €19.99 — this weekend only"
             }
           ]
         },
         {
-          "section": "Active 12",
+          "section": "Active\n12",
           "passes": [
             {
               "wid": "mail:s01",
-              "text": "Question about the apartment Ticket · Me"
+              "text": "TICKET 4 Nov Question about the apartment Me"
             },
             {
               "wid": "mail:w08",
-              "text": "Vaše e-vstupenky: Česká filharmonie Ticket · Ticketportal"
+              "text": "TICKET 4 Nov Vaše e-vstupenky: Česká filharmonie Ticketportal"
             },
             {
               "wid": "mail:w07",
-              "text": "Last-minute deals for this weekend Document · Booking.com"
+              "text": "DOCUMENT 4 Nov Last-minute deals for this weekend Booking.com"
             },
             {
               "wid": "mail:p04",
-              "text": "Make Your Diwali Travel More Rewarding Ticket · MakeMyTrip"
+              "text": "TICKET 4 Nov Make Your Diwali Travel More Rewarding MakeMyTrip"
             },
             {
               "wid": "mail:w05",
-              "text": "Your booking confirmation EWQ7Z1 Ticket · Eurowings"
+              "text": "TICKET 4 Nov Your booking confirmation EWQ7Z1 Eurowings"
             },
             {
               "wid": "mail:n05",
-              "text": "Your booking confirmation W6K2PQ Ticket · Wizz Air"
+              "text": "TICKET 4 Nov Your booking confirmation W6K2PQ Wizz Air"
             },
             {
               "wid": "mail:n06",
-              "text": "Reservation confirmed HM7Q2X Document · Airbnb"
+              "text": "DOCUMENT 4 Nov Reservation confirmed HM7Q2X Airbnb"
             },
             {
               "wid": "mail:g10",
-              "text": "Your booking confirmation ABC12D Ticket · Ryanair"
+              "text": "TICKET 4 Nov — → DUBLIN Your booking confirmation ABC12D"
             },
             {
               "wid": "mail:w05c",
-              "text": "Flight schedule change EWQ7Z1 Ticket · Eurowings"
+              "text": "TICKET 4 Nov Flight schedule change EWQ7Z1 Eurowings"
             },
             {
               "wid": "mail:w03",
-              "text": "Reservation confirmed at Field Ticket · OpenTable"
+              "text": "TICKET 4 Nov Reservation confirmed at Field OpenTable"
             },
             {
               "wid": "mail:n05c",
-              "text": "Schedule change W6K2PQ Ticket · Wizz Air"
+              "text": "TICKET 4 Nov Schedule change W6K2PQ Wizz Air"
             },
             {
               "wid": "mail:w01",
-              "text": "Your boarding pass FR1234 PRG–DUB Ticket · Ryanair"
+              "text": "TICKET 4 Nov PRG → DUB Your boarding pass FR1234 PRG–DUB · FR1234"
             }
           ]
         },
         {
-          "section": "Expired 2",
+          "section": "Expired\n2",
           "passes": [
             {
               "wid": "mail:w02c",
@@ -1462,6 +1363,70 @@
             "kind": "updated",
             "field": "booking",
             "from": "|1803078000000|||||4123987|1|",
+            "to": "|||||||0|"
+          },
+          "updatedAt": "2026-11-04T08:15:00.000Z",
+          "exactQr": false,
+          "scanSource": false,
+          "attachmentId": null,
+          "attachmentIds": [],
+          "attachments": [],
+          "image": "",
+          "ocr": "",
+          "rescheduled": false
+        },
+        {
+          "id": "mail:w06",
+          "childKey": null,
+          "mailId": "w06",
+          "sourceId": "w06",
+          "threadId": "t-w06",
+          "tripId": "trip:rome:2034-03-12",
+          "title": "Flights from €19.99 — this weekend only",
+          "kind": "tickets",
+          "note": "Ryanair · → ROME",
+          "org": "Ryanair",
+          "typeLabel": "Flight ticket",
+          "number": "",
+          "date": "19 Mar 2034",
+          "travelAt": "2034-03-18T23:00:00.000Z",
+          "eventAt": "2034-03-18T23:00:00.000Z",
+          "at": "2026-11-04T08:15:00.000Z",
+          "color": [
+            "#1f6feb",
+            "#0b3d91"
+          ],
+          "href": "https://mail.google.com/mail/u/0/#all/t-w06",
+          "flight": {
+            "flight": "",
+            "from": "",
+            "to": "ROME",
+            "seat": "",
+            "gate": "",
+            "coach": "",
+            "pnr": "",
+            "depart": "",
+            "arrive": ""
+          },
+          "bookingRef": null,
+          "recordKey": "ticket:t-w06",
+          "entityKey": null,
+          "qrAuthentic": false,
+          "barcodeAuthentic": false,
+          "status": "active",
+          "cancelled": false,
+          "legacyIds": [],
+          "sourceRefs": {
+            "mailId": "w06",
+            "threadId": "t-w06",
+            "recordKey": "ticket:t-w06",
+            "entityKey": null
+          },
+          "_bookingFp": "|2026335600000||||||0|ROME",
+          "lastChange": {
+            "kind": "updated",
+            "field": "booking",
+            "from": "|2026335600000||||||0|ROME",
             "to": "|||||||0|"
           },
           "updatedAt": "2026-11-04T08:15:00.000Z",
@@ -2380,7 +2345,7 @@
         "time": "All day",
         "title": "Diwali preparations",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=a01",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2389,7 +2354,7 @@
         "time": "All day",
         "title": "Klára's birthday",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=a02",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2398,7 +2363,7 @@
         "time": "All day",
         "title": "Pay rent",
         "meta": "My Tasks",
-        "href": "https://tasks.google.com/task/gt10",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2407,7 +2372,7 @@
         "time": "All day",
         "title": "Submit TBZ SI revisions",
         "meta": "My Tasks",
-        "href": "https://tasks.google.com/task/gt09",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2416,7 +2381,7 @@
         "time": "22:00 – 01:00",
         "title": "Night observation run",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e00",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2425,7 +2390,7 @@
         "time": "07:30 – 08:15",
         "title": "Gym",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e01",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2434,7 +2399,7 @@
         "time": "09:00 – 09:30",
         "title": "Daily standup",
         "meta": "Google Calendar · Mail: Position at QuantumTech",
-        "href": "https://www.google.com/calendar/event?eid=e02",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2443,7 +2408,7 @@
         "time": "10:00 – 11:00",
         "title": "Lab meeting – Fock state data",
         "meta": "FZU room 214 · Google Calendar · Mail: Re: Meeting on Thursday?",
-        "href": "https://www.google.com/calendar/event?eid=e03",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2452,7 +2417,7 @@
         "time": "10:30 – 11:15",
         "title": "Call with Anita",
         "meta": "Google Calendar · Mail: Position at QuantumTech",
-        "href": "https://www.google.com/calendar/event?eid=e04",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2461,7 +2426,7 @@
         "time": "11:00 – 11:30",
         "title": "Call with Bangalore team",
         "meta": "Google Calendar · Mail: Position at QuantumTech",
-        "href": "https://www.google.com/calendar/event?eid=e05",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2470,7 +2435,7 @@
         "time": "12:00 – 13:00",
         "title": "Lunch with Marek",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e06",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2479,7 +2444,7 @@
         "time": "13:00 – 14:00",
         "title": "Write SI section (focus)",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e07",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2497,7 +2462,7 @@
         "time": "15:00 – 15:45",
         "title": "Dentist",
         "meta": "Zubař Malá, Vinohradská 12 · Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e09",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2506,7 +2471,7 @@
         "time": "16:30 – 17:30",
         "title": "Seminar: quantum optics",
         "meta": "Google Calendar · Mail: Position at QuantumTech",
-        "href": "https://www.google.com/calendar/event?eid=e10",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2515,7 +2480,7 @@
         "time": "17:00 – 18:00",
         "title": "Parents' evening (school)",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=f01",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2524,7 +2489,7 @@
         "time": "17:45 – 18:30",
         "title": "Yoga",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e11",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2533,7 +2498,7 @@
         "time": "19:15 – 19:45",
         "title": "Taxi to airport",
         "meta": "Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e12",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2542,7 +2507,7 @@
         "time": "21:40 – 00:05",
         "title": "Flight to Dublin (FR 1234)",
         "meta": "Prague PRG · Google Calendar",
-        "href": "https://www.google.com/calendar/event?eid=e13",
+        "href": "",
         "walletId": "",
         "mailId": "",
         "loop": ""
@@ -2685,12 +2650,12 @@
     "afterChange": {
       "schedule": [],
       "timeline": [],
-      "inboxAllCount": 40
+      "inboxAllCount": 39
     },
     "pageErrors": []
   },
   "desktop": {
-    "summary": "Good morning, Ravi. Daily standup is happening now · 11 more after that. You’ve got 6 things asking for you today — starting with Renew passport photos. 2 people are waiting on a reply. And 2 overdue tasks could use a reschedule. 5 payments to make this week — next: Studio Pixel, 1 later. 10 trips on the radar. Quiet window for focus: 14:00–15:00.",
+    "summary": "Good morning, Ravi. Daily standup is happening now · 11 more after that. You’ve got 6 things asking for you today — starting with Renew passport photos. 2 people are waiting on a reply. And 2 overdue tasks could use a reschedule. 5 payments to make this week — next: Studio Pixel, 1 later. 11 trips on the radar. Quiet window for focus: 14:00–15:00.",
     "chips": [
       {
         "text": "Studio Pixel",
@@ -2711,51 +2676,51 @@
     ],
     "calendar": [
       {
-        "text": "All day Diwali preparations Google Calendar Event",
+        "text": "All dayDiwali preparationsGoogle CalendarEvent",
         "href": ""
       },
       {
-        "text": "22:00 Night observation run Google Calendar 180 min",
+        "text": "22:00Night observation runGoogle Calendar180 min",
         "href": ""
       },
       {
-        "text": "All day Klára's birthday Google Calendar Event",
+        "text": "All dayKlára's birthdayGoogle CalendarEvent",
         "href": ""
       },
       {
-        "text": "07:30 Gym Google Calendar 45 min",
+        "text": "07:30GymGoogle Calendar45 min",
         "href": ""
       },
       {
-        "text": "09:00 Daily standup Google Calendar 30 min",
+        "text": "09:00Daily standupGoogle Calendar30 min",
         "href": ""
       },
       {
-        "text": "10:00 Lab meeting – Fock state data FZU room 214 60 min",
+        "text": "10:00Lab meeting – Fock state dataFZU room 21460 min",
         "href": ""
       },
       {
-        "text": "10:30 Call with Anita Google Calendar 45 min",
+        "text": "10:30Call with AnitaGoogle Calendar45 min",
         "href": ""
       },
       {
-        "text": "11:00 Call with Bangalore team Google Calendar 30 min",
+        "text": "11:00Call with Bangalore teamGoogle Calendar30 min",
         "href": ""
       },
       {
-        "text": "12:00 Lunch with Marek Google Calendar 60 min",
+        "text": "12:00Lunch with MarekGoogle Calendar60 min",
         "href": ""
       },
       {
-        "text": "13:00 Write SI section (focus) Google Calendar 60 min",
+        "text": "13:00Write SI section (focus)Google Calendar60 min",
         "href": ""
       },
       {
-        "text": "15:00 Dentist Zubař Malá, Vinohradská 12 45 min",
+        "text": "15:00DentistZubař Malá, Vinohradská 1245 min",
         "href": ""
       },
       {
-        "text": "16:30 Seminar: quantum optics Google Calendar 60 min",
+        "text": "16:30Seminar: quantum opticsGoogle Calendar60 min",
         "href": ""
       }
     ],
@@ -2776,27 +2741,27 @@
     ],
     "loops": [
       {
-        "text": "Reschedule: Renew passport photos Google Tasks Was due 3 Nov Priority Reschedule Expand Snooze Done",
+        "text": " Reschedule: Renew passport photosGoogle Tasks Was due 3 Nov PriorityRescheduleExpandSnoozeDone",
         "href": ""
       },
       {
-        "text": "Reschedule: Water plants Daylight Was due 2 Nov Priority Reschedule Expand Snooze Done",
+        "text": " Reschedule: Water plantsDaylight Was due 2 Nov PriorityRescheduleExpandSnoozeDone",
         "href": ""
       },
       {
-        "text": "Submit TBZ SI revisions Google Tasks Due today Due soon Expand Snooze Done",
+        "text": " Submit TBZ SI revisionsGoogle Tasks Due today Due soonExpandSnoozeDone",
         "href": ""
       },
       {
-        "text": "Pay rent Google Tasks Due today Due soon Expand Snooze Done",
+        "text": " Pay rentGoogle Tasks Due today Due soonExpandSnoozeDone",
         "href": ""
       },
       {
-        "text": "Book Diwali train tickets Google Tasks Due tomorrow Due soon Expand Snooze Done",
+        "text": " Book Diwali train ticketsGoogle Tasks Due tomorrow Due soonExpandSnoozeDone",
         "href": ""
       },
       {
-        "text": "Prepare seminar slides Daylight Due today Due soon Expand Snooze Done",
+        "text": " Prepare seminar slidesDaylight Due today Due soonExpandSnoozeDone",
         "href": ""
       }
     ],
