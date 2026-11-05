@@ -7,6 +7,7 @@
 //   GET  /auth/google/callback                       → stores refresh token, returns to dashboard
 //   POST /api/google/token   (Authorization: Bearer <session>) → { access_token, expires_in, email }
 //   POST /auth/logout        (Authorization: Bearer <session>) → revokes and deletes
+//   POST /auth/logout?keep_grant=1                 → deletes this session record only (used when a browser signs in again)
 //   GET  /health
 
 // V2: onboarding asks for Gmail READ-ONLY and nothing else (minimum permission).
@@ -99,7 +100,7 @@ async function handle(req, env) {
   const redirectUri = url.origin + '/auth/google/callback';
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(env, req) });
 
-  if (url.pathname === '/health') return json(env, req, { ok: true });
+  if (url.pathname === '/health') return json(env, req, { ok: true, features: ['logout_keep_grant'] });
 
   if (url.pathname === '/auth/google/start' && req.method === 'GET') {
     const ret = allowedReturn(env, url.searchParams.get('return'));
@@ -116,7 +117,7 @@ async function handle(req, env) {
       response_type: 'code',
       scope: scopesFor(add),
       access_type: 'offline',
-      prompt: 'consent',
+      prompt: url.searchParams.get('switch') === '1' ? 'select_account consent' : 'consent', // switch=1: let the user pick a different Google account
       // false on upgrade so an old gmail.metadata grant cannot mask a missing readonly approval
       // incremental: adding a connector keeps the scopes already granted
       include_granted_scopes: upgrade ? 'false' : 'true',
@@ -205,6 +206,10 @@ async function handle(req, env) {
 
   if (url.pathname === '/auth/logout' && req.method === 'POST') {
     const s = await sessionFrom(env, req);
+    // keep_grant=1: the browser replaced this session with a new sign-in — forget the session and its stored refresh
+    // token here, but do not revoke Google's grant (that could also cut off the new session of the same Google account).
+    const keepGrant = url.searchParams.get('keep_grant') === '1';
+    if (s && keepGrant) { await env.SESSIONS.delete(s.key); return json(env, req, { ok: true, forgotten: true }); }
     if (s) {
       try { await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: await open(env, s.rec.rt) }) }); } catch {}
       await env.SESSIONS.delete(s.key);

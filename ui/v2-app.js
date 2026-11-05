@@ -91,6 +91,17 @@
     setInterval(renderRing, 1500);
     root.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openAsk(); } });
     root.addEventListener('popstate', () => { if (S.sheets.length) closeSheet(true); });
+    // account changed or not yet confirmed: drop everything account-specific from memory and the screen at once
+    root.addEventListener('daylight:account', () => {
+      if (S.sample) return;
+      const next = (S.host.accountId && S.host.accountId()) || null;
+      if (next === S.account && !(S.host.accountPending && S.host.accountPending())) return;
+      while (S.sheets.length) closeSheet(true, true);
+      S.items = []; S.byId = new Map(); S.actions = []; S.rules = []; S.account = next; S.briefParts = [];
+      S.inbox.query = ''; S.inbox.open = {}; S.plan.proposal = null; S.labelFilter = null; S.todayOffset = 0;
+      const t = $('.v-toast'); if (t) { t.classList.remove('on'); t._undo = null; }
+      render(); load();
+    });
     return api;
   }
   function sampleCore() {
@@ -115,6 +126,7 @@
     S.account = acct;
     const items = all.filter((x) => x.accountId === 'local' || (acct && x.accountId === acct));
     S.hiddenOtherAccounts = all.length - items.length;
+    S.accountCounts = {}; all.forEach((x) => { if (x.accountId && x.accountId !== 'local' && x.accountId !== 'sample') S.accountCounts[x.accountId] = (S.accountCounts[x.accountId] || 0) + 1; });
     S.items = items; S.byId = M.index(items); const vis = new Set(items.map((x) => x.id)); S.actions = actions.filter((a) => vis.has(a.itemId)); S.rules = rules.filter((r) => !r.accountId || r.accountId === acct || r.accountId === 'local'); S.loadedAt = nowMs();
     render();
     refreshOpenSheet();
@@ -159,12 +171,19 @@
     const root2 = $('#v2');
     $('[data-sample-banner]', root2).hidden = !S.sample;
     renderTop();
-    const showWelcome = !connected() && !S.welcomeSkipped && !S.items.length;
+    const pending = !S.sample && !!(S.host.accountPending && S.host.accountPending());
+    const showWelcome = !pending && !connected() && !S.welcomeSkipped && !S.items.length;
     $('[data-welcome]').hidden = !showWelcome;
     $$('.v-screen').forEach((s) => { s.hidden = showWelcome || s.dataset.screen !== S.tab; });
     $$('.v-tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
     $('.v-orb').hidden = showWelcome; $('.v-tabs').hidden = showWelcome; $('.v-top').hidden = showWelcome;
     if (showWelcome) { renderWelcome(); return; }
+    if (pending) {
+      $$('.v-badge').forEach((b) => { b.hidden = true; });
+      const scr0 = $(`.v-screen[data-screen="${S.tab}"]`);
+      scr0.innerHTML = `<div class="v-col"><h1 class="v-h1">Confirming your account…</h1><p class="v-sub">Daylight shows your items once Google confirms which account is signed in.</p><div class="v-skel" style="margin-top:16px"></div><div class="v-skel" style="margin-top:10px"></div><div class="v-skel" style="margin-top:10px"></div></div>`;
+      return;
+    }
     const now = nowMs();
     renderBadges(now);
     const scr = $(`.v-screen[data-screen="${S.tab}"]`);
@@ -184,7 +203,7 @@
   }
   function renderRing() {
     const r = $('[data-ring]'); if (!r) return;
-    if (!S.sample && S.host.accountId && S.loadedAt && S.host.accountId() !== S.account) scheduleLoad();
+    if (!S.sample && S.host.accountId && S.loadedAt && S.host.accountId() !== S.account) root.dispatchEvent(new CustomEvent('daylight:account', { detail: { reason: 'poll' } }));
     const st = (S.host.syncState && S.host.syncState()) || {};
     const on = connected();
     r.classList.toggle('off', !on); r.classList.toggle('busy', !!st.busy); r.classList.toggle('err', !!st.error && !st.busy);
@@ -700,6 +719,8 @@
     const on = connected();
     let h = `<div style="display:flex;gap:12px;align-items:center;margin:4px 0 6px"><span class="v-avatar" style="width:48px;height:48px;font-size:18px">${S.sample ? 'S' : p.picture ? `<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">` : esc(initials(p.name || p.email || 'You'))}</span><div><b style="font-size:17px">${esc(S.sample ? 'Sample account' : p.name || 'Not signed in')}</b><div class="v-muted" style="font-size:13.5px">${esc(S.sample ? 'Nothing here is real' : p.email || 'Connect Gmail to start')}</div></div></div>`;
     h += `<div class="v-section"><h4>Connections</h4><div class="v-conns">${CONNS.map(([id, name, col, glyph]) => { const live = id === 'gmail'; const st = live ? (on ? 'Connected' : 'Not connected') : 'Planned'; return `<button class="v-conn${live ? '' : ' planned'}" type="button" data-conn="${id}"><span class="lg" style="background:${col}">${esc(glyph)}</span>${esc(name)}<span class="st">${st}</span>${live && on ? '<i class="gd"></i>' : ''}</button>`; }).join('')}</div><p class="v-muted" style="font-size:12.5px">Each app is read-only by default and launches only after its platform review.</p></div>`;
+    const accts = Object.entries(S.accountCounts || {});
+    if (!S.sample && accts.length) { const names = (S.host.accountNames && S.host.accountNames()) || {}; h += `<div class="v-section"><h4>Gmail accounts on this device</h4><div class="v-mini">${accts.map(([k, n]) => `<div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--v-line)"><span style="flex:1;min-width:0"><b style="font-weight:600;font-size:14px">${esc(names[k] || 'Account ' + String(k).slice(0, 6))}</b><br><span class="v-muted" style="font-size:12.5px">${n} items${k === S.account ? ' · signed in' : ' · hidden while another account is signed in'}</span></span>${k === S.account ? '' : `<button class="v-pbtn danger" type="button" data-delacct="${esc(k)}">Delete</button>`}</div>`).join('')}</div><div data-confirm></div></div>`; }
     h += `<div class="v-section"><h4>Daily rhythm</h4>
       <label class="v-setrow">Day starts<span class="r"><select class="v-input" style="height:36px;width:auto" data-rhythm="dayStart">${[6, 7, 8, 9, 10].map((x) => `<option value="${x}"${r.dayStart === x ? ' selected' : ''}>${x}:00</option>`).join('')}</select></span></label>
       <label class="v-setrow">Focus hours<span class="r"><select class="v-input" style="height:36px;width:auto" data-rhythm="focusStart">${[7, 8, 9, 10, 13, 14].map((x) => `<option value="${x}"${r.focusStart === x ? ' selected' : ''}>${x}:00–${x + 3}:00</option>`).join('')}</select></span></label>
@@ -730,8 +751,15 @@
       if (!on) return h + `<div class="v-section"><p>Daylight reads your Gmail to find bills, deadlines, trips and messages that need you. It cannot send, delete or change mail.</p><button class="v-bigbtn" type="button" data-connect style="width:100%;min-width:0">Connect Gmail</button></div>`;
       h += `<div class="v-section"><h4>Status</h4><div class="v-mini"><button type="button"><span style="flex:1">Last sync</span><span class="r">${st.busy ? 'Syncing now…' : st.lastAt ? M.ago(st.lastAt, nowMs()) + ' ago' : '—'}</span></button><button type="button"><span style="flex:1">Items from Gmail</span><span class="r">${g.length}</span></button>${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<button type="button"><span style="flex:1;padding-left:12px" class="v-muted">${esc(M.KIND_LABEL[k] || k)}</span><span class="r">${v}</span></button>`).join('')}${st.error ? `<button type="button"><span style="flex:1" class="v-danger">${esc(st.error)}</span></button>` : ''}</div>${!S.sample ? '<button class="v-pbtn" type="button" data-syncnow style="margin-top:10px">Sync now</button>' : ''}</div>`;
       h += `<div class="v-section"><h4>What Daylight reads</h4><p style="font-size:14.5px;margin:0">All Gmail categories, read-only (gmail.readonly). Only the messages that look important are opened in full; the rest are judged from sender and subject.</p></div>`;
+      if (!S.sample && S.host.switchAccount) h += `<div class="v-section"><h4>Another Google account</h4><p class="v-muted" style="font-size:13.5px;margin:0 0 8px">Sign in with a different Gmail account on this device. This account's data stays here, hidden while the other one is signed in.</p><button class="v-pbtn" type="button" data-switchacct>Sign in with another account</button></div>`;
       h += `<div class="v-section"><h4>Write access</h4><div class="v-setrow" style="border:0">Off<span class="r">This release cannot send, archive, label or delete mail. Reply opens Gmail.</span></div></div>`;
-      h += `<div class="v-section"><h4>Disconnect</h4><p class="v-muted" style="font-size:14px">Revokes Daylight's access and deletes ${g.length} Gmail items, their links, your rules for Gmail senders and the mail cache from this device.</p><button class="v-pbtn danger" type="button" data-disconnect="${g.length}">${ic('trash', 16)} Disconnect and delete</button></div>`;
+      const others = Object.entries(S.accountCounts || {}).filter(([k]) => k !== S.account);
+      const mine = S.items.filter((x) => x.accountId === S.account).length;
+      const ownPasses = S.items.filter((x) => x.accountId === 'local').length;
+      h += `<div class="v-section"><h4>Disconnect this account</h4><p style="font-size:14px;margin:0 0 6px">Signs Daylight out of <b>${esc(((S.host.profile && S.host.profile()) || {}).email || 'this account')}</b>, revokes its Gmail access at Google, and deletes from this device:</p>
+        <ul class="v-reasons" style="margin-bottom:8px"><li>${mine} items from this account (emails, bills, bookings, deadlines, people…) and their links</li><li>your type corrections and rules for this account, and its action history</li><li>this account's mail cache, finance ledger and sync state</li><li>Wallet passes and suggested tasks Daylight made from this account's email</li></ul>
+        <p class="v-muted" style="font-size:13px;margin:0 0 10px">Kept: ${others.length ? `${others.length} other ${others.length === 1 ? 'account' : 'accounts'} on this device and their data; ` : ''}tasks and passes you added yourself (${ownPasses} items — they belong to this device); your settings.</p>
+        <button class="v-pbtn danger" type="button" data-disconnect="${mine}">${ic('trash', 16)} Disconnect and delete</button></div>`;
       return h;
     };
     openSheet({ title: 'Gmail', back: true, html: html(), refresh: html });
@@ -745,7 +773,8 @@
       <p class="v-muted" style="font-size:12.5px">Emails keep sender, subject, a short preview and extracted facts (amounts, dates, references). Full messages stay in Gmail. Identity documents are never sent to AI.</p></div>
       <div class="v-section"><h4>AI processing</h4><div class="v-setrow">Allow AI for unclear emails and Ask<span class="r"><button class="v-switch" type="button" role="switch" aria-checked="${aiOn}" data-aitoggle aria-label="AI processing"></button></span></div></div>
       <div class="v-section"><h4>What left your device</h4>${logs.length ? `<div class="v-log">${logs.slice(0, 40).map((l) => `<div><time>${esc(M.ago(l.at, nowMs()))}</time><span><b style="font-weight:600">${esc(l.dest || l.kind)}</b> — ${esc(l.what || '')}${l.bytes ? ` · ${Math.round(l.bytes / 100) / 10} kB` : ''}</span></div>`).join('')}</div>` : '<p class="v-muted" style="font-size:14px">Nothing has been sent anywhere yet.</p>'}</div>
-      <div class="v-section"><h4>Your data</h4><div class="v-actions"><button class="v-pbtn" type="button" data-export>${ic('down', 16)} Export (JSON)</button>${connected() && !S.sample ? '<button class="v-pbtn danger" type="button" data-conn="gmail">Delete Gmail data…</button>' : ''}<button class="v-pbtn danger" type="button" data-deleteall>${ic('trash', 16)} Delete everything</button></div><div data-confirm></div></div>`;
+      <div class="v-section"><h4>Your data</h4><div class="v-actions"><button class="v-pbtn" type="button" data-export>${ic('down', 16)} Export (JSON)</button>${connected() && !S.sample ? '<button class="v-pbtn danger" type="button" data-conn="gmail">Disconnect this Gmail account…</button>' : ''}<button class="v-pbtn danger" type="button" data-deleteall>${ic('trash', 16)} Delete all Daylight data on this device</button></div>
+      <p class="v-muted" style="font-size:12.5px">“Delete all” signs out, revokes Google access, and removes every account's items, rules, history and mail cache, your own tasks and Wallet passes, settings and Daylight's offline files on this device. Your Gmail itself is never changed.</p><div data-confirm></div></div>`;
     openSheet({ title: 'Privacy Centre', back: true, full: true, html });
   }
   async function exportData() {
@@ -760,6 +789,10 @@
   // ---------- Intelligence Diagnostics (developer) ----------
   const VKEY = () => 'daylight-v2-validation:' + (S.account || 'none');
   const MKEY = () => 'daylight-v2-missed:' + (S.account || 'none');
+  // sample mode never writes to this device's storage: labels and reports live in memory only
+  const mem = {};
+  const vget = (k, d) => (S.sample ? (mem[k] !== undefined ? mem[k] : d) : LS.get(k, d));
+  const vset = (k, v) => { if (S.sample) mem[k] = v; else LS.set(k, v); };
   function provenanceCheck() {
     const now = nowMs(), seen = new Set(), bad = [];
     const fns = { today: renderToday, inbox: renderInbox, plan: renderPlan, money: renderMoney, wallet: renderWallet };
@@ -777,62 +810,113 @@
     const links = (await S.core.graph.links()).filter((l) => vis.has(l.from) || vis.has(l.to));
     const a = D.analyse({ items: S.items, links, actions: S.actions, rules: S.rules, now: nowMs() });
     const needs = M.needsYou(S.items, nowMs()).map((x) => x.item.id);
-    const score = D.scoreLabels(S.items, LS.get(VKEY(), {}), needs);
+    const score = D.scoreLabels(S.items, vget(VKEY(), {}), needs);
     const sync = !S.sample && S.host.syncDiagnostics ? await S.host.syncDiagnostics().catch((e) => ({ error: String(e) })) : null;
-    return { a, score, sync, prov: provenanceCheck(), missed: LS.get(MKEY(), []) };
+    return { a, score, sync, prov: provenanceCheck(), missed: vget(MKEY(), []) };
   }
   async function openDiagnostics() {
     const sh = openSheet({ title: 'Intelligence Diagnostics', back: true, full: true, html: '<div class="v-skel"></div><div class="v-skel" style="margin-top:10px"></div>' });
+    S.diagHtml = await diagnosticsHtml();
+    if (S.sheets[S.sheets.length - 1]?.el === sh) $('.bd', sh).innerHTML = S.diagHtml;
+  }
+  const fmtT = (t) => new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const gmailLink = (id) => `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
+  async function diagnosticsHtml() {
     const { a, score, sync, prov, missed } = await diagData();
-    const now = nowMs();
     const T = (o) => Object.entries(o || {}).sort((x, y) => y[1] - x[1]);
-    let h = `<p class="v-muted" style="font-size:12.5px;margin:0 0 8px">Developer view · account ${esc(S.account || 'none')} · every number is counted from this device's stored data${S.sample ? ' (SAMPLE DATA)' : ''}. ${S.hiddenOtherAccounts ? `${S.hiddenOtherAccounts} items of other accounts on this device are hidden.` : ''}</p>`;
-    h += `<div class="v-section"><h4>Provenance</h4>${tbl([['Cards checked on all tabs', prov.checked], ['Cards without a graph Item or source', prov.problems.length], ['Items with no source', a.provenance.noSource.length], ['Facts citing a missing email', a.provenance.orphanFacts.length], ['Broken links', a.provenance.brokenLinks], ['Gmail-derived items without their email', a.provenance.derivedNoEvidence.length]])}${prov.problems.length ? `<pre class="v-pre">${esc(JSON.stringify(prov.problems.slice(0, 10), null, 1))}</pre>` : ''}</div>`;
+    const sum = (o) => Object.values(o || {}).reduce((x, y) => x + y, 0);
+    let h = `<p class="v-muted" style="font-size:12.5px;margin:0 0 8px">Developer view · account ${esc(S.account || 'none')}${S.sample ? ' · SAMPLE DATA' : ''}. Every number is counted from data stored on this device or from Gmail's own responses; nothing is estimated except AI cost (marked). ${S.hiddenOtherAccounts ? `${S.hiddenOtherAccounts} items of other accounts on this device are hidden.` : ''}</p>`;
+    // provenance
+    h += `<div class="v-section"><h4>Provenance and source links</h4>${tbl([['Cards checked on all tabs', prov.checked], ['Cards without a graph Item or source', prov.problems.length], ['Items with no source', a.provenance.noSource.length], ['Facts citing a missing email', a.provenance.orphanFacts.length], ['Broken links', a.provenance.brokenLinks], ['Gmail-derived Items not linked to their email', a.provenance.derivedNoEvidence.length], ['Links in total', a.links]])}${prov.problems.length ? `<pre class="v-pre">${esc(JSON.stringify(prov.problems.slice(0, 10), null, 1))}</pre>` : ''}</div>`;
     if (sync && sync.engine === 'v2') {
-      const t = sync.today, w = sync.week;
-      h += `<div class="v-section"><h4>Sync and Gmail quota (real counters)</h4>${tbl([
-        ['Syncs today / 7 days', t ? t.syncs.total ?? (t.syncs.scheduled + t.syncs.manual + t.syncs.open + t.syncs.catchUp + t.syncs.connect) : null, w ? (w.syncs.scheduled + w.syncs.manual + w.syncs.open + w.syncs.catchUp + w.syncs.connect) : null],
-        ['Quota units today / 7 days', t && t.quota.units, w && w.quota.units],
-        ['history.list / messages.list', t && `${t.quota.historyList} / ${t.quota.messagesList}`, w && `${w.quota.historyList} / ${w.quota.messagesList}`],
-        ['metadata GET / full GET', t && `${t.quota.metadataGets} / ${t.quota.fullGets}`, w && `${w.quota.metadataGets} / ${w.quota.fullGets}`],
-        ['Batch requests (parts)', t && `${t.quota.batchRequests} (${t.quota.batchedParts})`, w && `${w.quota.batchRequests} (${w.quota.batchedParts})`],
-        ['Failed / deferred', t && `${t.failed} / ${t.deferred}`, w && `${w.failed} / ${w.deferred}`],
-        ['Cold / warm sync time', t && t.duration.coldMs != null ? (t.duration.coldMs / 1000).toFixed(1) + ' s' : null, t && t.duration.warmMs != null ? (t.duration.warmMs / 1000).toFixed(1) + ' s' : null],
-        ['AI requests · est. cost (USD)', t && `${t.ai.requests} · $${t.ai.estimatedCostUsd}`, w && `${w.ai.requests} · $${w.ai.estimatedCostUsd}`]
-      ], ['', 'Today', '7 days'])}
-      ${sync.last && sync.last.discovery ? `<p class="v-muted" style="font-size:12.5px">Last sync in this session: discovered ${sync.last.discovery.discovered}, metadata ${sync.last.discovery.metadataFetched}, bodies ${sync.last.discovery.bodiesFetched}, skipped ${sync.last.discovery.skipped}. Units by call: ${esc(Object.entries(sync.last.discovery.unitsByKind || {}).map(([k, v]) => k + ' ' + v).join(', ') || '—')}</p>` : '<p class="v-muted" style="font-size:12.5px">No sync has run in this session yet; the counters above come from stored daily metrics.</p>'}
-      ${tbl(Object.entries(sync.index.categories).map(([c, v]) => [c, v.indexed, v.skipped, v.bodies]), ['Gmail category', 'Indexed', 'Skipped (no content read)', 'Bodies read'])}
-      ${tbl(T(sync.index.status), ['Index status', 'Count'])}
-      <p class="v-muted" style="font-size:12.5px">Window ${sync.checkpoint.windowDays || '—'} days · last mode ${esc(sync.checkpoint.lastMode || '—')}${sync.ingest ? ` · last graph ingest ${sync.ingest.emails} emails → ${sync.ingest.items} items${sync.ingest.incremental ? ' (incremental)' : ''}` : ''}</p></div>`;
-    } else h += `<div class="v-section"><h4>Sync</h4><p class="v-muted">${S.sample ? 'Sample mode: no Gmail sync.' : 'No V2 sync data on this device.'}</p></div>`;
-    h += `<div class="v-section"><h4>Classification (${a.classification.emails} emails)</h4>${tbl(T(a.classification.types).map(([k, v]) => [M.TYPE_LABEL[k] || k, v, (Math.round((v / a.classification.emails) * 1000) / 10) + ' %']), ['Type', 'Emails', 'Share'])}
+      const t = sync.today, w = sync.week, runs = sync.runs || [];
+      const cold = runs.filter((r) => r.cold), warm = runs.filter((r) => !r.cold);
+      const avg = (xs, k) => (xs.length ? Math.round(xs.reduce((s2, r) => s2 + (r[k] || 0), 0) / xs.length) : null);
+      h += `<div class="v-section"><h4>Gmail API quota (real counters)</h4>${tbl([
+        ['Cold sync (first full read) — units', cold.length ? `${cold[0].units} (${fmtT(cold[0].at)})` : 'no cold sync in the last 7 days'],
+        ['Warm syncs — average units', warm.length ? `${avg(warm, 'units')} over ${warm.length} syncs` : '—'],
+        ['Units today / 7 days', `${t ? t.quota.units : '—'} / ${w ? w.quota.units : '—'}`],
+        ['history.list / messages.list (7 d)', w ? `${w.quota.historyList} / ${w.quota.messagesList}` : '—'],
+        ['metadata GET / full GET (7 d)', w ? `${w.quota.metadataGets} / ${w.quota.fullGets}` : '—'],
+        ['Batch requests (parts) (7 d)', w ? `${w.quota.batchRequests} (${w.quota.batchedParts})` : '—'],
+        ['AI requests · estimated cost USD (7 d)', w ? `${w.ai.requests} · $${w.ai.estimatedCostUsd} (estimate)` : '—']
+      ])}
+      ${runs.length ? `<details open><summary class="v-muted" style="font-size:13px;cursor:pointer">Last ${runs.length} syncs</summary>${tbl(runs.map((r) => [fmtT(r.at), r.cold ? 'cold' : 'warm', r.label || '', r.units, r.discovered != null ? `${r.discovered}/${r.metadataFetched}/${r.bodiesFetched}/${r.skipped}` : `${r.newCount ?? '—'} new`, r.failed != null ? `${r.failed}/${r.retries}/${r.deferred}` : '—', r.ms != null ? (r.ms / 1000).toFixed(1) + ' s' : '—']), ['When', 'Kind', 'Trigger', 'Units', 'Disc/meta/body/skip', 'Fail/retry/defer', 'Time'])}</details>` : '<p class="v-muted" style="font-size:12.5px">No sync runs recorded on this device in the last 7 days.</p>'}
+      ${runs[0] && runs[0].unitsByKind ? `<p class="v-muted" style="font-size:12.5px">Latest sync, units by call: ${esc(Object.entries(runs[0].unitsByKind).map(([k, v]) => k + ' ' + v).join(', ') || '—')}</p>` : ''}</div>`;
+      const cats = sync.index.categories || {};
+      h += `<div class="v-section"><h4>Gmail category coverage</h4>${tbl(Object.entries(cats).map(([c, v]) => [c, v.indexed, v.indexed - v.skipped, v.skipped, v.bodies]), ['Category', 'Discovered', 'Metadata read', 'Skipped', 'Full body read'])}
+        ${tbl(T(sync.index.status), ['Index status', 'Messages'])}
+        <p class="v-muted" style="font-size:12.5px">Window ${sync.checkpoint.windowDays || '—'} days · last mode ${esc(sync.checkpoint.lastMode || '—')}. Skipped = Daylight saw the message id but read nothing (no subject, sender or body); it is re-checked by searches and the daily recovery net.</p></div>`;
+      // skipped review
+      const sk = sync.skipped || [];
+      const skCats = {}; sk.forEach((x) => { const c = ((x.labels || []).find((l) => /^CATEGORY_/.test(l)) || 'CATEGORY_PERSONAL').replace('CATEGORY_', '').toLowerCase(); skCats[c] = (skCats[c] || 0) + 1; });
+      h += `<div class="v-section"><h4>Discovered but skipped (${sk.length})</h4>${sk.length ? `${tbl(T(skCats), ['Category', 'Skipped'])}
+        <div class="v-actions"><button class="v-pbtn" type="button" data-peek="${esc(sk.slice(0, 20).map((x) => x.id).join(','))}">Show sender and subject of the 20 newest (uses ${Math.min(20, sk.length) * 20} quota units)</button></div><div data-peekout></div>
+        <div class="v-mini">${sk.slice(0, 12).map((x) => `<a href="${gmailLink(x.id)}" target="_blank" rel="noopener" style="display:flex;gap:10px;padding:9px 12px;border-top:1px solid var(--v-line);color:inherit;text-decoration:none;font-size:13px"><span style="flex:1;font-family:ui-monospace,monospace">${esc(x.id)}</span><span class="r">${esc(((x.labels || []).find((l) => /^CATEGORY_/.test(l)) || 'PRIMARY').replace('CATEGORY_', '').toLowerCase())} · open in Gmail ↗</span></a>`).join('')}</div>` : '<p class="v-muted" style="font-size:13.5px">Nothing skipped.</p>'}</div>`;
+      // compare with Gmail search
+      h += `<div class="v-section"><h4>Compare with a Gmail search</h4><p class="v-muted" style="font-size:12.5px;margin:0 0 6px">Runs the search in Gmail (read-only, 5 units per 100 results, at most 200) and shows which of those messages Daylight discovered, read, skipped or never saw.</p>
+        <form data-compareform style="display:flex;gap:8px"><input class="v-input" name="q" value="${esc(S.diagQuery || 'newer_than:30d (invoice OR faktura OR receipt OR booking OR ticket OR deadline)')}" autocomplete="off"><button class="v-pbtn solid" type="submit">Run</button></form>
+        <div class="v-chips" style="margin:8px 0 0">${['newer_than:14d -category:promotions -category:social', 'newer_than:30d category:promotions (order OR receipt OR booking OR ticket)', 'newer_than:30d (splatnost OR "due date" OR invoice)', 'newer_than:30d is:important'].map((q) => `<button type="button" class="v-chip" data-cmpq="${esc(q)}">${esc(q.length > 38 ? q.slice(0, 38) + '…' : q)}</button>`).join('')}</div><div data-compareout>${S.diagCompare || ''}</div></div>`;
+      // errors and unresolved
+      const un = sync.unresolved || [];
+      const errs = {}; un.forEach((x) => { const k = x.status + (x.error ? ' · ' + x.error : ''); errs[k] = (errs[k] || 0) + 1; });
+      h += `<div class="v-section"><h4>Errors, retries and unresolved</h4>${tbl([['Failed requests today / 7 d', `${t ? t.failed : '—'} / ${w ? w.failed : '—'}`], ['Deferred (waiting for quota) today / 7 d', `${t ? t.deferred : '—'} / ${w ? w.deferred : '—'}`], ['Retries in the last syncs', runs.reduce((s2, r) => s2 + (r.retries || 0), 0)], ['Quota errors in the last syncs', runs.reduce((s2, r) => s2 + (r.quotaErrors || 0), 0)], ['Partial syncs in the last syncs', runs.filter((r) => r.partial).length], ['Messages still unresolved', un.length], ['AI queue waiting', sync.aiQueue]])}${un.length ? tbl(T(errs), ['Unresolved state', 'Messages']) : ''}</div>`;
+      // re-ingestion
+      const il = (sync.ingestLog || []).slice().reverse();
+      h += `<div class="v-section"><h4>Graph ingestion and re-ingestion</h4>${il.length ? tbl(il.slice(0, 8).map((x) => [fmtT(x.at), x.full ? 'full' : 'incremental', x.emails, x.items, x.removed ?? 0, x.staleDetached ?? '—', x.userStateCarried ?? '—']), ['When', 'Kind', 'Emails read', 'Items written', 'Removed (deleted in Gmail)', 'Stale links dropped', 'Your state carried over']) : `<p class="v-muted" style="font-size:13.5px">${sync.ingest && sync.ingest.skipped ? esc(sync.ingest.skipped) : 'No ingestion recorded yet.'}</p>`}</div>`;
+    } else h += `<div class="v-section"><h4>Sync and quota</h4><p class="v-muted">${S.sample ? 'Sample mode: no Gmail sync and no quota.' : 'No V2 sync data on this device.'}</p></div>`;
+    // classification
+    h += `<div class="v-section"><h4>Classification (${a.classification.emails} emails)</h4>${tbl(T(a.classification.types).map(([k, v]) => [M.TYPE_LABEL[k] || k, v, (Math.round((v / Math.max(1, a.classification.emails)) * 1000) / 10) + ' %']), ['Type', 'Emails', 'Share'])}
       ${tbl(T(a.classification.bands), ['Importance band', 'Emails'])}
       ${tbl([['Low confidence (< 0.7)', a.classification.lowConfidence.length], ['Changed by you', a.classification.userSet], ['Typed by your rules', a.classification.viaRule], ['Rules (on)', `${a.classification.rules} (${a.classification.rulesOn})`]])}
-      <details><summary class="v-muted" style="font-size:13px;cursor:pointer;margin-top:6px">Pipeline category → V2 type</summary>${tbl(Object.entries(a.classification.matrix).map(([pc, m]) => [pc, Object.entries(m).map(([t, n]) => `${t} ${n}`).join(', ')]), ['Pipeline', 'V2 types'])}</details></div>`;
+      <details><summary class="v-muted" style="font-size:13px;cursor:pointer;margin-top:6px">Pipeline category → V2 type</summary>${tbl(Object.entries(a.classification.matrix).map(([pc, m]) => [pc, Object.entries(m).map(([t2, n]) => `${t2} ${n}`).join(', ')]), ['Pipeline', 'V2 types'])}</details>
+      <p class="v-muted" style="font-size:12.5px">These are counts of what Daylight decided, not a measure of whether it was right. Use Review emails to check.</p></div>`;
     const ex = a.extraction;
-    const cr = (k, o) => Object.entries(o).map(([f, v]) => `${f} ${v.pct == null ? '—' : v.pct + ' %'}`).join(' · ');
-    h += `<div class="v-section"><h4>Extraction coverage</h4>${tbl(['bill', 'transaction', 'subscription', 'booking', 'deadline', 'appointment'].map((k) => [k, Object.values(ex[k])[0]?.of ?? 0, cr(k, ex[k])]), ['Item', 'Count', 'Fields present'])}
+    const cr = (o) => Object.entries(o).map(([f, v]) => `${f} ${v.pct == null ? '—' : v.pct + ' %'}`).join(' · ');
+    const derived = ['bill', 'transaction', 'subscription', 'booking', 'deadline', 'appointment', 'delivery', 'ticket', 'document', 'task'].map((k) => [k, a.typeCounts[k] || 0]).filter(([, n]) => n);
+    h += `<div class="v-section"><h4>Extraction and derived Items</h4>${tbl(derived, ['Derived Item', 'Count'])}${tbl(['bill', 'transaction', 'subscription', 'booking', 'deadline', 'appointment'].map((k) => [k, Object.values(ex[k])[0]?.of ?? 0, cr(ex[k])]), ['Item', 'Count', 'Fields present'])}
       ${tbl([['Malformed facts (objects, [object Object])', ex.badFacts.length], ['Money emails with no bill/payment Item', ex.moneyNoItem.length], ['Travel emails with no booking Item', ex.travelNoItem.length]])}
       ${ex.moneyNoItem.length || ex.travelNoItem.length ? `<div class="v-mini" style="margin-top:8px">${[...ex.moneyNoItem, ...ex.travelNoItem].slice(0, 12).map((id) => { const it = S.byId.get(id); return `<button type="button" data-open="${id}">${src(it)}<span style="flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(it.title)}</span><span class="r">${esc(M.TYPE_LABEL[M.ctype(it)] || '')}</span></button>`; }).join('')}</div>` : ''}</div>`;
-    h += `<div class="v-section"><h4>Duplicates (${a.duplicates.length})</h4>${a.duplicates.length ? `<div class="v-mini">${a.duplicates.slice(0, 12).map((d) => `<button type="button" data-open="${d.a}"><span style="flex:1">${esc((S.byId.get(d.a) || {}).title || d.a)} ⇄ ${esc((S.byId.get(d.b) || {}).title || d.b)}</span><span class="r">${esc(d.why)}</span></button>`).join('')}</div>` : '<p class="v-muted" style="font-size:13.5px">No likely duplicates found.</p>'}</div>`;
+    h += `<div class="v-section"><h4>Duplicates (${a.duplicates.length})</h4>${a.duplicates.length ? `<div class="v-mini">${a.duplicates.slice(0, 12).map((d) => `<button type="button" data-open="${d.a}"><span style="flex:1">${esc((S.byId.get(d.a) || {}).title || d.a)} ⇄ ${esc((S.byId.get(d.b) || {}).title || d.b)}</span><span class="r">${esc(d.why)}</span></button>`).join('')}</div>` : '<p class="v-muted" style="font-size:13.5px">No likely duplicates found by the checks (same merchant + amount within 5 days, same booking reference or start time, same person address).</p>'}</div>`;
     h += `<div class="v-section"><h4>Actions</h4>${tbl([['Total', a.actions.total], ['Undone', a.actions.undone], ['Pending write-backs', a.actions.pendingWrites], ...T(a.actions.byKind)])}</div>`;
-    h += `<div class="v-section"><h4>Your validation labels</h4>${score.labelled ? tbl([['Emails labelled', score.labelled], ['Type correct', `${score.correct} (${score.accuracy} %)`], ['Marked important', score.importance.markedImportant], ['…shown in Needs you', `${score.importance.surfaced} (${score.importance.recall ?? '—'} %)`], ['Marked not important but shown', score.importance.falseAlarms.length], ['Missed emails you reported', missed.length]]) + (Object.keys(score.confusions).length ? tbl(Object.entries(score.confusions), ['Daylight said → should be', 'Count']) : '') : '<p class="v-muted" style="font-size:13.5px">Nothing labelled yet. Use Review emails to mark what Daylight got right and wrong.</p>'}
+    h += `<div class="v-section"><h4>Your review labels</h4>${score.labelled ? tbl([['Emails you labelled', score.labelled], ['…where you agreed with the type', `${score.correct} of ${score.labelled}`], ['Marked “matters”', score.importance.markedImportant], ['…of those shown in Needs you', `${score.importance.surfaced} of ${score.importance.markedImportant}`], ['Marked “doesn’t matter” but shown', score.importance.falseAlarms.length], ['Missed emails you reported', missed.length]]) + (Object.keys(score.confusions).length ? tbl(Object.entries(score.confusions), ['Daylight said → you said', 'Count']) : '') + '<p class="v-muted" style="font-size:12.5px">Agreement on the emails you chose to label. It is not an accuracy figure for your whole mailbox.</p>' : '<p class="v-muted" style="font-size:13.5px">Nothing labelled yet. Use Review emails to mark what Daylight got right and wrong.</p>'}
       <div class="v-actions"><button class="v-pbtn solid" type="button" data-label>Review emails</button><button class="v-pbtn" type="button" data-missed>Report a missed email</button></div></div>`;
     h += `<div class="v-section"><h4>Export</h4><div class="v-actions"><button class="v-pbtn" type="button" data-diagexport="redacted">${ic('down', 16)} Redacted report (for testers)</button><button class="v-pbtn" type="button" data-diagexport="full">Full report (stays with you)</button></div><p class="v-muted" style="font-size:12.5px">The redacted report has counts, rates and sender domains only — no subjects, previews, names, amounts or references.</p></div>`;
-    if (S.sheets[S.sheets.length - 1]?.el === sh) $('.bd', sh).innerHTML = h;
+    return h;
+  }
+  async function runCompare(q) {
+    const box = $('[data-compareout]'); if (!box) return;
+    S.diagQuery = q;
+    box.innerHTML = '<div class="v-skel" style="height:40px;margin-top:8px"></div>';
+    try {
+      const r = await S.host.gmailCompare(q);
+      const lbl = { 'in-daylight': 'In Daylight', 'processed-not-in-graph': 'Read, not yet in the graph', skipped: 'Discovered, skipped', pending: 'Discovered, metadata pending', deleted: 'Marked deleted', 'not-discovered': 'Never discovered' };
+      const miss = r.rows.filter((x) => x.state === 'not-discovered' || x.state === 'skipped');
+      S.diagCompare = `${tbl(Object.entries(r.counts).map(([k, v]) => [lbl[k] || k, v]), [`${r.total} Gmail results${r.truncated ? ' (first 200)' : ''} · ${r.units} units`, 'Messages'])}
+        ${miss.length ? `<div class="v-actions"><button class="v-pbtn" type="button" data-peek="${esc(miss.slice(0, 20).map((x) => x.id).join(','))}">Show sender and subject of ${Math.min(20, miss.length)} not read (${Math.min(20, miss.length) * 20} units)</button></div><div class="v-mini">${miss.slice(0, 15).map((x) => `<a href="${gmailLink(x.id)}" target="_blank" rel="noopener" style="display:flex;gap:10px;padding:9px 12px;border-top:1px solid var(--v-line);color:inherit;text-decoration:none;font-size:13px"><span style="flex:1;font-family:ui-monospace,monospace">${esc(x.id)}</span><span class="r">${esc(lbl[x.state])} · Gmail ↗</span></a>`).join('')}</div>` : ''}`;
+    } catch (e) { S.diagCompare = `<p class="v-muted">Could not run the search: ${esc(String(e && e.message || e))}</p>`; }
+    const b2 = $('[data-compareout]'); if (b2) b2.innerHTML = S.diagCompare;
+  }
+  async function runPeek(ids, btn) {
+    const out = btn.closest('.v-section').querySelector('[data-peekout]') || (() => { const d = doc.createElement('div'); d.dataset.peekout = '1'; btn.after(d); return d; })();
+    out.innerHTML = '<div class="v-skel" style="height:40px;margin-top:8px"></div>';
+    try {
+      const r = await S.host.peekMessages(ids);
+      out.innerHTML = `<p class="v-muted" style="font-size:12px;margin:6px 0">Shown here only; not saved.</p><div class="v-mini">${r.map((m) => `<a href="${gmailLink(m.id)}" target="_blank" rel="noopener" style="display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-top:1px solid var(--v-line);color:inherit;text-decoration:none"><b style="font-size:13.5px;font-weight:600">${esc(m.error ? 'Could not read' : m.subject || '(no subject)')}</b><span class="v-muted" style="font-size:12.5px">${esc(m.error || `${m.from} · ${m.date} · ${(m.labels || []).filter((l) => /^CATEGORY_|INBOX|IMPORTANT/.test(l)).join(' ')}`)}</span></a>`).join('')}</div>`;
+    } catch (e) { out.innerHTML = `<p class="v-muted">${esc(String(e && e.message || e))}</p>`; }
   }
   async function exportDiag(kind) {
     const { a, score, sync, prov, missed } = await diagData();
     const D = root.DaylightV2Diagnostics;
     const data = kind === 'redacted' ? Object.assign(D.redactedReport({ analysis: a, score, items: S.items, missed, sync: sync && sync.engine === 'v2' ? { today: sync.today && { quota: sync.today.quota, syncs: sync.today.syncs, failed: sync.today.failed, duration: sync.today.duration }, week: sync.week && { quota: sync.week.quota, syncs: sync.week.syncs }, index: sync.index, checkpoint: sync.checkpoint } : null, now: nowMs() }), { provenance2: { cardsChecked: prov.checked, cardProblems: prov.problems.length } })
-      : { kind: 'daylight-diagnostics-full', createdAt: new Date().toISOString(), account: S.account, analysis: a, score, sync, provenance: prov, labels: LS.get(VKEY(), {}), missed, titles: Object.fromEntries(S.items.filter((x) => x.type === 'email').map((x) => [x.id, { title: x.title, from: M.sender(x), type: M.ctype(x), band: x.classification && x.classification.band }])) };
+      : { kind: 'daylight-diagnostics-full', createdAt: new Date().toISOString(), account: S.account, analysis: a, score, sync, provenance: prov, labels: vget(VKEY(), {}), missed, titles: Object.fromEntries(S.items.filter((x) => x.type === 'email').map((x) => [x.id, { title: x.title, from: M.sender(x), type: M.ctype(x), band: x.classification && x.classification.band }])) };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const el = doc.createElement('a'); el.href = URL.createObjectURL(blob); el.download = `daylight-${kind === 'redacted' ? 'validation-redacted' : 'diagnostics-full'}-${new Date().toISOString().slice(0, 10)}.json`; doc.body.append(el); el.click(); setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 1000);
     try { S.core.log.add({ kind: 'export', dest: 'Downloaded to this device', what: kind === 'redacted' ? 'redacted validation report' : 'full diagnostics report', bytes: blob.size }); } catch {}
   }
   function openLabeler(onlyNew) {
     const html = () => {
-      const now = nowMs(), labels = LS.get(VKEY(), {});
+      const now = nowMs(), labels = vget(VKEY(), {});
       const needs = new Set(M.needsYou(S.items, now).map((x) => x.item.id));
       const emails = S.items.filter((x) => x.type === 'email' && now - (x.createdAt || 0) < 30 * DAYMS).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       const list = (S.labelFilter === 'todo') ? emails.filter((e) => !labels[e.id]) : emails;
@@ -845,7 +929,7 @@
     };
     openSheet({ title: 'Review emails', back: true, full: true, html: html(), refresh: html });
   }
-  function setLabel(id, patch) { const l = LS.get(VKEY(), {}); l[id] = Object.assign({}, l[id] || {}, patch, { at: nowMs() }); LS.set(VKEY(), l); refreshOpenSheet(); }
+  function setLabel(id, patch) { const l = vget(VKEY(), {}); l[id] = Object.assign({}, l[id] || {}, patch, { at: nowMs() }); vset(VKEY(), l); refreshOpenSheet(); }
   function openMissed() {
     openSheet({ title: 'Report a missed email', back: true, html: `<p class="v-muted" style="font-size:13.5px;margin:0 0 8px">Something important arrived in Gmail but Daylight didn't show it (or showed it wrongly). This stays on this device; the redacted report includes only the kind and sender domain.</p>
       <form data-missedform><div class="v-field"><label for="v-mk">What was it?</label><select class="v-input" id="v-mk" name="kind"><option value="bill">Bill or payment request</option><option value="receipt">Receipt or order</option><option value="booking">Booking or ticket</option><option value="deadline">Deadline or appointment</option><option value="message">A person waiting for a reply</option><option value="other">Other</option></select></div>
@@ -968,15 +1052,19 @@
     if (d.exitSample !== undefined) { try { sessionStorage.removeItem('daylight-v2-sample'); } catch {} location.reload(); return; }
     if (d.skipWelcome !== undefined) { S.welcomeSkipped = true; LS.set('daylight-v2-welcome-skipped', true); return render(); }
     if (d.conn) return openConnection(d.conn);
+    if (d.switchacct !== undefined) return S.host.switchAccount();
     if (d.syncnow !== undefined) { toast('Syncing…'); try { await S.host.syncNow(); toast('Synced'); } catch (er) { toast('Sync failed'); } return; }
-    if (d.disconnect) return confirmIn(t, `Disconnect Gmail and delete ${d.disconnect} items from this device?`, 'Disconnect and delete', async () => { closeSheet(); await S.host.disconnect(); toast('Gmail disconnected · data deleted'); await load(); });
-    if (d.deleteall !== undefined) return confirmIn(t, 'Delete everything Daylight stored on this device — items, rules, history, Wallet, settings? This cannot be undone.', 'Delete everything', async () => { if (S.sample) { location.reload(); return; } await S.host.deleteAll(); });
+    if (d.disconnect) return confirmIn(t, `Disconnect this account and delete its ${d.disconnect} items, rules, history and cached mail from this device? Other accounts and your own tasks and passes stay.`, 'Disconnect and delete', async () => { closeSheet(); const r = await S.host.disconnect(); toast(r ? `Disconnected · ${r.graphItems} items deleted${r.keptOtherAccounts && r.keptOtherAccounts.length ? ` · ${r.keptOtherAccounts.length} other account kept` : ''}` : 'Gmail disconnected'); await load(); });
+    if (d.delacct) return confirmIn(t, `Delete everything Daylight stored for this account on this device (${(S.accountCounts || {})[d.delacct] || 0} items, its rules, history and cached mail)? To also revoke its Google access, sign in as it and disconnect, or remove Daylight at myaccount.google.com/permissions.`, 'Delete this account\'s data', async () => { const r = await S.host.deleteAccountData(d.delacct); toast(`Deleted ${r.graphItems} items`); await load(); refreshOpenSheet(); });
+    if (d.deleteall !== undefined) return confirmIn(t, 'Delete ALL Daylight data on this device — every account, your own tasks and passes, settings — and sign out? This cannot be undone. Gmail itself is not changed.', 'Delete all', async () => { if (S.sample) { location.reload(); return; } await S.host.deleteAll(); });
     if (d.export !== undefined) return exportData();
     if (d.privacy !== undefined) return openPrivacy();
     if (d.diag !== undefined) return openDiagnostics();
     if (d.label !== undefined) return openLabeler();
     if (d.missed !== undefined) return openMissed();
     if (d.diagexport) return exportDiag(d.diagexport);
+    if (d.peek) { if (S.sample) return toast('Not available with sample data'); return runPeek(d.peek.split(',').filter(Boolean), t); }
+    if (d.cmpq) { const i = $('[data-compareform] [name=q]'); if (i) i.value = d.cmpq; if (S.sample) return toast('Not available with sample data'); return runCompare(d.cmpq); }
     if (d.lfilter !== undefined) { S.labelFilter = S.labelFilter === 'todo' ? null : 'todo'; return refreshOpenSheet(); }
     if (d.lok) return setLabel(d.lok, { ok: true, expected: null });
     if (d.limp) { const [id, v] = d.limp.split('|'); return setLabel(id, { important: v === '1' }); }
@@ -1060,7 +1148,8 @@
       else { try { const list = JSON.parse(localStorage.getItem('daylight-wallet') || '[]'); list.unshift(pass); localStorage.setItem('daylight-wallet', JSON.stringify(list.slice(0, 80))); } catch {} if (S.core.local) await S.core.local.importLocal(); }
       toast('Saved to Wallet'); return load();
     }
-    if (f.dataset.missedform !== undefined) { const l = LS.get(MKEY(), []); l.push({ kind: fd.get('kind'), senderDomain: String(fd.get('domain') || '').trim().toLowerCase().replace(/^.*@/, '') || null, note: String(fd.get('note') || '').slice(0, 500), at: nowMs() }); LS.set(MKEY(), l); closeSheet(); toast('Saved — thank you'); return; }
+    if (f.dataset.compareform !== undefined) { const q = String(fd.get('q') || '').trim(); if (!q) return; if (S.sample) return toast('Not available with sample data'); return runCompare(q); }
+    if (f.dataset.missedform !== undefined) { const l = vget(MKEY(), []); l.push({ kind: fd.get('kind'), senderDomain: String(fd.get('domain') || '').trim().toLowerCase().replace(/^.*@/, '') || null, note: String(fd.get('note') || '').slice(0, 500), at: nowMs() }); vset(MKEY(), l); closeSheet(); toast('Saved — thank you'); return; }
     if (f.dataset.limit) { const v = Number(fd.get('limit')); const l = LS.get('daylight-v2-limits', {}); if (v > 0) l[f.dataset.limit] = v; else delete l[f.dataset.limit]; LS.set('daylight-v2-limits', l); closeSheet(); toast('Limit saved'); return render(); }
   }
 

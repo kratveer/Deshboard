@@ -497,7 +497,7 @@
         : partial ? `Gmail partly synced · ${[failed && failed + ' failed', deferred && deferred + ' waiting for quota', listError && 'mail list failed', sent.error && 'sent mail check incomplete'].filter(Boolean).join(', ') || 'incomplete'}`
         : `Gmail synced · ${newIds.length ? newIds.length + ' new' : 'no new mail'}${labelOnly ? `, ${labelOnly} label update${labelOnly > 1 ? 's' : ''}` : ''}${bodyBacklog ? `, ${bodyBacklog} full texts queued` : ''}`;
       C.units = ctx.units; C.failed = failed; C.deferred = deferred;
-      await cache.addMetrics(acct, { counters: C, run: { at: t0, label: opts.label || 'manual', cold, ms: report.durationMs, units: ctx.units, newCount: newIds.length, mode } });
+      await cache.addMetrics(acct, { counters: C, run: { at: t0, label: opts.label || 'manual', cold, ms: report.durationMs, units: ctx.units, newCount: newIds.length, mode, discovered: allNewIds.length, metadataFetched: fetched, bodiesFetched: bodyFetched, skipped: skippedStubs.length, failed, deferred, retries: ctx.retries || 0, quotaErrors: ctx.quotaErrors || 0, unitsByKind: Object.assign({}, ctx.unitsByKind || {}), partial } });
       return { report, pools, historyExtras: [], threads, cursor, review: reviewAll, aiCandidates, deletedIds: deletedNow };
     }
 

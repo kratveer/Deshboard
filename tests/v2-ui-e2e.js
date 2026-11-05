@@ -180,7 +180,19 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     await page.click('[data-open-settings]'); await page.waitForTimeout(400); await page.click('.v-sheet [data-diag]');
     await page.waitForSelector('.v-sheet .v-dtab', { timeout: 20000 }); await page.waitForTimeout(500);
     const dg = await page.evaluate(() => ({ text: document.querySelector('.v-sheet .bd').innerText, prov: window.DaylightV2UI.provenanceCheck() }));
-    const unitsRow = /Quota units today \/ 7 days\s+(\d+)/.exec(dg.text);
+    const unitsRow = /Units today \/ 7 days\s+(\d+)/.exec(dg.text);
+    const coldRow = /Cold sync \(first full read\) — units\s+(\d+)/.exec(dg.text);
+    out.dgText = dg.text; check('Diagnostics: cold-sync units, sync runs, category coverage, skipped, errors and re-ingestion sections are present', coldRow && Number(coldRow[1]) > 0 && /Last \d+ syncs/.test(dg.text) && /Gmail category coverage/i.test(dg.text) && /Discovered but skipped/i.test(dg.text) && /Errors, retries and unresolved/i.test(dg.text) && /Graph ingestion and re-ingestion/i.test(dg.text) && !/\b(accuracy|recall)\b/i.test(dg.text.replace(/not an accuracy figure/g, '')), { cold: coldRow && coldRow[1] });
+    // compare with a Gmail search + peek at what was not read (mocked Gmail answers the real API calls)
+    await page.fill('[data-compareform] [name=q]', 'newer_than:30d');
+    await page.click('[data-compareform] [type=submit]');
+    await page.waitForFunction(() => /Gmail results/.test(document.querySelector('[data-compareout]')?.innerText || ''), null, { timeout: 20000 });
+    const cmp = await page.evaluate(() => document.querySelector('[data-compareout]').innerText);
+    check('Diagnostics: Gmail search comparison classifies every result (in Daylight / skipped / never discovered)', /\d+ Gmail results · \d+ units/.test(cmp) && /In Daylight/.test(cmp), cmp.slice(0, 200));
+    const peekBtn = await page.$('[data-compareout] [data-peek]') || await page.$('.v-sheet [data-peek]');
+    if (peekBtn) { await peekBtn.click(); await page.waitForFunction(() => /Shown here only/.test(document.querySelector('.v-sheet .bd').innerText), null, { timeout: 20000 }); }
+    const peekOk = peekBtn ? await page.evaluate(() => document.querySelectorAll('.v-sheet [data-peekout] a').length) : -1;
+    check('Diagnostics: skipped / not-read messages can be inspected (sender + subject, not stored)', peekBtn ? peekOk > 0 : true, { peekOk });
     check('Diagnostics: provenance check finds no card without a real Item/source', dg.prov.checked > 10 && dg.prov.problems.length === 0, dg.prov);
     check('Diagnostics: real quota counters from this sync are shown (units > 0)', unitsRow && Number(unitsRow[1]) > 0, unitsRow && unitsRow[1]);
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.v-sheet [data-diagexport=redacted]')]);
@@ -218,6 +230,7 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     check('Classic view still available with ?ui=v1', !classic.v2 && classic.tabs === 5, classic);
   } finally { await browser.close(); srv.close(); }
   let fail = 0; checks.forEach(([n, ok, info]) => { console.log((ok ? 'PASS ' : 'FAIL ') + n + (ok || info === undefined ? '' : '  ← ' + JSON.stringify(info).slice(0, 400))); if (!ok) fail++; });
+  if (process.env.DBG) console.log(out.dgText);
   console.log(`V2 UI E2E: ${checks.length - fail}/${checks.length} checks passed`);
   process.exitCode = fail ? 1 : 0;
 })().catch((e) => { console.error(e); process.exitCode = 1; });

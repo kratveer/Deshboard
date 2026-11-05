@@ -3,7 +3,7 @@
 Thank you for helping. Daylight reads your Gmail **read-only**: it cannot send, delete or change mail. Everything it finds stays in your browser on your device. What you send back is a small **redacted** report: counts, percentages and sender domains only. It contains no subjects, names, amounts or message text.
 
 ## Before you start (for Kratveer)
-- While the Google OAuth app is in *Testing* mode, add the tester's Gmail address under **Google Cloud Console → APIs & Services → OAuth consent screen → Test users**. Otherwise Google blocks the sign-in.
+- While the Google OAuth app is in *Testing* mode, add the tester's Gmail address under **Google Cloud Console → APIs & Services → OAuth consent screen → Test users**. Otherwise Google blocks the sign-in. If the Worker has `ALLOWED_EMAILS` set, add the tester there too and redeploy the Worker.
 - The tester uses their **own device and browser profile**. On a shared device, Daylight hides other accounts' email items. However, tasks and Wallet passes created on that device are visible to everyone who uses it.
 
 ## Steps
@@ -15,7 +15,7 @@ Thank you for helping. Daylight reads your Gmail **read-only**: it cannot send, 
    - **Matters** or **Doesn't**: would you want this on your Today screen?
 5. If something important is missing entirely, use **Intelligence Diagnostics → Report a missed email**. Choose what it was and enter the sender's domain only.
 6. In **Intelligence Diagnostics → Export → Redacted report (for testers)**, a JSON file downloads. Open it if you like and check that it contains no personal content. Then send it to Kratveer.
-7. Optional: **Settings → Connections → Gmail → Disconnect and delete**. This revokes access and deletes everything Daylight stored. You can also remove access at https://myaccount.google.com/permissions.
+7. Optional: **Settings → Connections → Gmail → Disconnect and delete** revokes Daylight's access and deletes everything it stored for your account. **Privacy Centre → Delete all Daylight data on this device** removes everything, including tasks and passes you added yourself. You can also remove access at https://myaccount.google.com/permissions.
 
 ## Also worth trying
 - Mark a bill paid, then tap **Undo**.

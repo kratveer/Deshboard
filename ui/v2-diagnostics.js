@@ -84,7 +84,7 @@
     const rows = Object.entries(labels || {}).map(([id, l]) => ({ id, l, it: byId.get(id) })).filter((r) => r.it);
     const perType = {};
     rows.forEach(({ l, it }) => { const t = ctype(it) || 'none'; perType[t] = perType[t] || { labelled: 0, correct: 0 }; perType[t].labelled++; if (l.ok) perType[t].correct++; });
-    Object.values(perType).forEach((v) => { v.precision = pct(v.correct, v.labelled); });
+    Object.values(perType).forEach((v) => { v.agreementPct = pct(v.correct, v.labelled); });
     const needs = new Set(needsIds || []);
     const imp = rows.filter((r) => r.l.important === true);
     const notImp = rows.filter((r) => r.l.important === false);
@@ -93,8 +93,9 @@
     const falseAlarms = notImp.filter((r) => surfaced(r)).map((r) => r.id);
     const confusions = {}; rows.filter((r) => !r.l.ok && r.l.expected).forEach(({ l, it }) => { const k = `${ctype(it)} → ${l.expected}`; confusions[k] = (confusions[k] || 0) + 1; });
     return {
-      labelled: rows.length, correct: rows.filter((r) => r.l.ok).length, accuracy: pct(rows.filter((r) => r.l.ok).length, rows.length), perType, confusions,
-      importance: { markedImportant: imp.length, surfaced: imp.length - missedImportant.length, recall: pct(imp.length - missedImportant.length, imp.length), missedImportant, markedNotImportant: notImp.length, falseAlarms }
+      labelled: rows.length, correct: rows.filter((r) => r.l.ok).length, agreementPct: pct(rows.filter((r) => r.l.ok).length, rows.length), perType, confusions,
+      note: 'Agreement with the labels you gave on a sample you chose — not a measured accuracy of the whole mailbox.',
+      importance: { markedImportant: imp.length, surfaced: imp.length - missedImportant.length, shownPct: pct(imp.length - missedImportant.length, imp.length), missedImportant, markedNotImportant: notImp.length, falseAlarms }
     };
   }
 
@@ -114,7 +115,7 @@
       duplicates: a.duplicates.map((d) => ({ kind: d.kind, why: d.why, a: typeOf(d.a), b: typeOf(d.b) })),
       provenance: { noSource: a.provenance.noSource.length, orphanFacts: a.provenance.orphanFacts.length, brokenLinks: a.provenance.brokenLinks, derivedWithoutEmail: a.provenance.derivedNoEvidence.length },
       actions: a.actions,
-      validation: s ? { labelled: s.labelled, accuracy: s.accuracy, perType: s.perType, confusions: s.confusions, importance: { markedImportant: s.importance.markedImportant, recall: s.importance.recall, missedImportant: s.importance.missedImportant.map((id) => ({ domain: dom(id), type: typeOf(id) })), falseAlarms: s.importance.falseAlarms.map((id) => ({ domain: dom(id), type: typeOf(id) })) } } : null,
+      validation: s ? { note: s.note, labelled: s.labelled, labelAgreementPct: s.agreementPct, perType: s.perType, confusions: s.confusions, importance: { markedImportant: s.importance.markedImportant, markedImportantShownInNeedsYouPct: s.importance.shownPct, missedImportant: s.importance.missedImportant.map((id) => ({ domain: dom(id), type: typeOf(id) })), falseAlarms: s.importance.falseAlarms.map((id) => ({ domain: dom(id), type: typeOf(id) })) } } : null,
       missedReports: (o.missed || []).map((m) => ({ kind: m.kind, senderDomain: m.senderDomain || null, at: m.at })),
       sync: o.sync || null
     };

@@ -63,10 +63,10 @@
 
       // sender → organisation or person
       if (domain && !FREEMAIL.test(domain + '.') && !(rec.labels || []).includes('SENT')) {
-        const k = `org:${domain}`; items.push({ key: k, accountId: acct, type: 'organisation', title: f.merchant || nameOf(rec.from).replace(/\s*\(.*\)$/, ''), description: domain, sources: [src('mention')], extractedEntities: { domains: [domain] } });
+        const k = `org:${acct}:${domain}`; /* per account: a sender seen by two accounts is two Items */ items.push({ key: k, accountId: acct, type: 'organisation', title: f.merchant || nameOf(rec.from).replace(/\s*\(.*\)$/, ''), description: domain, sources: [src('mention')], extractedEntities: { domains: [domain] } });
         links.push([emailId, iid(k), 'from']);
       } else if (email && !cls.automated) {
-        const k = `person:${email}`; items.push({ key: k, accountId: acct, type: 'person', title: nameOf(rec.from), description: email, sources: [src('mention')], extractedEntities: { emails: [email] } });
+        const k = `person:${acct}:${email}`; items.push({ key: k, accountId: acct, type: 'person', title: nameOf(rec.from), description: email, sources: [src('mention')], extractedEntities: { emails: [email] } });
         links.push([emailId, iid(k), 'from']);
       }
 
@@ -81,7 +81,7 @@
         items.push({ key: k, accountId: acct, type, title: `${f.merchant || nameOf(rec.from)} · ${amount.value}${amount.currency ? ' ' + amount.currency : ''}`, description: rec.subject || '', dueAt: dueMs, priority: cls.importance, sources: [src('evidence')],
           extractedFacts: factList([['amount', amount.value], ['currency', amount.currency], ['dueDate', f.dueDate], ['reference', ref], ['merchant', f.merchant || nameOf(rec.from)], ['kind', cat]], emailId), meta: { category: cat } });
         links.push([emailId, iid(k), 'evidence']);
-        if (domain && !FREEMAIL.test(domain + '.')) links.push([iid(k), iid(`org:${domain}`), 'merchant']);
+        if (domain && !FREEMAIL.test(domain + '.')) links.push([iid(k), iid(`org:${acct}:${domain}`), 'merchant']);
       }
       // booking (one per reference across confirmation / change emails)
       const travelDate = (rec.keyDates || []).find((x) => x.kind === 'travel');
@@ -130,11 +130,12 @@
         const produced = new Map(); out.forEach((p) => (p.sources || []).forEach((s) => { if (s.app === 'gmail') { const k = String(s.itemId); if (!produced.has(k)) produced.set(k, new Set()); produced.get(k).add(G.itemId(p.key)); } }));
         const liveIds = new Set(live.map((r) => String(r.messageId)));
         (await graph.query({ accountId: acct })).forEach((it) => {
-          if (it.type === 'email' || it.type === 'person' || it.type === 'organisation') return;
-          (it.sources || []).forEach((s) => { if (s.app === 'gmail' && s.role === 'evidence' && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id)) stale.push({ itemId: it.id, app: 'gmail', accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`gmail:${acct}:${s.itemId}`) }); });
+          if (it.type === 'email') return;
+          (it.sources || []).forEach((s) => { if (s.app === 'gmail' && (s.role === 'evidence' || s.role === 'mention') && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id)) stale.push({ itemId: it.id, app: 'gmail', accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`gmail:${acct}:${s.itemId}`) }); });
         });
       }
       const stored = await graph.upsertMany(out);
+      let carried = 0;
       if (stale.length) {
         // keep what the user did: a stale Item's status/snooze/notes move to the Item of the same kind the email now produces
         const olds = await graph.getMany([...new Set(stale.map((x) => x.itemId))]);
@@ -145,7 +146,7 @@
           const n = cand[0]; let changed = false;
           ['status', 'snoozedUntil', 'pinned', 'userPriority', 'plannedAt', 'plannedMinutes'].forEach((k) => { if (o2[k] != null && o2[k] !== false && o2[k] !== 'open' && (n[k] == null || n[k] === 'open' || n[k] === false)) { n[k] = o2[k]; changed = true; } });
           ['notes', 'actionHistory', 'userCorrections'].forEach((k) => { if ((o2[k] || []).length) { n[k] = [...(o2[k] || []), ...(n[k] || [])]; changed = true; } });
-          if (changed) await graph.putItem(n);
+          if (changed) { await graph.putItem(n); carried++; }
         }
         await graph.detachSources(stale);
       }
@@ -153,7 +154,7 @@
       // Gmail deleted / trashed → drop the email Item (derived Items survive while another email still supports them)
       let removed = 0;
       for (const r of rows.filter((x) => x.status === 'deleted' && (!since || (x.deletedAt || x.lastProcessedAt || 0) >= since))) removed += await graph.removeSourceItem('gmail', acct, r.messageId);
-      return { items: stored.length, emails: live.length, links: linkList.length, removed };
+      return { items: stored.length, emails: live.length, links: linkList.length, removed, staleDetached: stale.length, userStateCarried: carried, full: !since };
     }
 
     const status = { lastSync: null, lastError: null, lastReport: null };
