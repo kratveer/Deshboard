@@ -1,0 +1,831 @@
+{
+  "excluded": {
+    "strategy": "excluded",
+    "units": 2108,
+    "kinds": {
+      "profile": 10,
+      "list": 16,
+      "getMeta": 62,
+      "getFull": 7,
+      "threadsList": 10,
+      "threadsGet": 6,
+      "history": 9
+    },
+    "recall": 0.615,
+    "important": 26,
+    "reached": 16,
+    "classification": {
+      "misTyped": [],
+      "noiseAsImportant": [],
+      "importantReachedNotMarketing": 16,
+      "importantReached": 16,
+      "noiseFetchedKeptOut": 40,
+      "noiseFetched": 40
+    },
+    "byCategory": {
+      "primary": {
+        "important": 6,
+        "reached": 6
+      },
+      "updates": {
+        "important": 10,
+        "reached": 10
+      },
+      "promotions": {
+        "important": 6,
+        "reached": 0
+      },
+      "social": {
+        "important": 2,
+        "reached": 0
+      },
+      "forums": {
+        "important": 2,
+        "reached": 0
+      }
+    },
+    "missed": [
+      "promotions: Děkujeme za nákup!",
+      "promotions: Thanks for shopping with us",
+      "promotions: You are all set for Lisbon!",
+      "promotions: Vaše e-vstupenky",
+      "promotions: Your plan renews soon",
+      "promotions: Your Thursday trip",
+      "social: Interview invitation from Quantum Labs",
+      "social: RSVP confirmed: Prague Physics Night",
+      "forums: [phd-list] Exam registration",
+      "forums: [iontrap] Lab meeting moved"
+    ],
+    "noiseMetadataFetched": 40,
+    "noiseTotal": 280,
+    "importantPer1000Units": 7.59,
+    "runs": [
+      {
+        "label": "connect",
+        "units": 1451,
+        "metadata": 44,
+        "bodies": 5,
+        "lists": 4,
+        "discovery": {
+          "discovered": 44,
+          "metadataFetched": 44,
+          "skipped": 0,
+          "byCategory": {
+            "primary": {
+              "discovered": 44,
+              "metadata": 44
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 248,
+        "metadata": 5,
+        "bodies": 2,
+        "lists": 3,
+        "discovery": {
+          "discovered": 5,
+          "metadataFetched": 5,
+          "skipped": 0,
+          "byCategory": {
+            "primary": {
+              "discovered": 2,
+              "metadata": 2
+            },
+            "updates": {
+              "discovered": 3,
+              "metadata": 3
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 13,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 0,
+        "discovery": {
+          "discovered": 0,
+          "metadataFetched": 0,
+          "skipped": 0,
+          "byCategory": {},
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 13,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 0,
+        "discovery": {
+          "discovered": 0,
+          "metadataFetched": 0,
+          "skipped": 0,
+          "byCategory": {},
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 13,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 0,
+        "discovery": {
+          "discovered": 0,
+          "metadataFetched": 0,
+          "skipped": 0,
+          "byCategory": {},
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 13,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 0,
+        "discovery": {
+          "discovered": 0,
+          "metadataFetched": 0,
+          "skipped": 0,
+          "byCategory": {},
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 88,
+        "metadata": 3,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 3,
+          "metadataFetched": 3,
+          "skipped": 0,
+          "byCategory": {
+            "updates": {
+              "discovered": 3,
+              "metadata": 3
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 228,
+        "metadata": 10,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 10,
+          "metadataFetched": 10,
+          "skipped": 0,
+          "byCategory": {
+            "updates": {
+              "discovered": 10,
+              "metadata": 10
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 13,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 0,
+        "discovery": {
+          "discovered": 0,
+          "metadataFetched": 0,
+          "skipped": 0,
+          "byCategory": {},
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "recovery",
+        "units": 28,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 0,
+          "metadataFetched": 0,
+          "skipped": 0,
+          "byCategory": {},
+          "recoveryNet": false
+        }
+      }
+    ]
+  },
+  "all": {
+    "strategy": "all",
+    "units": 7638,
+    "kinds": {
+      "profile": 10,
+      "list": 34,
+      "getMeta": 313,
+      "getFull": 14,
+      "threadsList": 10,
+      "history": 9,
+      "threadsGet": 6
+    },
+    "recall": 1,
+    "important": 26,
+    "reached": 26,
+    "classification": {
+      "misTyped": [
+        "social: Interview invitation from Quantum Labs → social (Gmail category: Social; body false)",
+        "forums: [phd-list] Exam registration → newsletter (Gmail category: Forums; body false)",
+        "forums: [iontrap] Lab meeting moved → newsletter (Gmail category: Forums; body false)"
+      ],
+      "noiseAsImportant": [],
+      "importantReachedNotMarketing": 23,
+      "importantReached": 26,
+      "noiseFetchedKeptOut": 280,
+      "noiseFetched": 280
+    },
+    "byCategory": {
+      "primary": {
+        "important": 6,
+        "reached": 6
+      },
+      "updates": {
+        "important": 10,
+        "reached": 10
+      },
+      "promotions": {
+        "important": 6,
+        "reached": 6
+      },
+      "social": {
+        "important": 2,
+        "reached": 2
+      },
+      "forums": {
+        "important": 2,
+        "reached": 2
+      }
+    },
+    "missed": [],
+    "noiseMetadataFetched": 280,
+    "noiseTotal": 280,
+    "importantPer1000Units": 3.4,
+    "runs": [
+      {
+        "label": "connect",
+        "units": 4771,
+        "metadata": 210,
+        "bodies": 9,
+        "lists": 4,
+        "discovery": {
+          "discovered": 210,
+          "metadataFetched": 210,
+          "skipped": 0,
+          "byCategory": {
+            "primary": {
+              "discovered": 210,
+              "metadata": 210
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 828,
+        "metadata": 13,
+        "bodies": 5,
+        "lists": 3,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 13,
+          "skipped": 0,
+          "byCategory": {
+            "primary": {
+              "discovered": 2,
+              "metadata": 2
+            },
+            "updates": {
+              "discovered": 3,
+              "metadata": 3
+            },
+            "promotions": {
+              "discovered": 7,
+              "metadata": 7
+            },
+            "social": {
+              "discovered": 1,
+              "metadata": 1
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 288,
+        "metadata": 13,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 13,
+          "skipped": 0,
+          "byCategory": {
+            "promotions": {
+              "discovered": 13,
+              "metadata": 13
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 288,
+        "metadata": 13,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 13,
+          "skipped": 0,
+          "byCategory": {
+            "promotions": {
+              "discovered": 13,
+              "metadata": 13
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 288,
+        "metadata": 13,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 13,
+          "skipped": 0,
+          "byCategory": {
+            "promotions": {
+              "discovered": 9,
+              "metadata": 9
+            },
+            "social": {
+              "discovered": 4,
+              "metadata": 4
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 288,
+        "metadata": 13,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 13,
+          "skipped": 0,
+          "byCategory": {
+            "social": {
+              "discovered": 13,
+              "metadata": 13
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 288,
+        "metadata": 13,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 13,
+          "skipped": 0,
+          "byCategory": {
+            "social": {
+              "discovered": 10,
+              "metadata": 10
+            },
+            "updates": {
+              "discovered": 3,
+              "metadata": 3
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 268,
+        "metadata": 12,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 12,
+          "metadataFetched": 12,
+          "skipped": 0,
+          "byCategory": {
+            "updates": {
+              "discovered": 10,
+              "metadata": 10
+            },
+            "forums": {
+              "discovered": 2,
+              "metadata": 2
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 268,
+        "metadata": 12,
+        "bodies": 0,
+        "lists": 3,
+        "discovery": {
+          "discovered": 12,
+          "metadataFetched": 12,
+          "skipped": 0,
+          "byCategory": {
+            "forums": {
+              "discovered": 12,
+              "metadata": 12
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "recovery",
+        "units": 63,
+        "metadata": 1,
+        "bodies": 0,
+        "lists": 6,
+        "discovery": {
+          "discovered": 1,
+          "metadataFetched": 1,
+          "skipped": 0,
+          "byCategory": {
+            "primary": {
+              "discovered": 1,
+              "metadata": 1
+            }
+          },
+          "recoveryNet": false
+        }
+      }
+    ]
+  },
+  "candidates": {
+    "strategy": "candidates",
+    "units": 3508,
+    "kinds": {
+      "profile": 10,
+      "list": 68,
+      "getMeta": 80,
+      "getFull": 20,
+      "threadsList": 10,
+      "threadsGet": 6,
+      "history": 9
+    },
+    "recall": 1,
+    "important": 26,
+    "reached": 26,
+    "classification": {
+      "misTyped": [],
+      "noiseAsImportant": [],
+      "importantReachedNotMarketing": 26,
+      "importantReached": 26,
+      "noiseFetchedKeptOut": 48,
+      "noiseFetched": 48
+    },
+    "byCategory": {
+      "primary": {
+        "important": 6,
+        "reached": 6
+      },
+      "updates": {
+        "important": 10,
+        "reached": 10
+      },
+      "promotions": {
+        "important": 6,
+        "reached": 6
+      },
+      "social": {
+        "important": 2,
+        "reached": 2
+      },
+      "forums": {
+        "important": 2,
+        "reached": 2
+      }
+    },
+    "missed": [],
+    "noiseMetadataFetched": 48,
+    "noiseTotal": 280,
+    "importantPer1000Units": 7.41,
+    "runs": [
+      {
+        "label": "connect",
+        "units": 2086,
+        "metadata": 47,
+        "bodies": 14,
+        "lists": 11,
+        "discovery": {
+          "discovered": 210,
+          "metadataFetched": 47,
+          "skipped": 163,
+          "byCategory": {
+            "primary": {
+              "discovered": 10,
+              "metadata": 10
+            },
+            "promotions": {
+              "discovered": 84,
+              "metadata": 27
+            },
+            "social": {
+              "discovered": 54,
+              "metadata": 1
+            },
+            "updates": {
+              "discovered": 34,
+              "metadata": 7
+            },
+            "forums": {
+              "discovered": 28,
+              "metadata": 2
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 578,
+        "metadata": 9,
+        "bodies": 6,
+        "lists": 5,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 9,
+          "skipped": 4,
+          "byCategory": {
+            "primary": {
+              "discovered": 2,
+              "metadata": 2
+            },
+            "updates": {
+              "discovered": 3,
+              "metadata": 3
+            },
+            "promotions": {
+              "discovered": 7,
+              "metadata": 3
+            },
+            "social": {
+              "discovered": 1,
+              "metadata": 1
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 203,
+        "metadata": 8,
+        "bodies": 0,
+        "lists": 6,
+        "discovery": {
+          "discovered": 15,
+          "metadataFetched": 8,
+          "skipped": 7,
+          "byCategory": {
+            "promotions": {
+              "discovered": 13,
+              "metadata": 6
+            },
+            "primary": {
+              "discovered": 2,
+              "metadata": 2
+            }
+          },
+          "recoveryNet": true
+        }
+      },
+      {
+        "label": "slot",
+        "units": 118,
+        "metadata": 4,
+        "bodies": 0,
+        "lists": 5,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 4,
+          "skipped": 9,
+          "byCategory": {
+            "promotions": {
+              "discovered": 13,
+              "metadata": 4
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 203,
+        "metadata": 8,
+        "bodies": 0,
+        "lists": 6,
+        "discovery": {
+          "discovered": 16,
+          "metadataFetched": 8,
+          "skipped": 8,
+          "byCategory": {
+            "promotions": {
+              "discovered": 9,
+              "metadata": 4
+            },
+            "social": {
+              "discovered": 4,
+              "metadata": 1
+            },
+            "primary": {
+              "discovered": 3,
+              "metadata": 3
+            }
+          },
+          "recoveryNet": true
+        }
+      },
+      {
+        "label": "slot",
+        "units": 38,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 5,
+        "discovery": {
+          "discovered": 13,
+          "metadataFetched": 0,
+          "skipped": 13,
+          "byCategory": {
+            "social": {
+              "discovered": 13,
+              "metadata": 0
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 123,
+        "metadata": 4,
+        "bodies": 0,
+        "lists": 6,
+        "discovery": {
+          "discovered": 15,
+          "metadataFetched": 4,
+          "skipped": 11,
+          "byCategory": {
+            "social": {
+              "discovered": 10,
+              "metadata": 2
+            },
+            "updates": {
+              "discovered": 3,
+              "metadata": 0
+            },
+            "primary": {
+              "discovered": 2,
+              "metadata": 2
+            }
+          },
+          "recoveryNet": true
+        }
+      },
+      {
+        "label": "slot",
+        "units": 38,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 5,
+        "discovery": {
+          "discovered": 12,
+          "metadataFetched": 0,
+          "skipped": 12,
+          "byCategory": {
+            "updates": {
+              "discovered": 10,
+              "metadata": 0
+            },
+            "forums": {
+              "discovered": 2,
+              "metadata": 0
+            }
+          },
+          "recoveryNet": false
+        }
+      },
+      {
+        "label": "slot",
+        "units": 43,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 6,
+        "discovery": {
+          "discovered": 12,
+          "metadataFetched": 0,
+          "skipped": 12,
+          "byCategory": {
+            "forums": {
+              "discovered": 12,
+              "metadata": 0
+            }
+          },
+          "recoveryNet": true
+        }
+      },
+      {
+        "label": "recovery",
+        "units": 78,
+        "metadata": 0,
+        "bodies": 0,
+        "lists": 13,
+        "discovery": {
+          "discovered": 1,
+          "metadataFetched": 0,
+          "skipped": 1,
+          "byCategory": {
+            "promotions": {
+              "discovered": 1,
+              "metadata": 0
+            }
+          },
+          "recoveryNet": false
+        }
+      }
+    ]
+  },
+  "summary": {
+    "savingVsAll": 0.541,
+    "recallGainVsExcluded": 0.385,
+    "checks": [
+      {
+        "n": "candidates finds every important email in Promotions",
+        "ok": true
+      },
+      {
+        "n": "candidates recall ≥ 95 %",
+        "ok": true
+      },
+      {
+        "n": "candidates recall ≥ excluded recall",
+        "ok": true
+      },
+      {
+        "n": "candidates uses fewer units than fetching everything",
+        "ok": true
+      },
+      {
+        "n": "candidates fetches far less noise than \"all\"",
+        "ok": true
+      },
+      {
+        "n": "excluded build misses Promotions receipts (the old blind spot)",
+        "ok": true
+      },
+      {
+        "n": "candidates: every important email reached is typed as important (not promotion/newsletter/social)",
+        "ok": true
+      },
+      {
+        "n": "candidates: no noise email is typed as important",
+        "ok": true
+      }
+    ]
+  }
+}

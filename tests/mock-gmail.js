@@ -50,8 +50,12 @@ function createMockGmail(opts) {
     for (const d of take(/\solder_than:(\d+)d/g)) if (m.internalDate >= now - Number(d) * DAY) return false;
     if (take(/\s(has:attachment)/g).length && !(m.attachments || []).length) return false;
     take(/\s(-in:chats)/g);
-    for (const c of take(/\s-category:(\w+)/g)) if (m.labelIds.includes('CATEGORY_' + c.toUpperCase())) return false;
-    for (const c of take(/\scategory:(\w+)/g)) if (!m.labelIds.includes('CATEGORY_' + c.toUpperCase())) return false;
+    // Gmail: "primary" = CATEGORY_PERSONAL or no category label at all
+    const inCat = (c) => c.toLowerCase() === 'primary' ? (m.labelIds.includes('CATEGORY_PERSONAL') || !m.labelIds.some((l) => /^CATEGORY_/.test(l))) : m.labelIds.includes('CATEGORY_' + c.toUpperCase());
+    for (const c of take(/\s-category:(\w+)/g)) if (inCat(c)) return false;
+    for (const c of take(/\scategory:(\w+)/g)) if (!inCat(c)) return false;
+    // from:(a OR b) → OR group of sender terms
+    for (const g of take(/\sfrom:\(([^()]*)\)/g)) { const ds = g.split(/\s+OR\s+/i).map((x) => x.trim().toLowerCase()).filter(Boolean); if (!ds.some((d) => m.from.toLowerCase().includes(d))) return false; }
     // OR groups
     const groups = take(/\(([^()]*)\)/g);
     for (const g of groups) {

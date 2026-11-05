@@ -1,0 +1,141 @@
+{
+  "before": {
+    "mailIndex": 48,
+    "mailFacts": 35,
+    "aiQueue": 0,
+    "checkpoint": 1,
+    "entities": 122,
+    "relationships": 76,
+    "facts": 27,
+    "walletFromMail": 17,
+    "walletManual": [
+      "manual-gym"
+    ],
+    "tasksSuggested": 0,
+    "tasksWithMail": 0,
+    "tasksOwn": [
+      "Prepare seminar slides",
+      "Water plants"
+    ],
+    "ledgerKeys": 1,
+    "gmailKeys": [
+      "daylight-ai-extractions",
+      "daylight-google-scopes",
+      "daylight-profile"
+    ],
+    "session": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+    "theme": "dark",
+    "serverUrl": "https://daylight-api.test",
+    "prio": "payments",
+    "inboxCards": 39,
+    "prioCards": 8
+  },
+  "after": {
+    "mailIndex": 0,
+    "mailFacts": 0,
+    "aiQueue": 0,
+    "checkpoint": 0,
+    "entities": 0,
+    "relationships": 0,
+    "facts": 0,
+    "walletFromMail": 0,
+    "walletManual": [
+      "manual-gym"
+    ],
+    "tasksSuggested": 0,
+    "tasksWithMail": 0,
+    "tasksOwn": [
+      "Prepare seminar slides",
+      "Water plants"
+    ],
+    "ledgerKeys": 0,
+    "gmailKeys": [],
+    "session": "",
+    "theme": "dark",
+    "serverUrl": "https://daylight-api.test",
+    "prio": "payments",
+    "inboxCards": 0,
+    "prioCards": 0
+  },
+  "workerCalls": [
+    "/auth/logout"
+  ],
+  "errors": [],
+  "afterReload": {
+    "mailIndex": 0,
+    "mailFacts": 0,
+    "aiQueue": 0,
+    "checkpoint": 0,
+    "entities": 0,
+    "relationships": 0,
+    "facts": 0,
+    "walletFromMail": 0,
+    "walletManual": [
+      "manual-gym"
+    ],
+    "tasksSuggested": 0,
+    "tasksWithMail": 0,
+    "tasksOwn": [
+      "Prepare seminar slides",
+      "Water plants"
+    ],
+    "ledgerKeys": 0,
+    "gmailKeys": [],
+    "session": "",
+    "theme": "dark",
+    "serverUrl": "https://daylight-api.test",
+    "prio": "payments",
+    "inboxCards": 0,
+    "prioCards": 0
+  },
+  "checks": [
+    {
+      "n": "there was Gmail data to delete",
+      "ok": true
+    },
+    {
+      "n": "Gmail cache (messages, facts, AI queue, checkpoint) empty",
+      "ok": true
+    },
+    {
+      "n": "entities / relationships / facts for the account cleared",
+      "ok": true
+    },
+    {
+      "n": "Wallet passes from Gmail removed",
+      "ok": true
+    },
+    {
+      "n": "manual Wallet card kept",
+      "ok": true
+    },
+    {
+      "n": "finance ledger and Gmail keys removed",
+      "ok": true
+    },
+    {
+      "n": "suggested tasks from email removed, own tasks kept, no task keeps a mail link",
+      "ok": true
+    },
+    {
+      "n": "session token removed and Worker logout (Google revoke) called",
+      "ok": true
+    },
+    {
+      "n": "unrelated settings kept (theme, filter, server address)",
+      "ok": true
+    },
+    {
+      "n": "nothing from Gmail shown after disconnect",
+      "ok": true
+    },
+    {
+      "n": "still empty after reload (no re-sync without sign-in)",
+      "ok": true
+    },
+    {
+      "n": "no page errors",
+      "ok": true
+    }
+  ]
+}

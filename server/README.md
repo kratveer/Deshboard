@@ -90,3 +90,11 @@ Email Intelligence is **off until the user consents** in the Connections panel. 
 4. In Daylight → Connections → **Email Intelligence** → consent + enable.
 
 Without the key, Daylight still classifies mail with local rules/heuristics and never fails open by dropping messages.
+
+## V2 permissions (Gmail read-only)
+
+Sign-in asks Google for `openid email profile https://www.googleapis.com/auth/gmail.readonly` only. Daylight never asks for send, compose, modify, Drive, Fit, Calendar, Tasks or Contacts at sign-in.
+
+Optional connectors are added one at a time with their own consent screen. `GET /auth/google/start?add=calendar|tasks|contacts` requests that one extra read-only scope with `include_granted_scopes=true` (incremental authorisation).
+
+After updating `src/worker.js`, redeploy the Worker (`npx wrangler deploy`, or paste the file into the Cloudflare editor). Sessions created before the change keep their older, broader grant until the user disconnects or reconnects. Daylight only uses an optional scope when Google reports it as granted.

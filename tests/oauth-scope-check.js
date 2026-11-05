@@ -50,14 +50,13 @@ for (const c of CASES) {
   } else console.log('OK', c.id);
 }
 
-// Worker source must still request readonly + send (send required for replies)
+// Worker source must request gmail.readonly (V2: read-only, no send)
 const fs = require('fs');
 const path = require('path');
 const worker = fs.readFileSync(path.join(__dirname, '..', 'server', 'src', 'worker.js'), 'utf8');
 const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const checks = [
   [/gmail\.readonly/, worker, 'worker requests gmail.readonly'],
-  [/gmail\.send/, worker, 'worker requests gmail.send'],
   [/include_granted_scopes: upgrade \? 'false' : 'true'/, worker, 'worker upgrade disables include_granted_scopes'],
   [/gmail_readonly_required/, worker, 'worker rejects missing readonly'],
   [/needs_gmail_upgrade/, worker, 'token payload exposes needs_gmail_upgrade'],
@@ -78,4 +77,24 @@ for (const [re, src, label] of checks.slice(0, -1)) {
 }
 
 console.log(failed ? `FAILED ${failed}` : 'All oauth-scope-check passed');
-process.exit(failed ? 1 : 0);
+if (failed) process.exitCode = 1;
+
+// ---- V2 minimum permission (Gmail read-only onboarding, incremental optional connectors) ----
+{
+  const fs2 = require('fs'), path2 = require('path');
+  const w = fs2.readFileSync(path2.join(__dirname, '..', 'server', 'src', 'worker.js'), 'utf8');
+  const a = fs2.readFileSync(path2.join(__dirname, '..', 'app.js'), 'utf8');
+  const base = /const GOOGLE_SCOPES = \[([\s\S]*?)\]\.join/.exec(w)[1];
+  const appBase = /const scopes = \[([^\]]*)\]\.join/.exec(a)[1];
+  const v2 = [
+    [!/gmail\.(send|compose|modify)|drive|fitness|calendar|tasks|contacts/.test(base) && /gmail\.readonly/.test(base), 'worker onboarding = openid/email/profile + gmail.readonly only'],
+    [!/gmail\.(send|compose|modify)|drive|fitness|calendar|tasks|contacts/.test(appBase) && /gmail\.readonly/.test(appBase), 'app onboarding = gmail.readonly only'],
+    [/OPTIONAL_SCOPES = \{[\s\S]*calendar[\s\S]*tasks[\s\S]*contacts/.test(w) && /scopesFor\(add\)/.test(w), 'worker supports incremental optional connectors'],
+    [!/['"]https:\/\/www\.googleapis\.com\/auth\/gmail\.send['"]/.test(w.replace(/const hasGmailSend[^\n]*/, '')), 'worker never asks for gmail.send'],
+    [/V2 read-only release/.test(a), 'app reply opens Gmail instead of sending'],
+    [/DaylightDataReset\?\.deleteGmailData/.test(a), 'disconnect deletes local Gmail data']
+  ];
+  let f2 = 0;
+  v2.forEach(([ok, name]) => { console.log((ok ? 'OK ' : 'FAIL ') + name); if (!ok) f2++; });
+  if (f2) { console.log('V2 FAILED ' + f2); process.exitCode = 1; } else console.log('V2 permission checks passed');
+}

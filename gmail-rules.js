@@ -108,18 +108,22 @@
     const trace = [];
     const finish = (r, stage) => {
       const out = Object.assign({ stage, trace, signals: s }, r);
-      const search = c.searchHits && c.searchHits.size ? [...c.searchHits] : [];
+      // content searches (words in the message) count as evidence; sender-only / safety-net matches do not
+      const search = c.searchHits && c.searchHits.size ? [...c.searchHits].filter((x) => x !== 'sender' && x !== 'net') : [];
       // Unfamiliar or low-value classification but money/date/booking evidence → escalate, never discard.
       const bulk = labels.includes('CATEGORY_PROMOTIONS') || labels.includes('CATEGORY_SOCIAL') || labels.includes('CATEGORY_FORUMS') || !!lu;
-      out.escalated = !HIGH_VALUE.has(out.category) && out.category !== 'security' && (bulk ? s.strongTx : (s.transactional || search.length > 0));
+      // V2: a Gmail category is never proof of unimportance — a targeted search hit also escalates bulk-category mail
+      out.escalated = !HIGH_VALUE.has(out.category) && out.category !== 'security' && (bulk ? (s.strongTx || search.length > 0) : (s.transactional || search.length > 0));
       if (out.escalated) { trace.push({ rule: 'escalate', reason: search.length ? 'mailbox search matched ' + search.join('/') : 'money/date/booking pattern in snippet' }); }
       out.needBody = HIGH_VALUE.has(out.category) || out.escalated || (out.confidence < low && s.date && s.amount);
       return out;
     };
-    // 1. Gmail system categories
-    if (labels.includes('CATEGORY_SOCIAL')) { const r = { category: 'social', confidence: s.transactional ? 0.6 : 0.9, reason: 'Gmail category: Social' }; trace.push(r); if (r.confidence >= high) return finish(r, 'gmail-category'); }
-    if (labels.includes('CATEGORY_FORUMS')) { const r = { category: 'newsletter', confidence: s.transactional ? 0.6 : 0.88, reason: 'Gmail category: Forums' }; trace.push(r); if (r.confidence >= high) return finish(r, 'gmail-category'); }
-    if (labels.includes('CATEGORY_PROMOTIONS')) { const r = { category: 'promotion', confidence: s.strongTx ? 0.55 : (s.promo ? 0.92 : 0.86), reason: 'Gmail category: Promotions' }; trace.push(r); if (r.confidence >= high) return finish(r, 'gmail-category'); }
+    // 1. Gmail system categories (a prior, not a verdict: when a targeted search matched, they cannot decide alone)
+    const searched = !!(c.searchHits && [...c.searchHits].some((x) => x !== 'sender' && x !== 'net'));
+    const capIfSearched = (r) => { if (searched) r.confidence = Math.min(r.confidence, 0.6); return r; };
+    if (labels.includes('CATEGORY_SOCIAL')) { const r = capIfSearched({ category: 'social', confidence: s.transactional ? 0.6 : 0.9, reason: 'Gmail category: Social' }); trace.push(r); if (r.confidence >= high) return finish(r, 'gmail-category'); }
+    if (labels.includes('CATEGORY_FORUMS')) { const r = capIfSearched({ category: 'newsletter', confidence: s.transactional ? 0.6 : 0.88, reason: 'Gmail category: Forums' }); trace.push(r); if (r.confidence >= high) return finish(r, 'gmail-category'); }
+    if (labels.includes('CATEGORY_PROMOTIONS')) { const r = capIfSearched({ category: 'promotion', confidence: s.strongTx ? 0.55 : (s.promo ? 0.92 : 0.86), reason: 'Gmail category: Promotions' }); trace.push(r); if (r.confidence >= high) return finish(r, 'gmail-category'); }
     // 2. List-Unsubscribe → bulk mail (newsletter / promotion)
     if (lu) {
       const r = s.strongTx ? { category: 'newsletter', confidence: 0.5, reason: 'List-Unsubscribe, but transactional words' }
@@ -139,7 +143,7 @@
     }
     // 4. Keywords + regex on subject and snippet
     const k = keywordRule(s);
-    const searchCat = c.searchHits && c.searchHits.size ? [...c.searchHits][0] : null;
+    const searchCat = c.searchHits && c.searchHits.size ? ([...c.searchHits].find((x) => CATEGORIES.includes(x)) || null) : null;
     if (k && dc && k.category !== dc.category) {
       // the sender's domain says what kind of company it is; refund / promotion / security words say what THIS email is
       const bulk = labels.includes('CATEGORY_PROMOTIONS') || !!lu;
@@ -315,6 +319,11 @@
       const typeWord = k && (k.category === 'refund' || k.category === 'security' || (k.category === 'promotion' && bulk && !s.pnr && !s.invoiceNo));
       if (k && (k.confidence > confidence || typeWord || (b.escalated && HIGH_VALUE.has(k.category)))) { category = k.category; confidence = Math.max(k.confidence, confidence); reason = k.reason + ' (body)'; }
       if (HIGH_VALUE.has(category) && (facts.amount || facts.reference || facts.dueDate)) confidence = Math.min(0.95, confidence + 0.08);
+      // V2: an order confirmation that Gmail filed as marketing — amount + order/reference number + confirmation words → receipt
+      const orderNo = /(order|objedn\p{L}*|bestellung|receipt|účtenka)\s*(?:no\.?|number|nr\.?|č\.|#)?\s*[:#]?\s*[A-Z0-9][A-Z0-9-]{3,}/iu.test(text.slice(0, 1500));
+      if ((category === 'promotion' || category === 'newsletter') && facts.amount && (facts.reference || orderNo) && /(order|objedn|bestell|receipt|účtenk|confirm|potvrz|bestätig|total|celkem|gesamt)/i.test(text.slice(0, 1500))) {
+        category = 'receipt'; confidence = 0.78; reason = 'order number + amount in a marketing-category email (body)';
+      }
     }
     const need = { bill: ['amount'], payment: ['amount'], refund: ['amount'], travel: ['reference', 'date'], food: ['merchant'], subscription: ['amount'], receipt: ['amount'] }[category] || [];
     const missing = need.filter((k) => {

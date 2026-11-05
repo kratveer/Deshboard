@@ -19,7 +19,7 @@
     // ---- 2. window ----
     window: Object.freeze({
       backfillDays: 30,             // initial backfill and checkpoint recovery: newer_than:30d only
-      backfillMax: 1000,            // safety cap on IDs listed in one backfill
+      backfillMax: 5000,            // safety cap on IDs listed in one backfill (IDs only: 5 units per 500)
       listPageSize: 500,            // messages.list maxResults (Gmail allows up to 500; 5 units per page)
       olderScanDays: 180,           // manual "Scan older bills" only (never automatic)
       olderScanMax: 150,
@@ -40,9 +40,22 @@
       batchFallbackAfterFailures: 2, // after N batch transport failures in a session, use single GETs
       // Cheap recall net: Gmail full-text searches return only IDs (5 units/page) but match words in the BODY,
       // so a bill whose subject and snippet look harmless still gets its body read. Run only when there is new mail.
-      // Gmail categories that are never listed, downloaded or classified (0 quota). You chose: Promotions, Social, Forums.
-      // Gmail sometimes files a receipt or booking under Promotions; those stay in Gmail and are not seen by Daylight.
-      excludeLabels: Object.freeze(['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS']),
+      // V2: no category is excluded. Promotions / Social / Updates / Forums are covered by candidate discovery below.
+      excludeLabels: Object.freeze([]),
+      // ---- V2 quota-first discovery ----
+      // 'candidates': Primary + SENT always get metadata; Updates/Promotions/Social/Forums only when a cheap
+      //               ID-only search (5 units/page) or a known transactional sender points at them.
+      // 'all':        every new message gets metadata (20 units each) — the old behaviour, kept for comparison.
+      discovery: Object.freeze({
+        mode: 'candidates',
+        nonPrimaryLabels: Object.freeze(['CATEGORY_UPDATES', 'CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS']),
+        // important-but-not-money signals: study, work, appointments, deliveries, accounts, requests
+        importantQuery: '(deadline OR meeting OR confirm OR "please confirm" OR rescheduled OR moved OR rsvp OR "due by" OR "due on" OR appointment OR reservation OR confirmation OR confirmed OR "order" OR shipped OR delivery OR delivered OR tracking OR application OR admission OR enrolment OR enrollment OR registration OR exam OR "action required" OR "please reply" OR interview OR contract OR university OR univerzita OR přihláška OR zkouška OR termín OR objednávka OR doručení OR potvrzení OR rezervace OR lhůta OR "your account" OR "security alert" OR verify)',
+        maxSenderDomains: 40,        // transactional sender domains folded into one from:(…) search
+        recoveryEveryHours: 24,      // low-cost safety net over non-Primary categories
+        recoveryDays: 3,
+        recoveryQuery: '(total OR amount OR price OR paid OR order OR booking OR ticket OR invoice OR receipt OR statement OR due OR reminder OR appointment OR deadline OR confirmation OR reservation OR "Kč" OR CZK OR EUR OR USD OR INR OR "Rs")'
+      }),
       searches: Object.freeze({
         money: '(invoice OR receipt OR refund OR payment OR paid OR charged OR "amount due" OR "due date" OR bill OR billing OR subscription OR renewal OR renew OR transaction OR faktura OR vyúčtování OR platba OR splatnost OR "k úhradě" OR předplatné OR vrácení OR rechnung OR zahlung OR erstattung OR रसीद OR भुगतान OR बिल)',
         travel: '(flight OR "boarding pass" OR itinerary OR e-ticket OR ticket OR booking OR reservation OR hotel OR check-in OR PNR OR train OR "your order from" OR restaurant OR letenka OR jízdenka OR rezervace OR ubytování OR buchung OR टिकट OR यात्रा)',

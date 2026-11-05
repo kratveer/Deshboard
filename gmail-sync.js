@@ -148,6 +148,7 @@
           if (!(await budget.take(cost, optional ? 0 : null))) return { ok: false, deferred: true, kind: 'budget', status: 0, reason: 'quota_budget', message: 'Waiting for Gmail quota' };
           ctx.requests[kind] = (ctx.requests[kind] || 0) + 1;
           ctx.units += cost; ctx.attempts++;
+          ctx.unitsByKind = ctx.unitsByKind || {}; ctx.unitsByKind[kind] = (ctx.unitsByKind[kind] || 0) + cost; // quota per operation
           let res = null, netErr = '';
           try { res = await (callOpt && typeof callOpt.send === 'function' ? callOpt.send() : request(url)); } catch (e) { netErr = String(e?.name === 'AbortError' ? 'timeout' : (e?.message || e)); if (e?.name !== 'AbortError') { budget.refund(cost); ctx.units -= cost; } }
           if (res && res.ok) return { ok: true, data: res.data, status: res.status, downgraded };

@@ -22,6 +22,8 @@
   }
 
   const PL_CLS = CLS_MAP;
+  // someone asks the user to do something, or a dated obligation (EN / CS / DE)
+  const REQUEST_RX = /(please (reply|confirm|register|respond|send|let us know)|could you|can you|would you|registration (closes|deadline|ends)|closes on|deadline|invite you|invitation|interview|confirm (your )?attendance|prosím (potvrď|odpověz|zaregistruj)|termín (zápisu|přihlášek)|bitte (bestätigen|antworten))/i;
   /** Gmail search fragment that leaves out the excluded categories (e.g. "-category:promotions -category:social"). */
   function excludeQuery(labels) { return (labels || []).map((l) => '-category:' + String(l).replace(/^CATEGORY_/, '').toLowerCase()).join(' '); }
   function createMailPipeline(o) {
@@ -35,6 +37,16 @@
     const EXCL = new Set(cfg.excludeLabels || []);
     const EXQ = excludeQuery(cfg.excludeLabels);
     const isExcluded = (labels) => (labels || []).some((l) => EXCL.has(l));
+    const DISC = cfg.discovery || { mode: 'all' };
+    const NONPRIMARY = new Set(DISC.nonPrimaryLabels || []);
+    /** Transactional sender domains for one from:(…) search: learned high-value domains first, then seeds, then user rules. */
+    async function senderDomainsFor(acct) {
+      const out = [];
+      try { (await cache.allDomains(acct)).filter((d) => d.active && (d.userCategory || R.HIGH_VALUE.has(d.category))).sort((a, b) => (b.hits || 0) - (a.hits || 0)).forEach((d) => out.push(d.domain)); } catch {}
+      Object.entries(R.SEED_DOMAINS || {}).forEach(([d, c]) => { if (R.HIGH_VALUE.has(c)) out.push(d); });
+      try { (o.extraSenderDomains ? o.extraSenderDomains() : []).forEach((d) => out.push(d)); } catch {}
+      return [...new Set(out)].slice(0, DISC.maxSenderDomains || 40);
+    }
 
     const metaPath = (id) => `${GP}/messages/${encodeURIComponent(id)}?format=metadata&${cfg.metadataHeaders.map((h) => 'metadataHeaders=' + encodeURIComponent(h)).join('&')}&fields=${encodeURIComponent('id,threadId,labelIds,snippet,internalDate,historyId,payload/mimeType,payload/headers')}`;
     const fullPath = (id) => `${GP}/messages/${encodeURIComponent(id)}?format=full&fields=${encodeURIComponent(o.fullFields || (root.DaylightGmailSync && root.DaylightGmailSync.FULL_FIELDS) || 'id,threadId,labelIds,snippet,internalDate,historyId,payload')}`;
@@ -55,7 +67,7 @@
           const chunk = items.slice(i, i + size);
           const batch = B.buildBatch(chunk.map((x) => ({ id: x.id, path: x.path })));
           // one attempt: a transport failure (e.g. CORS) falls back to single GETs instead of burning quota on retries
-          const r = await engine.call(ctx, 'batch', B.BATCH_URL, unit * chunk.length, { send: () => batchSend(batch), maxAttempts: 1, refundOnFailure: true });
+          const r = await engine.call(ctx, 'batch:' + kindName, B.BATCH_URL, unit * chunk.length, { send: () => batchSend(batch), maxAttempts: 1, refundOnFailure: true });
           C.req_batch = (C.req_batch || 0) + 1;
           if (!r.ok || !(r.data instanceof Map)) {
             if (r.kind === 'auth' || r.kind === 'daily') { chunk.forEach((x) => out.set(x.id, { ok: false, kind: r.kind, status: r.status })); continue; }
@@ -158,7 +170,7 @@
     }
 
     async function buildPools(acct) {
-      const live = (await cache.all(acct)).filter((r) => r.status !== 'deleted' && r.status !== 'meta-pending' && !isExcluded(r.labels)).sort((a, b) => b.internalDate - a.internalDate);
+      const live = (await cache.all(acct)).filter((r) => r.status !== 'deleted' && r.status !== 'meta-pending' && r.status !== 'skipped' && !isExcluded(r.labels)).sort((a, b) => b.internalDate - a.internalDate);
       const facts = await cache.getFacts(acct, live.map((r) => r.messageId));
       const msgOf = (r) => toMsg(r, facts.get(r.messageId));
       const inbox = live.filter((r) => (r.labels || []).includes('INBOX')).slice(0, win.inboxPoolMax).map(msgOf);
@@ -245,9 +257,20 @@
       // drop drafts / chats; split discovered into new vs already-cached (label updates only)
       // messages whose metadata could not be fetched last time (quota / network) are retried first — never lost
       const pendingRows = (await cache.all(acct)).filter((r) => r.status === 'meta-pending');
+      // in backfill / recovery the list call returns IDs without labels: one ID-only list per Gmail category
+      // (5 units per 500 IDs) labels every message, proves coverage of all five categories and costs no metadata
+      let primaryListed = null; const catListed = new Map();
+      if (recovering && !ctx.fatal && DISC.mode === 'candidates') {
+        for (const cat of ['primary', 'updates', 'promotions', 'social', 'forums']) {
+          const pl = await listAll(ctx, 'q=' + encodeURIComponent(`newer_than:${windowDays}d category:${cat} -in:chats`), win.backfillMax, C);
+          if (pl.error) { if (cat === 'primary') primaryListed = null; continue; }
+          pl.ids.forEach((m) => catListed.set(m.id, cat));
+          if (cat === 'primary') primaryListed = new Set(pl.ids.map((m) => m.id));
+        }
+      }
       pendingRows.forEach((r) => { if (!discovered.has(r.messageId) && !deletedIds.has(r.messageId)) discovered.set(r.messageId, { id: r.messageId, threadId: r.threadId, labelIds: r.labels && r.labels.length ? r.labels : undefined, _pending: true }); });
       const existing = await cache.getMany(acct, [...discovered.keys()]);
-      const newIds = [];
+      let newIds = [];
       discovered.forEach((m, id) => {
         if ((m.labelIds || []).some((l) => l === 'DRAFT' || l === 'CHAT')) return;
         if (isExcluded(m.labelIds) && !(existing.get(id) && existing.get(id).status !== 'meta-pending')) { C.excludedByCategory = (C.excludedByCategory || 0) + 1; return; }
@@ -255,22 +278,74 @@
         if (c && c.status !== 'deleted' && c.status !== 'meta-pending') { if (m.labelIds) labelUpdates.set(id, m.labelIds); C.cachedUnchanged = (C.cachedUnchanged || 0) + 1; }
         else newIds.push(id);
       });
+      C.discovered = newIds.length;
       deletedIds.forEach((id) => labelUpdates.delete(id));
       const labelOnly = await cache.updateLabels(acct, [...labelUpdates].map(([id, labels]) => ({ id, labels })));
       C.labelOnly = labelOnly;
       const deletedNow = await cache.markDeleted(acct, [...deletedIds]);
       C.deleted = deletedNow.length;
 
-      // mailbox searches (IDs only, body-matching) — the recall net for bills / travel / documents
+      // ---- V2 candidate discovery: decide which new messages deserve a metadata call (20 units each) ----
+      // Primary and SENT always. Updates / Promotions / Social / Forums only when an ID-only search (5 units/page)
+      // or a transactional sender points at them. Nothing is excluded by category; non-candidates are remembered
+      // as 'skipped' (no content) and are promoted later if a search or the daily recovery net finds them.
       const hints = new Map();
+      const searchHit = new Set();
+      const labelsOf = (id) => discovered.get(id)?.labelIds || existing.get(id)?.labels || null;
+      const isNonPrimary = (id) => {
+        const l = labelsOf(id);
+        if (l) return !l.includes('SENT') && l.some((x) => NONPRIMARY.has(x));
+        if (primaryListed) return !primaryListed.has(id);
+        return false; // unknown labels and no primary list → be safe, treat as a candidate
+      };
+      const newNonPrimary = newIds.filter(isNonPrimary);
+      const since = cold || recovering ? windowDays : Math.min(windowDays, Math.max(1, Math.ceil((now() - (cp?.lastSyncAt || 0)) / DAY) + 1));
+      const runSearch = async (key, query, days, hintCat) => {
+        const l = await listAll(ctx, 'q=' + encodeURIComponent(`newer_than:${days}d ${query} ${EXQ}`.trim()), win.backfillMax, C);
+        C['search_' + key] = (C['search_' + key] || 0) + l.ids.length;
+        l.ids.forEach((m) => { searchHit.add(m.id); if (hintCat) { const h = hints.get(m.id) || new Set(); h.add(hintCat); hints.set(m.id, h); } });
+        return l;
+      };
       if (newIds.length && !ctx.fatal) {
-        const since = cold || recovering ? windowDays : Math.min(windowDays, Math.max(1, Math.ceil((now() - (cp.lastSyncAt || 0)) / DAY) + 1));
-        const want = new Set(newIds);
-        for (const [k, query] of Object.entries(cfg.searches)) {
-          const l = await listAll(ctx, 'q=' + encodeURIComponent(`newer_than:${since}d ${query} ${EXQ}`.trim()), win.backfillMax, C);
-          l.ids.forEach((m) => { if (!want.has(m.id)) return; const s = hints.get(m.id) || new Set(); s.add(cfg.searchHintCategory[k] || k); hints.set(m.id, s); });
+        // body-matching searches double as importance hints for the rules (Stage B) and as candidate discovery
+        for (const [k, query] of Object.entries(cfg.searches)) await runSearch(k, query, since, cfg.searchHintCategory[k] || k);
+        if (DISC.mode === 'candidates' && newNonPrimary.length) {
+          await runSearch('important', `-category:primary ${DISC.importantQuery}`, since, 'important');
+          const doms = await senderDomainsFor(acct);
+          if (doms.length) await runSearch('senders', `-category:primary from:(${doms.join(' OR ')})`, since, 'sender');
         }
       }
+      // daily recovery net: a broader, still ID-only search over non-Primary mail for the last few days
+      let netAt = cp?.netAt || (cold ? now() : 0);
+      if (DISC.mode === 'candidates' && !cold && !ctx.fatal && now() - netAt >= (DISC.recoveryEveryHours || 24) * 3600000) {
+        await runSearch('recoveryNet', `-category:primary ${DISC.recoveryQuery}`, DISC.recoveryDays || 3, 'net');
+        netAt = now(); C.recoveryNet = 1;
+      }
+      // skipped rows that a search now points at are promoted back into processing
+      if (searchHit.size) {
+        const skippedRows = await cache.getMany(acct, [...searchHit]);
+        skippedRows.forEach((r, id) => { if (r && r.status === 'skipped' && !newIds.includes(id)) { newIds.push(id); C.promotedFromSkipped = (C.promotedFromSkipped || 0) + 1; } });
+      }
+      let candidateIds = newIds;
+      const skippedStubs = [];
+      if (DISC.mode === 'candidates') {
+        candidateIds = newIds.filter((id) => !isNonPrimary(id) || searchHit.has(id));
+        const cand = new Set(candidateIds);
+        newIds.filter((id) => !cand.has(id)).forEach((id) => {
+          const d0 = discovered.get(id) || {};
+          const lab = d0.labelIds || existing.get(id)?.labels || (catListed.has(id) ? ['CATEGORY_' + catListed.get(id).toUpperCase()] : []);
+          skippedStubs.push({ messageId: id, threadId: d0.threadId || existing.get(id)?.threadId || null, labels: lab, status: 'skipped', internalDate: existing.get(id)?.internalDate || 0, dateUnknown: true, lastProcessedAt: now() }); // no metadata → date unknown; 0 keeps reconcile from treating it as deleted
+        });
+        if (skippedStubs.length) await cache.putMany(acct, skippedStubs);
+      }
+      // per-category transparency (what was discovered vs what got a metadata call)
+      const catOf = (id) => { const l = labelsOf(id) || []; const c = l.find((x) => /^CATEGORY_/.test(x)); if (c) return c === 'CATEGORY_PERSONAL' ? 'primary' : c.replace('CATEGORY_', '').toLowerCase(); if (catListed.has(id)) return catListed.get(id); return l.includes('SENT') ? 'sent' : 'primary'; };
+      const byCat = {};
+      newIds.forEach((id) => { const k = catOf(id); byCat[k] = byCat[k] || { discovered: 0, metadata: 0 }; byCat[k].discovered++; });
+      candidateIds.forEach((id) => { const k = catOf(id); byCat[k].metadata++; });
+      C.candidates = candidateIds.length; C.skippedNonCandidate = skippedStubs.length; C.byCategory = byCat;
+      const allNewIds = newIds;
+      newIds = candidateIds;
 
       // ---- Stage B: metadata + rules ----
       const metas = await fetchMany(ctx, newIds.map((id) => ({ id, path: metaPath(id) })), 20, 'getMeta', C);
@@ -308,7 +383,7 @@
       // AI credit bucket: every new email adds `maxShareOfNewMail` (5 %) of a call; a call spends 1. This keeps AI
       // below 5 % of new mail over time, including the backfill and anything deferred earlier.
       const share = cfgAll.ai?.maxShareOfNewMail ?? 0.05;
-      const aiCredits = Math.min(cfgAll.ai?.maxCredits ?? 25, (cp?.aiCredits || 0) + newIds.length * share);
+      const aiCredits = Math.min(cfgAll.ai?.maxCredits ?? 25, (cp?.aiCredits || 0) + allNewIds.length * share);
       const aiSlots = opts.aiEnabled ? Math.max(0, Math.floor(aiCredits) - 0) : 0;
       const aiQueued = all.filter((r) => r.aiPending && r.status !== 'deleted' && r.status !== 'body-queued').sort((a, b) => b.internalDate - a.internalDate).slice(0, aiSlots);
       const queue = [...all.filter((r) => r.status === 'body-queued' && !isExcluded(r.labels)).sort((a, b) => prio(b) - prio(a) || b.internalDate - a.internalDate), ...aiQueued];
@@ -342,6 +417,12 @@
           // finance-intel (Phase 2) found no money evidence in the body → do not call it financial
           category = c.facts.reference ? 'receipt' : 'other'; confidence = 0.6; reason = 'body checked: no financial evidence';
         }
+        {
+          const lab = rec.labels || [];
+          if ((category === 'social' || category === 'newsletter') && (lab.includes('CATEGORY_SOCIAL') || lab.includes('CATEGORY_FORUMS')) && REQUEST_RX.test(`${rec.subject || ''}\n${c.cleanText || ''}`)) {
+            category = 'personal'; confidence = 0.78; reason = 'request / deadline / invitation inside a Social or Forums email';
+          }
+        }
         rec.category = category; rec.confidence = +confidence.toFixed(3); rec.ruleReason = reason; rec.ruleStage = rec.ruleStage + '+body';
         rec.bodyFetched = true; rec.bodyHash = c.bodyHash; rec.lastProcessedAt = now();
         // key dates from the full text + structured booking data (schema.org)
@@ -373,9 +454,9 @@
       const aiBacklog = (await cache.all(acct)).filter((r) => r.aiPending).length;
 
       // ---- sent threads (reply loops): only when the mailbox changed or nothing is cached ----
-      let threads = [], sent = { checked: 0, fetched: 0, cached: 0, failed: 0, error: null };
+      let threads = [], sent = { checked: 0, fetched: 0, cached: 0, failed: 0, error: null }, sentListedAt = cp?.sentListedAt || 0;
       const cachedThreads = await cache.allThreads(acct);
-      if (cfg.sentThreads && !ctx.fatal && (mode !== 'unchanged' || !cachedThreads.length)) {
+      if (cfg.sentThreads && !ctx.fatal && (mode !== 'unchanged' || (!cachedThreads.length && !cp?.sentListedAt))) {
         const r = await engine.call(ctx, 'threads.list', `${G}/threads?labelIds=SENT&maxResults=${cfg.sentThreads}`, 10); C.req_threadsList = 1;
         if (r.ok) {
           const list = r.data?.threads || [];
@@ -389,14 +470,14 @@
             else if (c) { threads.push(c.thread); sent.cached++; if (g) sent.failed++; }
           });
           await cache.putThreads(acct, put);
-          sent.checked = list.length;
+          sent.checked = list.length; sentListedAt = now();
         } else { sent.error = { kind: r.kind, status: r.status }; threads = cachedThreads.map((t) => t.thread); }
       } else { threads = cachedThreads.sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, cfg.sentThreads).map((t) => t.thread); sent.cached = threads.length; sent.checked = threads.length; }
 
       // ---- checkpoint ----
       const discoveryOk = !ctx.fatal && !!startHid && !listError && (mode !== 'profile-failed');
       const cursor = discoveryOk ? startHid : (cp?.historyId || null);
-      await cache.setCheckpoint(acct, { aiCredits, historyId: cursor, backfilledAt: cp?.backfilledAt || (discoveryOk ? now() : null), windowDays, lastSyncAt: discoveryOk ? now() : (cp?.lastSyncAt || 0), lastLabel: opts.label || 'manual', lastMode: mode });
+      await cache.setCheckpoint(acct, { aiCredits, netAt, sentListedAt, historyId: cursor, backfilledAt: cp?.backfilledAt || (discoveryOk ? now() : null), windowDays, lastSyncAt: discoveryOk ? now() : (cp?.lastSyncAt || 0), lastLabel: opts.label || 'manual', lastMode: mode });
 
       // ---- pools for the app (from the cache, so every open is warm) ----
       const { pools, review: reviewAll, live } = await buildPools(acct);
@@ -408,6 +489,7 @@
         requests: ctx.requests, requestCount: Object.values(ctx.requests).reduce((a, b) => a + b, 0), units: ctx.units, retries: ctx.retries, quotaErrors: ctx.quotaErrors,
         listedTotal: discovered.size, uniqueIds: live.length, duplicatesAvoided: C.cachedUnchanged || 0,
         records, sent, queries: [], queryErrors: listError ? [{ key: 'window', ...listError }] : [], history: historyInfo, cursor, failures,
+        discovery: { mode: DISC.mode, discovered: allNewIds.length, metadataFetched: fetched, bodiesFetched: bodyFetched, skipped: skippedStubs.length, byCategory: C.byCategory || {}, recoveryNet: !!C.recoveryNet, requestsByKind: ctx.requests, unitsByKind: ctx.unitsByKind || {} },
         pipeline: { mode, newMessages: newIds.length, labelOnly, deleted: deletedNow.length, review: reviewAll.length, bodyBacklog, aiBacklog, metaPending: newRecs.filter((r) => r.status === 'meta-pending').length, counters: C },
         summary: ''
       };

@@ -8,15 +8,14 @@
   let mWeekCache={}, mCalIds=null, mWeekInflight={};
   let personalTasks = [];
   try { personalTasks = JSON.parse(localStorage.getItem('daylight-personal-tasks') || '[]'); if (!Array.isArray(personalTasks)) personalTasks=[]; } catch { personalTasks=[]; }
-  const scopes = [
-    'openid','email','profile',
-    'https://www.googleapis.com/auth/calendar.events.readonly',
-    'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/tasks.readonly',
-    'https://www.googleapis.com/auth/drive.metadata.readonly',
-    'https://www.googleapis.com/auth/contacts.readonly'
-  ].join(' ');
+  // V2: Gmail read-only is the only permission asked at sign-in. Calendar, Tasks and Contacts are optional
+  // connectors added later with their own consent (incremental authorisation). No send/modify scopes.
+  const scopes = ['openid','email','profile','https://www.googleapis.com/auth/gmail.readonly'].join(' ');
+  const OPTIONAL_GOOGLE_SCOPES={
+    calendar:'https://www.googleapis.com/auth/calendar.events.readonly',
+    tasks:'https://www.googleapis.com/auth/tasks.readonly',
+    contacts:'https://www.googleapis.com/auth/contacts.readonly'
+  };
   let googleGrantedScope='';
   const rememberGoogleScopes=s=>{
     googleGrantedScope=String(s||'');
@@ -31,6 +30,8 @@
     return /(?:^|\s)https:\/\/www\.googleapis\.com\/auth\/gmail\.readonly(?:\s|$)|(?:^|\s)gmail\.readonly(?:\s|$)/.test(googleGrantedScope||stored);
   };
   const needsGmailUpgrade=()=>Boolean((token||serverSession)&&!hasGmailReadonly());
+  /** True only when Google actually granted the optional connector's scope (never assumed). */
+  const hasGoogleScope=name=>{let stored='';try{stored=localStorage.getItem('daylight-google-scopes')||''}catch{};const blob=googleGrantedScope||stored;const sc=OPTIONAL_GOOGLE_SCOPES[name];return !!(sc&&blob.split(/\s+/).includes(sc))};
   const FITNESS_SCOPES=(window.DaylightHealth?.FITNESS_SCOPES||[
     'https://www.googleapis.com/auth/fitness.activity.read',
     'https://www.googleapis.com/auth/fitness.heart_rate.read',
@@ -147,7 +148,7 @@
         <div class="server-actions" style="margin-top:8px"><button class="connect" type="button" id="ai-save">Save AI settings</button></div>
       </details>
       ${g&&needsGmailUpgrade()?`<div class="error" role="status" style="margin-top:10px">Full Gmail reading needs a one-time reconnect so Google can grant <b>gmail.readonly</b> (your current grant is metadata-only). Daylight data on this device is kept.</div><div class="server-actions" style="margin-top:8px"><button class="connect primary" type="button" id="google-upgrade-readonly">Reconnect for full Gmail access</button></div>`:''}
-      ${g&&!needsGmailUpgrade()&&!hasGmailSend()?`<div class="error" role="status" style="margin-top:10px">Reply needs a one-time reconnect so Google can grant <b>gmail.send</b>. Use Reconnect below — Daylight data on this device is kept.</div><div class="server-actions" style="margin-top:8px"><button class="connect" type="button" id="google-upgrade-readonly">Reconnect Google permissions</button></div>`:''}
+      
       <details class="conn-more" id="conn-advanced"><summary>Optional: stay signed in / Microsoft</summary>
         <p class="hint" style="margin:8px 0 0">Only if you deployed the Daylight server. Never paste a Google <b>Client Secret</b> here — that belongs in Cloudflare secrets only.</p>
         <label class="client-label" for="server-url">Daylight server URL</label><input class="client-input" id="server-url" type="url" autocomplete="off" spellcheck="false" placeholder="https://daylight-api.your-name.workers.dev" value="${esc(serverUrl)}">
@@ -247,17 +248,25 @@
   }
   async function disconnectGoogle(){
     if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)}
+    disconnectGoogle.lastToken=token;
     token=null;rememberGoogleScopes('');resetGmailEngine();providerData.google={events:null,mails:null,tasks:null};loopsData=null;renderAll();clearProfile();
-    try{
+    if(!serverSession&&window.google?.accounts?.oauth2?.revoke&&disconnectGoogle.lastToken){try{google.accounts.oauth2.revoke(disconnectGoogle.lastToken,()=>{})}catch{}}
+    let wiped=null;
+    try{wiped=await window.DaylightDataReset?.deleteGmailData?.()}catch(e){console.warn('delete gmail data',e)}
+    // memory copies of Gmail data (bodies opened in the detail sheet, suggested tasks)
+    try{Object.keys(mailDetailCache).forEach(k=>delete mailDetailCache[k])}catch{}
+    try{personalTasks=JSON.parse(localStorage.getItem('daylight-personal-tasks')||'[]');if(!Array.isArray(personalTasks))personalTasks=[]}catch{personalTasks=[]}
+    try{renderAll();if(typeof renderMobile==='function')renderMobile();if(typeof renderHome==='function')renderHome();if(typeof renderInbox==='function')renderInbox({animate:false});if(typeof renderWallet==='function')renderWallet()}catch(e){console.warn('re-render after disconnect',e)}
+    if(!wiped){try{
       const Store=window.DaylightStore;
       if(Store?.clearAccountData){
         const acctId=await Store.getActiveAccountId?.();
         if(acctId)await Store.clearAccountData(acctId);
       }else await Store?.clearProviderData?.();
-    }catch{}
+    }catch{}}
     $('#sync-status').textContent=microsoftAccount?'Google disconnected · Microsoft still connected':'Not connected';
     $('#connections').classList.toggle('active',Boolean(microsoftAccount));
-    if($('#overlay').classList.contains('show'))connectDialog();toast('Google disconnected');
+    if($('#overlay').classList.contains('show'))connectDialog();toast(wiped?`Google disconnected · Gmail data deleted from this device`:'Google disconnected');
   }
   // ---- Profile photo + greeting ----
   function readProfile(){try{return JSON.parse(localStorage.getItem('daylight-profile')||'{}')||{}}catch{return{}}}
@@ -327,11 +336,29 @@
       if(!hasGmailReadonly()){errBox('Google did not grant gmail.readonly. On the consent screen, allow Daylight to read your mail (not metadata only), then try again.');return;}
       $('#overlay').classList.remove('show');$('#connections').classList.add('active');$('#sync-status').textContent='Google connected · refreshing…';
       setTimeout(()=>{token=null;$('#connections').classList.remove('active');$('#sync-status').textContent='Google access expired · reconnect to refresh';},Math.max(0,(Number(response.expires_in||3600)-60)*1000));
-      try{await refreshAll();toast(hasGmailSend()?'Google connected · full mail + replies':'Google connected · full mail reading enabled');}catch(e){toast('Connected, but some data failed to load');}
+      try{await refreshAll();toast('Google connected · Gmail read-only');}catch(e){toast('Connected, but some data failed to load');}
     },error_callback:e=>{errBox(googleAuthError(e?.type||e?.message||'popup_closed_by_user'))}});
     try{tokenClient.requestAccessToken({prompt:'consent'})}
     catch(e){errBox(googleAuthError(e?.message||'invalid_request'))}
   }
+  /** Optional Google connector (calendar | tasks | contacts): asks Google for that one extra read-only scope. */
+  function connectGoogleProduct(name){
+    const sc=OPTIONAL_GOOGLE_SCOPES[name];if(!sc)return;
+    if(serverUrl&&serverSession){
+      const q=new URLSearchParams({return:location.origin+location.pathname,add:name});
+      location.href=serverUrl+'/auth/google/start?'+q.toString();return;
+    }
+    const clientId=(localStorage.getItem('daylight-client-id')||'').trim();
+    if(!window.google?.accounts?.oauth2||!clientId){toast('Connect Gmail first',{type:'warn'});return}
+    const c=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:scopes+' '+sc,include_granted_scopes:true,callback:async r=>{
+      if(r.error||!r.access_token){toast('Google did not grant access',{type:'warn'});return}
+      token=r.access_token;rememberGoogleScopes(r.scope||'');
+      toast(hasGoogleScope(name)?`${name[0].toUpperCase()+name.slice(1)} connected · read-only`:'Google did not grant that permission',{type:hasGoogleScope(name)?'ok':'warn'});
+      try{await refreshAll()}catch{}
+    }});
+    c.requestAccessToken({prompt:'consent'});
+  }
+  window.DaylightConnectGoogleProduct=connectGoogleProduct;
   function requestGmailSendAccess(){
     const clientId=(localStorage.getItem('daylight-client-id')||'').trim();
     if(serverUrl){
@@ -478,6 +505,8 @@
       <table style="width:100%;border-collapse:collapse;margin-top:6px"><thead><tr><th style="text-align:left">Metric</th><th>Today</th><th>7 days</th>${accts.length>1?'<th>All accounts today</th>':''}</tr></thead><tbody>
       ${tr('Syncs (scheduled / manual / open / catch-up)',`${d1.syncs.scheduled}/${d1.syncs.manual}/${d1.syncs.open}/${d1.syncs.catchUp}`,`${d7.syncs.scheduled}/${d7.syncs.manual}/${d7.syncs.open}/${d7.syncs.catchUp}`,agg.syncs.total)}
       ${tr('Gmail quota units',d1.quota.units,d7.quota.units,agg.quota.units)}
+      ${(()=>{const ds=lastGmailReport?.discovery;if(!ds)return '';const u=Object.entries(ds.unitsByKind||{}).map(([k,v])=>`${k} ${v}`).join(', ')||'—';return tr('Last sync: discovered / metadata / bodies / skipped',`${ds.discovered} / ${ds.metadataFetched} / ${ds.bodiesFetched} / ${ds.skipped}${ds.recoveryNet?' · recovery net ran':''}`,'','')+tr('Last sync: quota units by operation',u,'','')})()}
+      ${(()=>{const cats={};idx.forEach(r=>{const l=r.labels||[];const c=l.includes('SENT')&&!l.some(x=>/^CATEGORY_/.test(x))?'sent':((l.find(x=>/^CATEGORY_/.test(x))||'CATEGORY_PERSONAL').replace('CATEGORY_','').toLowerCase().replace('personal','primary'));cats[c]=cats[c]||{read:0,skipped:0};r.status==='skipped'?cats[c].skipped++:cats[c].read++});return tr('Categories covered (read · skipped, no content kept)',Object.entries(cats).map(([c,v])=>`${c} ${v.read}·${v.skipped}`).join(', ')||'—','','')})()}
       ${tr('history.list / messages.list',`${d1.quota.historyList} / ${d1.quota.messagesList}`,`${d7.quota.historyList} / ${d7.quota.messagesList}`,`${agg.quota.historyList} / ${agg.quota.messagesList}`)}
       ${tr('Metadata GETs / full-body GETs',`${d1.quota.metadataGets} / ${d1.quota.fullGets}`,`${d7.quota.metadataGets} / ${d7.quota.fullGets}`,`${agg.quota.metadataGets} / ${agg.quota.fullGets}`)}
       ${tr('Batch requests (parts)',`${d1.quota.batchRequests} (${d1.quota.batchedParts})`,`${d7.quota.batchRequests} (${d7.quota.batchedParts})`,agg.quota.batchRequests)}
@@ -630,7 +659,7 @@
     const gmailTrigger=refreshAll.force?'manual':(refreshAll.trigger||'open'),gmailExtra={slotAt:refreshAll.slotAt||null,olderScan:!!refreshAll.olderScan};
     refreshAll.trigger=null;refreshAll.slotAt=null;refreshAll.olderScan=false;
     v2InboxWait=deferred();
-    const jobs=[];if(token)jobs.push(loadCalendar(),loadMail(),loadTasks(),loadDrive(),loadBirthdays(),loadLoops(refreshAll.force,gmailTrigger,gmailExtra));refreshAll.force=false;if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
+    const jobs=[];if(token){jobs.push(loadMail(),loadLoops(refreshAll.force,gmailTrigger,gmailExtra));if(hasGoogleScope('calendar'))jobs.push(loadCalendar());if(hasGoogleScope('tasks'))jobs.push(loadTasks());if(hasGoogleScope('contacts'))jobs.push(loadBirthdays())}refreshAll.force=false;if(microsoftAccount)jobs.push(loadMicrosoftCalendar(),loadMicrosoftMail(),loadMicrosoftTasks());
     const results=await Promise.allSettled(jobs);const failed=results.filter(r=>r.status==='rejected');renderAll();renderCategories();
     const eventCount=(providerData.google.events||[]).length+(providerData.microsoft.events||[]).length,mailCount=(providerData.google.mails||[]).length+(providerData.microsoft.mails||[]).length,taskCount=(providerData.google.tasks||[]).length+(providerData.microsoft.tasks||[]).length;
     const cats=computeCategories();
@@ -1219,7 +1248,7 @@
     try{applyEmailClassification(loopsData)}catch(e){console.warn('classify',e)}
     try{await enrichWithDaylightAI(loopsData)}catch(e){console.warn('daylight-ai',e)}
     const meetings=upcoming.filter(e=>(e.attendees||[]).length>1&&e.start?.dateTime&&new Date(e.start.dateTime)<new Date(localMidnight.getTime()+2*86400000)).slice(0,3);
-    await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
+    if(false)await Promise.all(meetings.map(async e=>{const word=(e.summary||'').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=5).sort((a,b)=>b.length-a.length)[0];if(!word)return;
       try{const u=new URL('https://www.googleapis.com/drive/v3/files');u.searchParams.set('q',`name contains '${word.replace(/'/g,"\\'")}' and trashed=false`);u.searchParams.set('pageSize','1');u.searchParams.set('orderBy','modifiedTime desc');u.searchParams.set('fields','files(name,webViewLink)');
         const f=(await apiRetry(u).then(r=>r.data)).files?.[0];if(f)loopsData.files[e.id]=f}catch{}}));
     loopsFetched=Date.now();
@@ -3006,6 +3035,9 @@
     if(body)replyState.body=body.value;
   }
   async function openReplyComposer(loop){
+    // V2 read-only release: Daylight never sends mail. Reply opens the original thread in Gmail.
+    {const href=loop?.href||(loop?.threadId||loop?.mailId?gmailLink(loop.threadId||loop.mailId):'');
+     if(href){feel.select();window.open(href,'_blank','noopener');toast('Opened in Gmail',{type:'ok'})}else toast('This item has no Gmail message to open',{type:'warn'});return}
     if(!canReplyInApp(loop)){toast('This item has no Gmail thread to reply to',{type:'warn'});return}
     if(!token){toast('Connect Google to reply',{type:'warn'});connectDialog({setup:true});return}
     feel.select();
@@ -3050,8 +3082,8 @@
       replyState.status='error';replyState.error='Enter a valid recipient email.';paintLoopDetail(loop,mailDetailCache[replyState.mailId]||null);return
     }
     if(!body.trim()){replyState.status='error';replyState.error='Write a reply before sending.';paintLoopDetail(loop,mailDetailCache[replyState.mailId]||null);return}
-    if(!hasGmailSend()){
-      replyState.status='error';replyState.error='Google send permission is missing. Reconnect and allow Daylight to send email.';
+    if(true){ // V2: sending is disabled in the read-only release (no gmail.send scope)
+      replyState.status='error';replyState.error='Daylight is read-only. Open the email in Gmail to reply.';
       paintLoopDetail(loop,mailDetailCache[replyState.mailId]||null);
       toast('Reconnect Google to grant send access',{type:'warn'});
       return;
@@ -5766,7 +5798,7 @@
     if(!token&&!microsoftAccount&&!DEMO){el.innerHTML='<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Connect to fill Inbox</b><p>Classified mail appears in Subscriptions, Payments, Receipts, Bills, Tickets and Important. Promotions stay in a separate tab.</p></div>';return}
     if(!loopsData&&token){el.innerHTML=skelRows(5);return}
     const items=inboxItems(mInboxFilter);
-    if(!items.length){el.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Inbox is clear</b><p>${mInboxFilter==='all'?'Nothing needs attention right now.':mInboxFilter==='promotions'?'Daylight no longer downloads Gmail Promotions, Social or Forums mail. They are still in Gmail.':'Nothing in this category.'}</p></div>`;return}
+    if(!items.length){el.innerHTML=`<div class="m-empty m-empty-illus"><div class="m-empty-art" aria-hidden="true"></div><b>Inbox is clear</b><p>${mInboxFilter==='all'?'Nothing needs attention right now.':mInboxFilter==='promotions'?'No promotions here. Daylight checks Promotions for receipts, bookings and tickets and only keeps the ones that matter.':'Nothing in this category.'}</p></div>`;return}
     const needs=items.filter(i=>i.needsReview||i.kind==='pending'||i.urgent||(i.kind==='bill'&&!i.received)||i.status==='failed'||i.status==='unpaid');
     const needsIds=new Set(needs.map(i=>i.id));
     const week=items.filter(i=>!needsIds.has(i.id)&&!i.received&&i.when&&(i.when-localMidnight.getTime())<=14*86400000);

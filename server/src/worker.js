@@ -9,17 +9,24 @@
 //   POST /auth/logout        (Authorization: Bearer <session>) → revokes and deletes
 //   GET  /health
 
-// gmail.readonly is required for messages.get?format=full (Email Intelligence + inbox bodies).
-// gmail.send is required for in-app replies (existing feature). Do not add unused scopes.
+// V2: onboarding asks for Gmail READ-ONLY and nothing else (minimum permission).
+// Other Google products are optional connectors: each is added later with its own consent screen
+// (incremental authorisation, include_granted_scopes=true) when the user turns it on.
+// No send / compose / modify / delete scopes are ever requested in this release.
 const GOOGLE_SCOPES = [
   'openid', 'email', 'profile',
-  'https://www.googleapis.com/auth/calendar.events.readonly',
   'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/tasks.readonly',
-  'https://www.googleapis.com/auth/drive.metadata.readonly',
-  'https://www.googleapis.com/auth/contacts.readonly',
 ].join(' ');
+const OPTIONAL_SCOPES = {
+  calendar: 'https://www.googleapis.com/auth/calendar.events.readonly',
+  tasks: 'https://www.googleapis.com/auth/tasks.readonly',
+  contacts: 'https://www.googleapis.com/auth/contacts.readonly',
+};
+/** Scopes for one sign-in: base + the optional connectors named in ?add=calendar,tasks (unknown names ignored). */
+function scopesFor(addParam) {
+  const extra = String(addParam || '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => OPTIONAL_SCOPES[x]).map((x) => OPTIONAL_SCOPES[x]);
+  return [GOOGLE_SCOPES, ...new Set(extra)].join(' ');
+}
 const SESSION_TTL = 60 * 60 * 24 * 180; // sessions idle for 180 days are forgotten
 const enc = new TextEncoder(), dec = new TextDecoder();
 const scopeBlob = (s) => String(s || '');
@@ -100,16 +107,18 @@ async function handle(req, env) {
     const state = randomId(24);
     // upgrade=1 (or legacy metadata reconnect): do not merge prior grants so Google shows gmail.readonly clearly.
     const upgrade = url.searchParams.get('upgrade') === '1' || url.searchParams.get('upgrade') === 'gmail';
-    await env.SESSIONS.put('state:' + state, JSON.stringify({ ret, upgrade }), { expirationTtl: 600 });
+    const add = url.searchParams.get('add') || '';
+    await env.SESSIONS.put('state:' + state, JSON.stringify({ ret, upgrade, add }), { expirationTtl: 600 });
     const g = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     Object.entries({
       client_id: env.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: GOOGLE_SCOPES,
+      scope: scopesFor(add),
       access_type: 'offline',
       prompt: 'consent',
       // false on upgrade so an old gmail.metadata grant cannot mask a missing readonly approval
+      // incremental: adding a connector keeps the scopes already granted
       include_granted_scopes: upgrade ? 'false' : 'true',
       state
     }).forEach(([k, v]) => g.searchParams.set(k, v));
