@@ -41,21 +41,29 @@
 
   function idbBackend(idb, name) {
     let dbp = null;
-    const open = () => dbp || (dbp = new Promise((res, rej) => {
-      const req = idb.open(name, DB_VERSION);
+    // Self-healing open: a database that exists but lacks stores (seen on a real device: an empty "daylight-mail" v1
+    // left behind, which broke every V2 sync) is upgraded to the next version and the missing stores are created.
+    const openAt = (version) => new Promise((res, rej) => {
+      const req = version ? idb.open(name, version) : idb.open(name);
       req.onupgradeneeded = () => {
         const db = req.result;
-        // v1: create stores. Future versions add `if (oldVersion < 2) {...}` blocks; nothing is ever dropped.
         STORES.forEach((s) => {
-          if (db.objectStoreNames.contains(s)) return;
-          const os = db.createObjectStore(s, { keyPath: SCHEMA[s].keyPath });
-          Object.entries(SCHEMA[s].indexes).forEach(([n, kp]) => os.createIndex(n, kp, { unique: false }));
+          // create what is missing — stores and indexes — and never delete or rewrite anything that exists
+          const os = db.objectStoreNames.contains(s) ? req.transaction.objectStore(s) : db.createObjectStore(s, { keyPath: SCHEMA[s].keyPath });
+          Object.entries(SCHEMA[s].indexes).forEach(([n, kp]) => { if (!os.indexNames.contains(n)) os.createIndex(n, kp, { unique: false }); });
         });
       };
-      req.onsuccess = () => { const db = req.result; db.onversionchange = () => { try { db.close(); } catch {} dbp = null; }; res(db); };
+      req.onsuccess = () => res(req.result);
       req.onerror = () => rej(req.error);
       req.onblocked = () => rej(new Error('daylight-mail open blocked'));
-    }));
+    });
+    const open = () => dbp || (dbp = (async () => {
+      let db = await openAt(null);
+      const incomplete = () => { if (STORES.some((s) => !db.objectStoreNames.contains(s))) return true; try { const t = db.transaction(STORES, 'readonly'); return STORES.some((s) => Object.keys(SCHEMA[s].indexes).some((n) => !t.objectStore(s).indexNames.contains(n))); } catch { return true; } };
+      if (incomplete()) { const v = db.version + 1; db.close(); db = await openAt(Math.max(v, DB_VERSION)); idbBackend.healed = (idbBackend.healed || 0) + 1; }
+      db.onversionchange = () => { try { db.close(); } catch {} dbp = null; };
+      return db;
+    })().catch((e) => { dbp = null; throw e; }));
     const p = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     const tx = async (store, mode) => (await open()).transaction(store, mode);
     const done = (t) => new Promise((res, rej) => { t.oncomplete = () => res(); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });

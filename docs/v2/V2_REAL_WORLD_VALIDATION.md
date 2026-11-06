@@ -29,6 +29,10 @@
 | 8 | High | After switching accounts, the previous profile and Items could stay on screen until the new profile loaded. | Code review | FIXED (hardening). An identity gate shows nothing account-specific until Google confirms the new account. E2E with a frame-by-frame leak monitor (A→B and B→A): zero frames showed the other account's cards, state or name. |
 | 9 | High | People and organisations were keyed by address only, so an organisation seen by two accounts was ONE Item shared across accounts. It survived the other account's disconnect and carried that account's sources. | Accounts E2E | FIXED (hardening). The keys are per account, and a one-time full re-ingest (`x3`) drops the old shared Items. |
 | 10 | Medium | When a browser signed in again, the old server session (with its encrypted refresh token) stayed in Workers KV for up to 180 days. | Backend audit | FIXED. The client calls `logout?keep_grant=1`, but only when `/health` advertises it, because an older Worker would revoke the grant. Worker unit test 10/10. Sessions orphaned before this fix still expire on their own. |
+| 12 | High | **Observed on the live site:** the Google session had expired, and the V2 app stayed on "Confirming your account…" with no way to reconnect from that screen. | Live site, Claude browser | FIXED locally (`daylight-v100`, not yet pushed). The app re-renders when sign-in state changes and shows a *Reconnect* banner. New E2E `v2-expired-session-e2e` 4/4. |
+| 13 | **Critical** | **Observed on your account (2026-11-06):** after sign-in, V2 showed no Gmail items at all. On that browser the `daylight-mail` database existed at version 1 with **no object stores**, so every V2 Gmail sync failed ("object store not found"). The app then fell back to the classic engine without telling anyone, and no Gmail Items reached the graph. Diagnostics showed 0 runs, 0 indexed and 0 quota units. How the empty database got there is unknown. | Live site, Claude browser + console | FIXED locally (`daylight-v101`): the mail cache and the graph now heal themselves (missing stores are created in a version bump), and a V2 engine failure is shown as a banner and in Diagnostics instead of being hidden. New E2E `v2-db-heal-e2e` 4/4; it fails on the old code. |
+| 14 | High | **Observed on your account:** the token Google issued carries **gmail.send, drive.metadata.readonly, calendar.events.readonly, tasks.readonly and contacts.readonly**, granted to an older Daylight version, even though V2 asks only for gmail.readonly. The Worker merged the old grants (`include_granted_scopes=true`), and the app would have used Calendar, Tasks and Contacts silently. | Live site (`daylight-google-scopes`) | FIXED locally: a normal sign-in no longer merges old grants (only adding a connector does). Calendar, Tasks, Contacts and Drive calls are blocked unless that connector was turned on in V2. Gmail settings warn about the extra permissions. Worker test 11/11, scope check passed, UI E2E check (no Calendar call). **You still need to revoke Daylight once at myaccount.google.com/permissions** to drop the old grant at Google. |
+| 15 | Medium | Review of the v101 fixes: (a) the self-heal checked only for missing stores, not missing indexes; (b) a failed graph ingest was still silent, and the "error cleared" step ran after the ingest, which would have wiped an ingest error; (c) the browser-only (no server) sign-in still merged old grants; (d) the engine-error banner appeared only after the next re-render. | Code review + new tests | FIXED (`daylight-v102`): missing indexes are created too; the ingest stage is recorded and the error is cleared only after a successful sync; the browser-only sign-in no longer merges; the banner updates within 1.5 s. New `v2-idb-migration-e2e` 9/9 (real IndexedDB) and `v2-engine-error-e2e` 6/6. A service-worker upgrade from v99 to v102 was tested: the old cache is deleted, the new scripts load, and offline serves the new build. |
 | 11 | Medium | The diagnostics labels used the words "accuracy" and "recall" for agreement on a user-chosen sample. | Review | FIXED. They are renamed to agreement on labelled emails, and a test fails if the words return. |
 
 ## 2b. Pre-deployment hardening (2026-11-05) — what changed
@@ -90,6 +94,17 @@
 
 ## 3. What still has to happen with real accounts (NOT RUN)
 Follow `REAL_GMAIL_VALIDATION_CHECKLIST.md` step by step and record what is observed. Sections 4–6 stay empty until then.
+
+## 3b. Live-site observations (2026-11-05, Claude browser on your computer)
+
+- **Observed:** the Worker `/health` returns `{"ok":true,"features":["logout_keep_grant"]}`, so the hardened Worker is deployed.
+- **Observed:** the frontend service worker is `daylight-v99`, so the hardened build is live.
+- **Observed:** the stored Google session had expired (the token endpoint returned a reauth error). This exposed issue #12.
+- **Observed 2026-11-06, after you signed in:** sign-in confirmed the account and the identity gate worked: no other account's data was shown. Then:
+  - V2 graph: 25 Items, all device-owned (24 tickets, 1 document); 0 Gmail Items.
+  - Mail cache: no stores; 0 V2 sync runs; 0 V2 quota units. The classic engine ran instead, and its quota is not recorded.
+  - Console: `gmail v2 — falling back to the Phase 1 engine NotFoundError … object stores was not found`.
+  - These are issues #13 and #14. No classification, extraction or quota result can be taken from this run.
 
 ## 4. Real Gmail quota — NOT RUN
 ## 5. Classification and ranking on real mail — NOT RUN

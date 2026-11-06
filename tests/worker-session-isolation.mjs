@@ -47,5 +47,8 @@ await req('/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' 
 ok('plain logout revokes at Google and deletes session B', calls.some((u) => u.includes('/revoke')) && (await token(B.session)).status === 401);
 const sw = new URL((await req('/auth/google/start?switch=1&return=' + encodeURIComponent('https://kratveer.github.io/Deshboard/'))).headers.get('Location'));
 ok('switch=1 shows Google\'s account chooser, same minimal scopes', sw.searchParams.get('prompt') === 'select_account consent' && sw.searchParams.get('scope') === A.scope);
+const base = new URL((await req('/auth/google/start?return=' + encodeURIComponent('https://kratveer.github.io/Deshboard/'))).headers.get('Location'));
+const addC = new URL((await req('/auth/google/start?add=calendar&return=' + encodeURIComponent('https://kratveer.github.io/Deshboard/'))).headers.get('Location'));
+ok('a normal sign-in does not merge older grants (include_granted_scopes=false); adding a connector does', base.searchParams.get('include_granted_scopes') === 'false' && sw.searchParams.get('include_granted_scopes') === 'false' && addC.searchParams.get('include_granted_scopes') === 'true' && /calendar\.events\.readonly/.test(addC.searchParams.get('scope')));
 console.log(`Worker session isolation: ${pass}/${pass + fail} passed`);
 process.exitCode = fail ? 1 : 0;

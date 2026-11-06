@@ -93,6 +93,7 @@ async function newPage(browser, g, viewport, mobile) {
       localStorage.setItem('daylight-api', w); localStorage.setItem('daylight-session', 'S'.repeat(43));
       localStorage.setItem('daylight-personal-tasks', JSON.stringify(personal));
       localStorage.setItem('daylight-gmail-config', JSON.stringify({ global: { quota: { limitPerMinute: 60000 }, pipeline: { maxFullPerSync: 80 } } }));
+      ['calendar', 'tasks', 'contacts'].forEach((n) => localStorage.setItem('daylight-connector-' + n, '1')); // this scenario's user turned those connectors on
       localStorage.setItem('dl-audit-seeded', '1');
     }
   }, { w: WORKER, personal: S.PERSONAL });

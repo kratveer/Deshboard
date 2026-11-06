@@ -14,6 +14,7 @@
   const DB_NAME = 'daylight-graph';
   const DB_VERSION = 1;
   const STORES = { items: 'id', links: 'id', rules: 'id', actions: 'id', log: 'id' };
+  const IDX = { items: { byAccount: 'accountId', byType: 'type', bySourceApp: 'sourceApp' }, links: { byAccount: 'accountId' }, rules: { byAccount: 'accountId' }, actions: { byAccount: 'accountId' }, log: { byAccount: 'accountId' } };
   const TYPES = Object.freeze(['email', 'person', 'organisation', 'bill', 'transaction', 'subscription', 'booking', 'trip', 'ticket',
     'delivery', 'deadline', 'appointment', 'task', 'event', 'project', 'document', 'warranty']);
   const USER_OWNED = ['status', 'snoozedUntil', 'pinned', 'userCorrections', 'actionHistory', 'userPriority', 'notes', 'plannedAt', 'plannedMinutes'];
@@ -90,21 +91,29 @@
   }
   function idbBackend(idb, name) {
     let dbp = null;
-    const open = () => dbp || (dbp = new Promise((res, rej) => {
-      const req = idb.open(name, DB_VERSION);
+    // Self-healing open (same as the mail cache): missing stores in an existing database are created in a version bump.
+    const openAt = (version) => new Promise((res, rej) => {
+      const req = version ? idb.open(name, version) : idb.open(name);
       req.onupgradeneeded = () => {
         const db = req.result;
         Object.entries(STORES).forEach(([s, kp]) => {
-          if (db.objectStoreNames.contains(s)) return;
-          const os = db.createObjectStore(s, { keyPath: kp });
-          if (s === 'items') { os.createIndex('byAccount', 'accountId'); os.createIndex('byType', 'type'); os.createIndex('bySourceApp', 'sourceApp'); }
-          else os.createIndex('byAccount', 'accountId');
+          // create what is missing — stores and indexes — and never delete or rewrite anything that exists
+          const os = db.objectStoreNames.contains(s) ? req.transaction.objectStore(s) : db.createObjectStore(s, { keyPath: kp });
+          Object.entries(IDX[s]).forEach(([n, f]) => { if (!os.indexNames.contains(n)) os.createIndex(n, f); });
         });
       };
-      req.onsuccess = () => { const db = req.result; db.onversionchange = () => { try { db.close(); } catch {} dbp = null; }; res(db); };
+      req.onsuccess = () => res(req.result);
       req.onerror = () => rej(req.error);
       req.onblocked = () => rej(new Error('daylight-graph open blocked'));
-    }));
+    });
+    const open = () => dbp || (dbp = (async () => {
+      let db = await openAt(null);
+      const names = Object.keys(STORES);
+      const incomplete = () => { if (names.some((s) => !db.objectStoreNames.contains(s))) return true; try { const t = db.transaction(names, 'readonly'); return names.some((s) => Object.keys(IDX[s]).some((n) => !t.objectStore(s).indexNames.contains(n))); } catch { return true; } };
+      if (incomplete()) { const v = db.version + 1; db.close(); db = await openAt(Math.max(v, DB_VERSION)); }
+      db.onversionchange = () => { try { db.close(); } catch {} dbp = null; };
+      return db;
+    })().catch((e) => { dbp = null; throw e; }));
     const p = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     const done = (t) => new Promise((res, rej) => { t.oncomplete = () => res(); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
     const tx = async (s, mode) => (await open()).transaction(s, mode);

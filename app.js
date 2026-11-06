@@ -31,7 +31,9 @@
   };
   const needsGmailUpgrade=()=>Boolean((token||serverSession)&&!hasGmailReadonly());
   /** True only when Google actually granted the optional connector's scope (never assumed). */
-  const hasGoogleScope=name=>{let stored='';try{stored=localStorage.getItem('daylight-google-scopes')||''}catch{};const blob=googleGrantedScope||stored;const sc=OPTIONAL_GOOGLE_SCOPES[name];return !!(sc&&blob.split(/\s+/).includes(sc))};
+  /* V2: an optional Google product is used only when the user turned that connector on in THIS release — an older, broader grant (e.g. calendar or gmail.send from Version 1) is never used silently. */
+  const connectorOn=name=>{try{return localStorage.getItem('daylight-connector-'+name)==='1'}catch{return false}};
+  const hasGoogleScope=name=>{if(!connectorOn(name))return false;let stored='';try{stored=localStorage.getItem('daylight-google-scopes')||''}catch{};const blob=googleGrantedScope||stored;const sc=OPTIONAL_GOOGLE_SCOPES[name];return !!(sc&&blob.split(/\s+/).includes(sc))};
   const FITNESS_SCOPES=(window.DaylightHealth?.FITNESS_SCOPES||[
     'https://www.googleapis.com/auth/fitness.activity.read',
     'https://www.googleapis.com/auth/fitness.heart_rate.read',
@@ -327,7 +329,7 @@
     localStorage.setItem('daylight-client-id',clientId);
     if(!window.google?.accounts?.oauth2) { errBox('Google sign-in is still loading. Try again in a moment.'); return; }
     errBox('');
-    const mergePrior=!opts.upgrade;
+    const mergePrior=false; // V2: a sign-in asks for exactly the base scopes; older grants (calendar, drive, gmail.send…) are never merged in
     tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:scopes,include_granted_scopes:mergePrior,callback:async response=>{
       if(response.error){errBox(googleAuthError(response.error));return;}
       if(!response.access_token){errBox('Google did not return access. Try Connect again.');return;}
@@ -346,6 +348,7 @@
   /** Optional Google connector (calendar | tasks | contacts): asks Google for that one extra read-only scope. */
   function connectGoogleProduct(name){
     const sc=OPTIONAL_GOOGLE_SCOPES[name];if(!sc)return;
+    try{localStorage.setItem('daylight-connector-'+name,'1')}catch{}
     if(serverUrl&&serverSession){
       const q=new URLSearchParams({return:location.origin+location.pathname,add:name});
       location.href=serverUrl+'/auth/google/start?'+q.toString();return;
@@ -413,6 +416,9 @@
   }
   async function api(url, opts, retried) {
     if(typeof opts==='boolean'){retried=opts;opts={}}
+    // V2 guard: Calendar / Tasks / Contacts / Drive are only called for connectors the user turned on in this release
+    {const u=String(url);const gate=/googleapis\.com\/calendar\//.test(u)?'calendar':/tasks\.googleapis\.com/.test(u)?'tasks':/people\.googleapis\.com/.test(u)?'contacts':/googleapis\.com\/drive\//.test(u)?'drive':null;
+     if(gate&&!hasGoogleScope(gate)){const e=new Error('connector_off:'+gate);e.status=403;e.connectorOff=true;throw e}}
     opts=opts||{};
     if(serverSession&&Date.now()>tokenExpiry-60000)await serverToken();
     if(!token)throw new Error('Google is not connected');
@@ -495,7 +501,7 @@
     if(!identityVerified){v2IngestGmail.last={skipped:'account not confirmed yet',at:Date.now()};return null}
     const key='daylight-graph-ingest:x3:'+v2AccountKey(); /* x3: extraction fixes + per-account people/organisations (Phase E) → one full re-ingest */let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}
     const t0=Date.now();
-    try{const r=await c.gmail.ingest(v2AccountKey(),{since});try{localStorage.setItem(key,String(t0))}catch{};try{await c.local?.importLocal()}catch(e){console.warn('local import',e)};v2IngestGmail.last=c.lastIngest={...r,at:Date.now(),ms:Date.now()-t0,incremental:!!since};try{const lk='daylight-v2-ingest-log:'+v2AccountKey();const l=JSON.parse(localStorage.getItem(lk)||'[]');l.push(c.lastIngest);localStorage.setItem(lk,JSON.stringify(l.slice(-20)))}catch{};return r}catch(e){console.warn('graph ingest',e);v2IngestGmail.last={error:String(e?.message||e),at:Date.now()};return null}
+    try{const r=await c.gmail.ingest(v2AccountKey(),{since});try{localStorage.setItem(key,String(t0))}catch{};try{await c.local?.importLocal()}catch(e){console.warn('local import',e)};v2IngestGmail.last=c.lastIngest={...r,at:Date.now(),ms:Date.now()-t0,incremental:!!since};try{const lk='daylight-v2-ingest-log:'+v2AccountKey();const l=JSON.parse(localStorage.getItem(lk)||'[]');l.push(c.lastIngest);localStorage.setItem(lk,JSON.stringify(l.slice(-20)))}catch{};return r}catch(e){console.warn('graph ingest',e);try{localStorage.setItem('daylight-v2-engine-error:'+v2AccountKey(),JSON.stringify({at:Date.now(),stage:'graph ingest',message:String(e&&e.message||e).slice(0,300)}))}catch{};v2IngestGmail.last={error:String(e?.message||e),at:Date.now()};return null}
   }
   function getMailV2(){
     if(mailV2)return mailV2;
@@ -938,7 +944,7 @@
     dispatchEvent(new CustomEvent('daylight:account',{detail:{reason}}));
   }
   function clearServerSession(statusMsg){
-    serverSession='';setLS('daylight-session','');token=null;rememberGoogleScopes('');resetGmailEngine();
+    serverSession='';setLS('daylight-session','');token=null;rememberGoogleScopes('');resetGmailEngine();try{invalidateIdentity('signed-out',false)}catch{};
     $('#connections').classList.toggle('active',Boolean(microsoftAccount));
     if(statusMsg)$('#sync-status').innerHTML=statusMsg;
   }
@@ -1238,7 +1244,7 @@
     const useV2=v2Enabled();
     let v2Out=null;
     if(useV2&&token&&!identityVerified){try{await loadProfile()}catch{}}
-    if(useV2){try{v2Out=await v2GmailSync(gmailTrigger||(force?'manual':'open'),gmailExtra);await v2IngestGmail()}catch(e){console.warn('gmail v2 — falling back to the Phase 1 engine',e);v2Out=null}}
+    if(useV2){try{v2Out=await v2GmailSync(gmailTrigger||(force?'manual':'open'),gmailExtra);try{localStorage.removeItem('daylight-v2-engine-error:'+v2AccountKey())}catch{};await v2IngestGmail()}catch(e){console.warn('gmail v2 — falling back to the Phase 1 engine',e);v2Out=null;try{localStorage.setItem('daylight-v2-engine-error:'+v2AccountKey(),JSON.stringify({at:Date.now(),stage:'gmail sync',message:String(e&&e.message||e).slice(0,300)}))}catch{}}}
     v2InboxWait?.resolve(v2Out?v2Out.pools:null);
     if(v2Out)v2LastPools=v2Out.pools;
     const {report:gmailReport,pools,historyExtras,threads:sentThreads,cursor:gmailCursor}=v2Out||await gmailEngine().sync(gmailPlan);
@@ -1250,7 +1256,7 @@
     const byId=new Map();[...(historyExtras||[]),...inbox,...financeMail,...travelMail,...docsMail].forEach(m=>{if(m?.id)byId.set(m.id,m)});
     // Calendar: prefer syncToken when present; recover on 410
     let upcoming=[],calCursor=syncPrev?.calendar?.cursor||null;
-    try{
+    if(hasGoogleScope('calendar'))try{
       if(calCursor){
         calMode='incremental';
         const u=new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
@@ -6999,6 +7005,8 @@
       theme:{get:themePref,set:m=>applyThemePref(m)},
       openScanner:()=>{try{openScan()}catch(e){console.warn('scan',e)}},
       /* developer diagnostics: real counters from the mail cache (no estimates) */
+      engineError:()=>{try{return identityVerified?JSON.parse(localStorage.getItem('daylight-v2-engine-error:'+v2AccountKey())||'null'):null}catch{return null}},
+      grantedScopes:()=>{let b='';try{b=localStorage.getItem('daylight-google-scopes')||''}catch{};const all=b.split(/\s+/).filter(Boolean);const wanted=['openid','email','profile','https://www.googleapis.com/auth/userinfo.email','https://www.googleapis.com/auth/userinfo.profile','https://www.googleapis.com/auth/gmail.readonly'];return {all,extra:all.filter(x=>!wanted.includes(x))}},
       accountNames:()=>{try{return JSON.parse(localStorage.getItem('daylight-v2-account-names')||'{}')}catch{return {}}},
       async deleteAccountData(acct){if(!acct||acct===v2AccountKey())throw new Error('use Disconnect for the signed-in account');let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{};return W.DaylightDataReset.deleteGmailData({accountId:acct,active:false,mailCache:mc})},
       /** Diagnostics only: read Subject/From/Date of a few messages Daylight skipped (gmail.readonly, 20 quota units each). Nothing is stored. */
@@ -7027,7 +7035,8 @@
         const rows=await v.cache.metrics(acct).catch(()=>[]);const idx=await v.cache.all(acct).catch(()=>[]);const cp=await v.cache.getCheckpoint(acct).catch(()=>null)||{};
         const status={},cats={};idx.forEach(r=>{status[r.status]=(status[r.status]||0)+1;const l=r.labels||[];const c=l.includes('SENT')&&!l.some(x=>/^CATEGORY_/.test(x))?'sent':((l.find(x=>/^CATEGORY_/.test(x))||'CATEGORY_PERSONAL').replace('CATEGORY_','').toLowerCase().replace('personal','primary'));cats[c]=cats[c]||{indexed:0,skipped:0,bodies:0};cats[c].indexed++;if(r.status==='skipped')cats[c].skipped++;if(r.bodyFetched)cats[c].bodies++});
         const runs=rows.flatMap(r=>r.runs||[]).sort((a,b)=>b.at-a.at).slice(0,15);const skipped=idx.filter(r=>r.status==='skipped').map(r=>({id:r.messageId,labels:r.labels||[]})).sort((a,b)=>String(b.id).localeCompare(String(a.id)));const unresolved=idx.filter(r=>r.status==='meta-pending'||r.status==='body-queued').map(r=>({id:r.messageId,status:r.status,error:r.lastError||null,subject:r.subject||null}));let aiQ=0;try{aiQ=(await v.cache.aiQueue(acct)).length}catch{};let ingestLog=[];try{ingestLog=JSON.parse(localStorage.getItem('daylight-v2-ingest-log:'+acct)||'[]')}catch{};
-        return {engine:'v2',account:acct,runs,skipped,unresolved,aiQueue:aiQ,ingestLog,today:M?M.summarise(rows,{days:1}):null,week:M?M.summarise(rows,{days:7}):null,last:lastGmailReport?{at:lastGmailReport.at,discovery:lastGmailReport.discovery||null,units:lastGmailReport.units??null}:null,index:{total:idx.length,status,categories:cats},checkpoint:{windowDays:cp.windowDays||null,lastMode:cp.lastMode||null,lastFullAt:cp.lastFullAt||null},ingest:core&&core.lastIngest||null};
+        let engineError=null;try{engineError=JSON.parse(localStorage.getItem('daylight-v2-engine-error:'+acct)||'null')}catch{};
+        return {engine:'v2',account:acct,engineError,runs,skipped,unresolved,aiQueue:aiQ,ingestLog,today:M?M.summarise(rows,{days:1}):null,week:M?M.summarise(rows,{days:7}):null,last:lastGmailReport?{at:lastGmailReport.at,discovery:lastGmailReport.discovery||null,units:lastGmailReport.units??null}:null,index:{total:idx.length,status,categories:cats},checkpoint:{windowDays:cp.windowDays||null,lastMode:cp.lastMode||null,lastFullAt:cp.lastFullAt||null},ingest:core&&core.lastIngest||null};
       },
       async deleteAll(){
         if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}}

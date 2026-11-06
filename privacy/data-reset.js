@@ -38,7 +38,7 @@
    *  - Classic-view caches (V1 keys such as daylight-loops) were never account-scoped; they mirror the ACTIVE account
    *    and are cleared when the active account is disconnected (another account rebuilds them on its next sync).
    */
-  const ACCOUNT_SUFFIX_PREFIXES = ['daylight-graph-ingest', 'daylight-v2-ingest-log', 'daylight-v2-validation', 'daylight-v2-missed', 'daylight-gmail-last-sync', 'daylight-finance-ledger'];
+  const ACCOUNT_SUFFIX_PREFIXES = ['daylight-v2-engine-error', 'daylight-graph-ingest', 'daylight-v2-ingest-log', 'daylight-v2-validation', 'daylight-v2-missed', 'daylight-gmail-last-sync', 'daylight-finance-ledger'];
   const ACTIVE_ONLY_KEYS = GMAIL_KEYS.filter((k) => k !== 'daylight-gmail-accounts').concat(['daylight-session-owner']);
   const mailIdOf = (x) => String((x && (x.mailId || (/^mail:/.test(String(x.id || '')) ? String(x.id).slice(5) : ''))) || '');
   const readJ = (ls, k, d) => { try { const v = JSON.parse(ls.getItem(k) || 'null'); return v == null ? d : v; } catch { return d; } };
@@ -91,7 +91,7 @@
       keys.forEach((k) => {
         if (!k) return;
         const suffixed = ACCOUNT_SUFFIX_PREFIXES.some((p) => k.startsWith(p));
-        const hit = suffixed ? (single || (acct && k.endsWith(':' + acct))) : (active && ACTIVE_ONLY_KEYS.includes(k));
+        const hit = suffixed ? (single || (acct && k.endsWith(':' + acct))) : (active && (ACTIVE_ONLY_KEYS.includes(k) || k.startsWith('daylight-connector-')));
         if (hit) { ls.removeItem(k); report.keys++; }
       });
       if (single) { if (ls.getItem('daylight-gmail-accounts') != null) { ls.removeItem('daylight-gmail-accounts'); report.keys++; } }

@@ -120,7 +120,9 @@ async function handle(req, env) {
       prompt: url.searchParams.get('switch') === '1' ? 'select_account consent' : 'consent', // switch=1: let the user pick a different Google account
       // false on upgrade so an old gmail.metadata grant cannot mask a missing readonly approval
       // incremental: adding a connector keeps the scopes already granted
-      include_granted_scopes: upgrade ? 'false' : 'true',
+      // V2: a normal sign-in asks for exactly the base scopes and does NOT merge older grants (Version 1 asked for
+      // calendar, tasks, contacts, drive and gmail.send). Only adding a connector (?add=…) merges what is already granted.
+      include_granted_scopes: add && !upgrade ? 'true' : 'false',
       state
     }).forEach(([k, v]) => g.searchParams.set(k, v));
     return Response.redirect(g.toString(), 302);

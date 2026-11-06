@@ -50,9 +50,11 @@ function calendarEvents(calId, u) {
   calLog.push({ calId, timeMin: u.searchParams.get('timeMin'), timeMax: u.searchParams.get('timeMax'), max, returned: page.length, total: inRange.length });
   return { items: page, nextPageToken: start + max < inRange.length ? String(start + max) : undefined, nextSyncToken: start + max >= inRange.length ? 'sync-' + calVersion : undefined, timeZone: 'Europe/Prague' };
 }
+const optionalCalls = [];
 async function mockGoogle(page, g) {
   await page.route('**/*', async (route) => {
     const req = route.request(), u = new URL(req.url());
+    if (/googleapis\.com\/calendar\/|tasks\.googleapis\.com|people\.googleapis\.com|googleapis\.com\/drive\//.test(req.url())) optionalCalls.push(req.url().split('?')[0]);
     if (u.hostname === '127.0.0.1') return route.continue();
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     if (u.origin === WORKER) return json(route, 200, { access_token: 'fake', expires_in: 3600, email: 'test@example.com', scope: 'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/tasks.readonly https://www.googleapis.com/auth/contacts.readonly', gmail_readonly: true });
@@ -221,6 +223,7 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     const after = await page.evaluate(async () => ({ gmail: (await window.DaylightV2.graph.query({ sourceApp: 'gmail' })).length, connected: window.DaylightV2Host.connected(), cards: document.querySelectorAll('[data-list=needs] [data-sw]').length }));
     check('Disconnect and delete → no Gmail Items left, app shows disconnected', after.gmail === 0 && !after.connected, after);
     out.errors = errs;
+    check('a token that also carries calendar/tasks/contacts/drive (older grant) is NOT used for them unless the connector was turned on — no request to any of those APIs', calLog.length === 0 && optionalCalls.length === 0, { calLog: calLog.length, optionalCalls: [...new Set(optionalCalls)] });
     check('no page errors', errs.length === 0, errs);
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/real-after-disconnect.png` });
     // classic view still reachable

@@ -95,7 +95,7 @@
     root.addEventListener('daylight:account', () => {
       if (S.sample) return;
       const next = (S.host.accountId && S.host.accountId()) || null;
-      if (next === S.account && !(S.host.accountPending && S.host.accountPending())) return;
+      if (next === S.account && !(S.host.accountPending && S.host.accountPending())) { render(); return; }
       while (S.sheets.length) closeSheet(true, true);
       S.items = []; S.byId = new Map(); S.actions = []; S.rules = []; S.account = next; S.briefParts = [];
       S.inbox.query = ''; S.inbox.open = {}; S.plan.proposal = null; S.labelFilter = null; S.todayOffset = 0;
@@ -146,6 +146,8 @@
           <button class="v-askbar" type="button" data-ask>${ic('spark', 18)}<span>Ask Daylight</span></button>
           <button class="v-ring off" type="button" data-ring aria-label="Sync status"><svg width="34" height="34" viewBox="0 0 34 34"><circle class="trk" cx="17" cy="17" r="14" fill="none" stroke-width="3"/><circle class="arc" cx="17" cy="17" r="14" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="88" stroke-dashoffset="88"/></svg><i class="dot"></i></button>
         </header>
+        <div class="v-sample" data-engineerr hidden style="background:var(--v-bad-soft)">${ic('urgent', 16)} Gmail couldn't be read on the last sync — what you see may be incomplete<button type="button" data-diag>Details</button></div>
+        <div class="v-sample" data-reauth hidden>${ic('urgent', 16)} Google sign-in has expired — your Gmail items are hidden<button type="button" data-connect>Reconnect</button></div>
         <div class="v-sample" data-sample-banner hidden>${ic('spark', 16)} Sample data — nothing here is real<button type="button" data-exit-sample>Exit</button></div>
         <div class="v-body"><div class="v-stage">
           <section class="v-screen" data-screen="today"></section><section class="v-screen" data-screen="inbox" hidden></section><section class="v-screen" data-screen="plan" hidden></section>
@@ -170,6 +172,10 @@
     if (!S.mounted) return;
     const root2 = $('#v2');
     $('[data-sample-banner]', root2).hidden = !S.sample;
+    let known = false; try { known = !S.sample && !connected() && Object.keys((S.host.accountNames && S.host.accountNames()) || {}).length > 0; } catch {}
+    $('[data-reauth]', root2).hidden = !known;
+    let engErr = null; try { engErr = !S.sample && connected() && S.host.engineError ? S.host.engineError() : null; } catch {}
+    $('[data-engineerr]', root2).hidden = !engErr;
     renderTop();
     const pending = !S.sample && !!(S.host.accountPending && S.host.accountPending());
     const showWelcome = !pending && !connected() && !S.welcomeSkipped && !S.items.length;
@@ -203,6 +209,12 @@
   }
   function renderRing() {
     const r = $('[data-ring]'); if (!r) return;
+    const pendNow = !S.sample && !!(S.host.accountPending && S.host.accountPending()), connNow = connected();
+    if (S.lastPending !== undefined && (pendNow !== S.lastPending || connNow !== S.lastConn)) { S.lastPending = pendNow; S.lastConn = connNow; render(); }
+    S.lastPending = pendNow; S.lastConn = connNow;
+    let engNow = null; try { engNow = !S.sample && connNow && S.host.engineError ? JSON.stringify(S.host.engineError()) : null; } catch {}
+    if (S.lastEng !== undefined && engNow !== S.lastEng) { S.lastEng = engNow; render(); }
+    S.lastEng = engNow;
     if (!S.sample && S.host.accountId && S.loadedAt && S.host.accountId() !== S.account) root.dispatchEvent(new CustomEvent('daylight:account', { detail: { reason: 'poll' } }));
     const st = (S.host.syncState && S.host.syncState()) || {};
     const on = connected();
@@ -750,6 +762,8 @@
       let h = `<div style="display:flex;gap:12px;align-items:center"><span style="width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;font-weight:800;background:#EA4335">M</span><div><b style="font-size:17px">Gmail</b><div class="v-muted">${on ? 'Connected' + (S.sample ? ' (sample)' : '') : 'Not connected'}</div></div></div>`;
       if (!on) return h + `<div class="v-section"><p>Daylight reads your Gmail to find bills, deadlines, trips and messages that need you. It cannot send, delete or change mail.</p><button class="v-bigbtn" type="button" data-connect style="width:100%;min-width:0">Connect Gmail</button></div>`;
       h += `<div class="v-section"><h4>Status</h4><div class="v-mini"><button type="button"><span style="flex:1">Last sync</span><span class="r">${st.busy ? 'Syncing now…' : st.lastAt ? M.ago(st.lastAt, nowMs()) + ' ago' : '—'}</span></button><button type="button"><span style="flex:1">Items from Gmail</span><span class="r">${g.length}</span></button>${Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<button type="button"><span style="flex:1;padding-left:12px" class="v-muted">${esc(M.KIND_LABEL[k] || k)}</span><span class="r">${v}</span></button>`).join('')}${st.error ? `<button type="button"><span style="flex:1" class="v-danger">${esc(st.error)}</span></button>` : ''}</div>${!S.sample ? '<button class="v-pbtn" type="button" data-syncnow style="margin-top:10px">Sync now</button>' : ''}</div>`;
+      const gs = (S.host.grantedScopes && !S.sample) ? S.host.grantedScopes() : null;
+      if (gs && gs.extra.length) h += `<div class="v-banner" style="background:var(--v-warn-soft);flex-wrap:wrap">${ic('shield', 18)}<span style="flex:1;min-width:200px"><b>Google granted more than Daylight asks for.</b> An older Daylight version was allowed: ${esc(gs.extra.map((x) => x.replace('https://www.googleapis.com/auth/', '')).join(', '))}. This release does not use them. To remove them, revoke Daylight at Google, then connect again.</span><a class="v-pbtn" href="https://myaccount.google.com/permissions" target="_blank" rel="noopener" style="text-decoration:none">Google permissions ↗</a></div>`;
       h += `<div class="v-section"><h4>What Daylight reads</h4><p style="font-size:14.5px;margin:0">All Gmail categories, read-only (gmail.readonly). Only the messages that look important are opened in full; the rest are judged from sender and subject.</p></div>`;
       if (!S.sample && S.host.switchAccount) h += `<div class="v-section"><h4>Another Google account</h4><p class="v-muted" style="font-size:13.5px;margin:0 0 8px">Sign in with a different Gmail account on this device. This account's data stays here, hidden while the other one is signed in.</p><button class="v-pbtn" type="button" data-switchacct>Sign in with another account</button></div>`;
       h += `<div class="v-section"><h4>Write access</h4><div class="v-setrow" style="border:0">Off<span class="r">This release cannot send, archive, label or delete mail. Reply opens Gmail.</span></div></div>`;
@@ -830,6 +844,7 @@
     h += `<div class="v-section"><h4>Provenance and source links</h4>${tbl([['Cards checked on all tabs', prov.checked], ['Cards without a graph Item or source', prov.problems.length], ['Items with no source', a.provenance.noSource.length], ['Facts citing a missing email', a.provenance.orphanFacts.length], ['Broken links', a.provenance.brokenLinks], ['Gmail-derived Items not linked to their email', a.provenance.derivedNoEvidence.length], ['Links in total', a.links]])}${prov.problems.length ? `<pre class="v-pre">${esc(JSON.stringify(prov.problems.slice(0, 10), null, 1))}</pre>` : ''}</div>`;
     if (sync && sync.engine === 'v2') {
       const t = sync.today, w = sync.week, runs = sync.runs || [];
+      if (sync.engineError) h += `<div class="v-banner" style="background:var(--v-bad-soft)">${ic('urgent', 18)}<span><b>The V2 Gmail engine failed on the last sync</b> (${esc(fmtT(sync.engineError.at))}${sync.engineError.stage ? ', ' + esc(sync.engineError.stage) : ''}). ${sync.engineError.stage === 'graph ingest' ? 'Mail was read but did not reach these screens' : 'The classic engine was used instead, so new Gmail items did not reach these screens'}: ${esc(sync.engineError.message)}</span></div>`;
       const cold = runs.filter((r) => r.cold), warm = runs.filter((r) => !r.cold);
       const avg = (xs, k) => (xs.length ? Math.round(xs.reduce((s2, r) => s2 + (r[k] || 0), 0) / xs.length) : null);
       h += `<div class="v-section"><h4>Gmail API quota (real counters)</h4>${tbl([

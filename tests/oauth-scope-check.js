@@ -57,7 +57,8 @@ const worker = fs.readFileSync(path.join(__dirname, '..', 'server', 'src', 'work
 const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const checks = [
   [/gmail\.readonly/, worker, 'worker requests gmail.readonly'],
-  [/include_granted_scopes: upgrade \? 'false' : 'true'/, worker, 'worker upgrade disables include_granted_scopes'],
+  [/const mergePrior=false;/, app, 'browser-only sign-in never merges older grants'],
+  [/include_granted_scopes: add && !upgrade \? 'true' : 'false'/, worker, 'worker: upgrade and normal sign-in never merge older grants; only adding a connector does'],
   [/gmail_readonly_required/, worker, 'worker rejects missing readonly'],
   [/needs_gmail_upgrade/, worker, 'token payload exposes needs_gmail_upgrade'],
   [/hasGmailReadonly/, app, 'app has hasGmailReadonly'],
