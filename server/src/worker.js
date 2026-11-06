@@ -246,8 +246,10 @@ async function handle(req, env) {
     let body = {}; try { body = await req.json(); } catch {}
     const ret = allowedReturn(env, body.return);
     if (!ret) return json(env, req, { error: 'bad_return' }, 400);
-    const state = randomId(24), verifier = randomId(48);
-    await env.SESSIONS.put('msstate:' + state, JSON.stringify({ ret, sess: s.key, verifier }), { expirationTtl: 600 });
+    // The state is self-contained (encrypted with TOKEN_KEY): no KV read is needed on the way back, so the round trip
+    // cannot fail on KV's eventual consistency between Cloudflare locations. Valid for 15 minutes.
+    const verifier = randomId(48);
+    const state = await seal(env, JSON.stringify({ ret, sess: s.key, verifier, exp: Date.now() + 15 * 60 * 1000, n: randomId(8) }));
     const m = new URL(MS_AUTHORITY + '/authorize');
     Object.entries({ client_id: env.MS_CLIENT_ID, redirect_uri: url.origin + '/auth/microsoft/callback', response_type: 'code', response_mode: 'query', scope: MS_SCOPES, prompt: 'select_account', state, code_challenge: await sha256(verifier), code_challenge_method: 'S256' }).forEach(([k, v]) => m.searchParams.set(k, v));
     return json(env, req, { url: m.toString() });
@@ -255,9 +257,13 @@ async function handle(req, env) {
 
   if (url.pathname === '/auth/microsoft/callback' && req.method === 'GET') {
     const state = url.searchParams.get('state') || '';
-    const st = state && await env.SESSIONS.get('msstate:' + state, 'json');
-    if (!st) return new Response('Microsoft sign-in link expired. Go back to Daylight and try again.', { status: 400 });
-    await env.SESSIONS.delete('msstate:' + state);
+    let st = null; try { st = state ? JSON.parse(await open(env, state)) : null; } catch { st = null; }
+    if (!st || !st.ret) return new Response('This Microsoft sign-in link is not valid. Go back to Daylight and try again.', { status: 400 });
+    if (!(st.exp > Date.now())) return back(st.ret, { daylight_ms_error: 'sign_in_too_slow' });
+    // a state is used once: remember it until it would expire anyway
+    const used = 'msused:' + await sha256(state);
+    if (await env.SESSIONS.get(used)) return back(st.ret, { daylight_ms_error: 'already_used' });
+    await env.SESSIONS.put(used, '1', { expirationTtl: 1200 });
     if (url.searchParams.get('error')) return back(st.ret, { daylight_ms_error: url.searchParams.get('error') });
     const rec = await env.SESSIONS.get(st.sess, 'json');
     if (!rec) return back(st.ret, { daylight_ms_error: 'daylight_session_ended' });

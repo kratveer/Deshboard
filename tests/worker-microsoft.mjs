@@ -76,9 +76,19 @@ const tb = await msTok(B);
 ok('session B links its own (work) account; A still gets Alice', tb.body.email === 'bob@outlook.com' && (await msTok(A)).body.email === 'alice@outlook.com' && tb.body.account !== ta.body.account);
 // state
 const st = await post('/api/microsoft/start', A, { return: RET }); const stUrl = new URL((await st.json()).url);
-ok('Microsoft sign-in state lives 10 minutes', [...ttl.entries()].some(([k, t]) => k.startsWith('msstate:') && t === 600));
+ok('the sign-in state is encrypted and self-contained (no KV read needed on return); it reveals nothing in clear', stUrl.searchParams.get('state').length > 100 && !/kratveer|sess:|verifier/.test(Buffer.from(stUrl.searchParams.get('state'), 'base64url').toString('latin1')));
+{ // the same consent result arriving twice (reload / back button) is refused the second time
+  const r = await post('/api/microsoft/start', A, { return: RET }); const m = new URL((await r.json()).url); challenges.set('alice', m.searchParams.get('code_challenge'));
+  const st2 = m.searchParams.get('state'); await req(`/auth/microsoft/callback?state=${st2}&code=alice`);
+  const again = await req(`/auth/microsoft/callback?state=${st2}&code=alice`);
+  ok('a state can be used once (second use → already_used, back in Daylight)', new URL(again.headers.get('Location')).hash === '#daylight_ms_error=already_used'); }
+{ // taking longer than 15 minutes on Microsoft's pages
+  const r = await post('/api/microsoft/start', A, { return: RET }); const m = new URL((await r.json()).url);
+  const real = Date.now; Date.now = () => real() + 16 * 60 * 1000;
+  const late = await req(`/auth/microsoft/callback?state=${m.searchParams.get('state')}&code=alice`); Date.now = real;
+  ok('after 15 minutes the user is sent back to Daylight with sign_in_too_slow (not a dead-end page)', new URL(late.headers.get('Location')).hash === '#daylight_ms_error=sign_in_too_slow'); }
 const reuse = await req(`/auth/microsoft/callback?state=bogus&code=alice`);
-ok('an unknown state is refused', reuse.status === 400);
+ok('a forged or damaged state is refused', reuse.status === 400);
 const denied = await req(`/auth/microsoft/callback?state=${stUrl.searchParams.get('state')}&error=access_denied`);
 ok('declining on Microsoft\'s screen returns an error to Daylight, nothing stored', new URL(denied.headers.get('Location')).hash === '#daylight_ms_error=access_denied');
 // PKCE mismatch
