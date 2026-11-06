@@ -6,6 +6,8 @@
 (function (root) {
   'use strict';
   const MAX = 500;
+  // v112: random part in new ids (see actions/apply-action.js); existing ids are kept
+  const rnd = () => { try { const a = new Uint32Array(2); root.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); } catch { return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10); } };
   function createLog(opts) {
     const o = opts || {};
     const now = o.now || (() => Date.now());
@@ -13,7 +15,7 @@
     let seq = 0;
     const store = () => (o.graph ? o.graph.log : null);
     async function add(e) {
-      const entry = { id: `log_${now().toString(36)}_${(++seq).toString(36)}`, at: now(), kind: e.kind || 'other', dest: e.dest || null, what: e.what || '', bytes: Number.isFinite(e.bytes) ? e.bytes : null, itemId: e.itemId || null, messageId: e.messageId || null, accountId: e.accountId || null, detail: e.detail || null };
+      const entry = { id: `log_${now().toString(36)}_${(++seq).toString(36)}_${rnd()}`, at: now(), kind: e.kind || 'other', dest: e.dest || null, what: e.what || '', bytes: Number.isFinite(e.bytes) ? e.bytes : null, itemId: e.itemId || null, messageId: e.messageId || null, accountId: e.accountId || null, detail: e.detail || null };
       // guard: never store content
       if (entry.what && entry.what.length > 160) entry.what = entry.what.slice(0, 160);
       mem.push(entry); if (mem.length > MAX) mem.shift();

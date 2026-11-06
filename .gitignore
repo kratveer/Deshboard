@@ -13,3 +13,11 @@ dist/
 Thumbs.db
 tests/crosscheck/__pycache__/
 tests/crosscheck/zxing-shim
+
+# Local working files (never published or committed)
+Claude outputs/
+.claude/
+graphify-out/
+tools/
+dev-sample.js
+wallet-prototype.html

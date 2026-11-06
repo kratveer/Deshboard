@@ -153,7 +153,7 @@
     const authentic = !!code;
     const dateT = date ? Date.parse(date) : NaN;
     const item = {
-      id: 'w' + Date.now(), title, kind, note, amount, date, ocr, at: new Date().toISOString(), image: draft,
+      id: 'w' + Date.now() + Math.random().toString(36).slice(2, 7), title, kind, note, amount, date, ocr, at: new Date().toISOString(), image: draft,
       color: COLORS[kind], org: meta.org || '', typeLabel: meta.typeLabel || LABEL[kind],
       number: meta.number || '', memberSince: meta.memberSince || '', expiry: meta.expiry || date || '',
       travelAt: flight && flight.depart && /\d{4}-\d{2}-\d{2}/.test(String(flight.depart)) ? new Date(flight.depart).toISOString() : null,

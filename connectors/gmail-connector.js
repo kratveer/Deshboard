@@ -126,6 +126,7 @@
       const acct = accountId || 'default';
       const rows = await o.mailCache.all(acct);
       const since = (opts && opts.since) || 0; // incremental: only messages processed since the last ingest
+      const writeOk = () => { if (opts && opts.guard && !opts.guard()) { const e = new Error('account changed during ingest · results discarded'); e.aborted = true; throw e; } };
       const live = rows.filter((r) => !['skipped', 'meta-pending', 'deleted'].includes(r.status) && (!since || (r.lastProcessedAt || 0) >= since));
       const facts = await o.mailCache.getFacts(acct, live.map((r) => r.messageId));
       const rules = Rules ? (await Rules.all()).filter((r) => !r.accountId || r.accountId === acct) : []; // another account's rules never apply here
@@ -141,7 +142,7 @@
           (it.sources || []).forEach((s) => { if (s.app === APP && (s.role === 'evidence' || s.role === 'mention') && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id)) stale.push({ itemId: it.id, app: APP, accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`${APP}:${acct}:${s.itemId}`) }); });
         });
       }
-      const stored = await graph.upsertMany(out);
+      writeOk(); const stored = await graph.upsertMany(out);
       let carried = 0;
       if (stale.length) {
         // keep what the user did: a stale Item's status/snooze/notes move to the Item of the same kind the email now produces
@@ -158,14 +159,14 @@
           ['notes', 'actionHistory', 'userCorrections'].forEach((k) => { // idempotent: a retry after a failure part-way does not add them twice
             const have = new Set((n[k] || []).map((x) => JSON.stringify(x))); const add = (o2[k] || []).filter((x) => !have.has(JSON.stringify(x)));
             if (add.length) { n[k] = [...add, ...(n[k] || [])]; changed = true; } });
-          if (changed) { await graph.putItem(n); carried++; }
+          if (changed) { writeOk(); await graph.putItem(n); carried++; }
         }
-        await graph.detachSources(stale);
+        writeOk(); await graph.detachSources(stale);
       }
-      if (graph.linkMany) await graph.linkMany(linkList, acct); else for (const [a, b, kind] of linkList) await graph.link(a, b, kind, acct);
+      writeOk(); if (graph.linkMany) await graph.linkMany(linkList, acct); else for (const [a, b, kind] of linkList) await graph.link(a, b, kind, acct);
       // Gmail deleted / trashed → drop the email Item (derived Items survive while another email still supports them)
       let removed = 0;
-      for (const r of rows.filter((x) => x.status === 'deleted' && (!since || (x.deletedAt || x.lastProcessedAt || 0) >= since))) removed += await graph.removeSourceItem(APP, acct, r.messageId);
+      for (const r of rows.filter((x) => x.status === 'deleted' && (!since || (x.deletedAt || x.lastProcessedAt || 0) >= since))) { writeOk(); removed += await graph.removeSourceItem(APP, acct, r.messageId); }
       return { items: stored.length, emails: live.length, links: linkList.length, removed, staleDetached: stale.length, userStateCarried: carried, full: !since };
     }
 

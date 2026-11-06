@@ -146,7 +146,7 @@
     if(outlook)registry.register(outlook);
     const actions=W.DaylightActions.createActions({graph,registry,ruleStore,classifier:W.DaylightClassifier});
     const log=W.DaylightProcessingLog.createLog({graph});
-    const local=W.DaylightLocalConnector?W.DaylightLocalConnector.createLocalConnector({graph,mailKey:mid=>'gmail:'+v2AccountKey()+':'+mid}):null;
+    const local=W.DaylightLocalConnector?W.DaylightLocalConnector.createLocalConnector({graph,mailKey:(mid,acct)=>'gmail:'+(acct||v2AccountKey())+':'+mid,gmailAccounts:()=>{let a=[];try{a=a.concat(JSON.parse(localStorage.getItem('daylight-gmail-accounts')||'[]')||[]);a=a.concat(Object.keys(JSON.parse(localStorage.getItem('daylight-v2-account-names')||'{}')||{}))}catch{}return[...new Set(a.filter(x=>typeof x==='string'&&x))]}}):null;
     v2Core.o={graph,registry,gmail,outlook,ruleStore,actions,log,local};
     W.DaylightV2=v2Core.o; W.DaylightGraph=graph; W.DaylightPrivacyLog=log;
     return v2Core.o;
@@ -252,7 +252,15 @@
   // ---- Microsoft: an extra connection of this Daylight session (Outlook mail + OneDrive files), read-only ----
   const msKey=()=>'daylight-ms-link:'+v2AccountKey();
   function msLink(){try{return identityVerified?JSON.parse(localStorage.getItem(msKey())||'null'):null}catch{return null}}
-  let msTok=null,msTokExp=0,msBusy=false,msLast=null,msErr='',msV2=null;
+  // F1 (v112): a cached Microsoft access token is bound to the account it was issued for and to the account generation.
+  // The generation (daylight-ms-gen:<google login>) changes whenever the linked Microsoft account changes, is lost or is
+  // disconnected — in any tab. A sync captures (account, generation) at the start and re-checks both before every write.
+  let msTok=null,msBusy=false,msLast=null,msErr='',msV2=null; // msTok = { token, exp, account, gen }
+  const msGenKey=(owner)=>'daylight-ms-gen:'+(owner||v2AccountKey());
+  const msGen=()=>getLS(msGenKey());
+  function bumpMsGen(owner){const g=Date.now().toString(36)+Math.random().toString(36).slice(2,8);setLS(msGenKey(owner),g);msTok=null;return g}
+  // another tab changed the linked account or its generation → this tab's cached token is no longer trusted
+  addEventListener('storage',e=>{if(!e.key||e.key.startsWith('daylight-ms-link:')||e.key.startsWith('daylight-ms-gen:'))msTok=null});
   // ---- Account inventory (Phase 0): data of accounts no longer linked is hidden at once, listed in Settings, kept 30 days with a warning ----
   let invObj=null;
   function inventory(){if(invObj)return invObj;if(!W.DaylightAccountInventory)return null;let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{};invObj=W.DaylightAccountInventory.createInventory({graph:v2Core()?.graph,mailCache:mc});return invObj}
@@ -267,7 +275,7 @@
     let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{}
     let report=null;
     if(row.provider==='microsoft'){
-      Object.keys(inv.links()).forEach(owner=>{const v=inv.links()[owner];if(v&&v.account===key)setLS('daylight-ms-link:'+owner,'')});
+      Object.keys(inv.links()).forEach(owner=>{const v=inv.links()[owner];if(v&&v.account===key){setLS('daylight-ms-link:'+owner,'');bumpMsGen(owner)}});
       const lock=W.DaylightSyncScheduler.createLock({name:'daylight-ms-sync:'+key,leaseMs:120000});
       for(let i=0;i<40;i++){const r=await lock.withLock(()=>W.DaylightDataReset.deleteMicrosoftData({accountId:key,mailCache:mc}));if(r.ran){report=r.result;break}await new Promise(res=>setTimeout(res,750))}
       if(!report)throw new Error('Another tab is syncing this account · try again in a minute');
@@ -285,15 +293,17 @@
   }
   /** A short-lived Microsoft access token from the Daylight server (memory only). Also records which Microsoft account is linked. */
   async function msToken(force){
-    if(!force&&msTok&&Date.now()<msTokExp-60000)return msTok;
+    const cur=msLink();
+    if(!force&&msTok&&cur&&msTok.account===cur.account&&msTok.gen===msGen()&&Date.now()<msTok.exp-60000)return msTok.token;
     if(!serverUrl||!serverSession)throw new Error('not signed in');
     const r=await fetch(serverUrl+'/api/microsoft/token',{method:'POST',headers:{Authorization:'Bearer '+serverSession}});
     const d=await r.json().catch(()=>({}));
-    if(r.status===404){msTok=null;const was=msLink();setLS(msKey(),'');if(was&&was.account)inventory()?.markOrphan(was.account,'connection lost',{owner:v2AccountKey(),email:was.email||'',provider:'microsoft'});throw new Error('Microsoft is not connected')}
+    if(r.status===404){msTok=null;const was=msLink();setLS(msKey(),'');if(was)bumpMsGen();if(was&&was.account)inventory()?.markOrphan(was.account,'connection lost',{owner:v2AccountKey(),email:was.email||'',provider:'microsoft'});throw new Error('Microsoft is not connected')}
     if(r.status===401){msTok=null;if(d.error==='ms_reauth'){const l=msLink();if(l){l.needsReconnect=true;setLS(msKey(),JSON.stringify(l))}}throw new Error(d.error==='ms_reauth'?'Microsoft sign-in expired · connect again':'Daylight sign-in expired')}
     if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
-    msTok=d.access_token;msTokExp=Date.now()+(Number(d.expires_in)||3600)*1000;
+    if(!d.access_token||!d.account){msTok=null;throw new Error('Microsoft did not say which account this token is for')} // fail closed
     const prev=msLink()||{};
+    if(prev.account!==d.account||!msGen())bumpMsGen(); // a different account (or the first one): new generation
     const inv=inventory();
     if(inv){
       if(prev.account&&prev.account!==d.account)inv.markOrphan(prev.account,'replaced',{owner:v2AccountKey(),email:prev.email||'',provider:'microsoft'});
@@ -302,14 +312,23 @@
       if(olds.length)setLS(replacedKey(),JSON.stringify({old:olds,now:{key:d.account,email:d.email||''},at:Date.now()}));
     }
     setLS(msKey(),JSON.stringify({...(prev.account===d.account?prev:{}),account:d.account,email:d.email,name:d.name,mailRead:!!d.mail_read,filesRead:!!d.files_read,needsReconnect:false,connectedAt:(prev.account===d.account&&prev.connectedAt)||Date.now()}));
-    return msTok;
+    msTok={token:d.access_token,exp:Date.now()+(Number(d.expires_in)||3600)*1000,account:d.account,gen:msGen()};
+    return msTok.token;
+  }
+  /** A token for exactly this account and generation, or an error (never a token of another account). */
+  async function msTokenFor(acct,gen,force){
+    const changed=()=>{const l=msLink();return !l||l.account!==acct||msGen()!==gen};
+    if(changed())throw new Error('Microsoft account changed · sync stopped');
+    if(!force&&msTok&&msTok.account===acct&&msTok.gen===gen&&Date.now()<msTok.exp-60000)return msTok.token;
+    await msToken(true);
+    if(changed()||!msTok||msTok.account!==acct||msTok.gen!==gen)throw new Error('Microsoft account changed · sync stopped');
+    return msTok.token;
   }
   function getMsV2(){
     if(msV2)return msV2;
     const v=getMailV2(),R=W.DaylightGmailRules;
-    const pipe=W.DaylightOutlookPipeline.createOutlookPipeline({getToken:f=>msToken(!!f),cache:v.cache,rules:R,config:v.config,derive:v2Derive});
     const helper=W.DaylightMailPipeline.createMailPipeline({engine:null,cache:v.cache,rules:R,config:v.config,derive:v2Derive});
-    msV2={pipe,helper,cache:v.cache,config:v.config};
+    msV2={helper,cache:v.cache,config:v.config};
     return msV2;
   }
   const msReadFiles=()=>getLS('daylight-ms-read-files')!=='0';
@@ -320,24 +339,28 @@
     if(!link&&!pending)return null;
     if(link&&link.needsReconnect&&!pending)return null;
     try{await msToken(pending)}catch(e){msErr=String(e.message||e);setLS('daylight-ms-pending','');return null}
-    setLS('daylight-ms-pending','');link=msLink();const acct=link&&link.account;if(!acct)return null;
+    setLS('daylight-ms-pending','');link=msLink();const acct=link&&link.account,gen=msGen();if(!acct||!gen)return null; // fail closed
+    try{await msTokenFor(acct,gen,false)}catch(e){msErr=String(e.message||e);return null} // the token must belong to this account
     const last=Number(getLS('daylight-ms-last-sync:'+acct))||0;
     if(!force&&!pending&&Date.now()-last<15*60000)return null;
     const c=v2Core(),v=getMsV2();
     const lock=W.DaylightSyncScheduler.createLock({name:'daylight-ms-sync:'+acct,leaseMs:v.config.schedule.lockLeaseMs});
     msBusy=true;
     try{
-      const mine=()=>{const l=msLink();return !!(l&&l.account===acct)&&!(inventory()&&inventory().isDeleted(acct))};
+      const mine=()=>{const l=msLink();return !!(l&&l.account===acct)&&msGen()===gen&&!(inventory()&&inventory().isDeleted(acct))};
+      const getToken=f=>msTokenFor(acct,gen,!!f);
+      const pipe=W.DaylightOutlookPipeline.createOutlookPipeline({getToken,guard:mine,cache:v.cache,rules:W.DaylightGmailRules,config:v.config,derive:v2Derive});
       const lk=await lock.withLock(async()=>{
         if(!mine())return {aborted:true};
-        const mail=(await v.pipe.run({accountId:acct})).report;
-        if(!mine()){try{await v.cache.clearAccount(acct)}catch{};return {aborted:true}} // deleted or replaced while syncing: discard
+        const mail=(await pipe.run({accountId:acct})).report;
+        if(!mine())return {aborted:true}; // replaced, disconnected or deleted while syncing: stop (a deletion clears its data under this lock)
         const key='daylight-graph-ingest:ms1:'+acct,since=Number(getLS(key))||0,t0=Date.now();
-        const ingest=await c.outlook.ingest(acct,{since});setLS(key,String(t0));
+        if(!mine())return {aborted:true};
+        const ingest=await c.outlook.ingest(acct,{since,guard:mine});if(!mine())return {aborted:true};setLS(key,String(t0));
         let files=null;const fl=Number(getLS('daylight-onedrive-last:'+acct))||0;
         if(!mine())return {aborted:true};
         if(link.filesRead!==false&&W.DaylightOneDrive&&(force||pending||Date.now()-fl>60*60000)){
-          const od=W.DaylightOneDrive.createOneDrive({getToken:f=>msToken(!!f),graph:c.graph,store:{get:getLS,set:setLS},rules:W.DaylightGmailRules,mailHelper:v.helper,pipelineConfig:v.config.pipeline,config:{readContents:msReadFiles()}});
+          const od=W.DaylightOneDrive.createOneDrive({getToken,guard:mine,graph:c.graph,store:{get:getLS,set:setLS},rules:W.DaylightGmailRules,mailHelper:v.helper,pipelineConfig:v.config.pipeline,config:{readContents:msReadFiles()}});
           files=await od.sync(acct);if(files.ok)setLS('daylight-onedrive-last:'+acct,String(Date.now()));
         }
         return {mail,ingest,files};
@@ -345,16 +368,16 @@
       if(lk.ran&&lk.result&&lk.result.aborted)return null;
       if(lk.ran){msLast={...lk.result,at:Date.now()};msErr=lk.result.mail.fatal?lk.result.mail.summary:(lk.result.files&&!lk.result.files.ok?'OneDrive could not be read':'');if(!lk.result.mail.fatal)setLS('daylight-ms-last-sync:'+acct,String(Date.now()))}
       return lk.ran?lk.result:null;
-    }catch(e){console.warn('microsoft sync',e);msErr=String(e&&e.message||e);return null}
+    }catch(e){if(e&&e.aborted){msErr='';return null}console.warn('microsoft sync',e);msErr=String(e&&e.message||e);return null}
     finally{msBusy=false}
   }
   /** Disconnect Microsoft: the server forgets its token; this device deletes the Microsoft account's data. */
   async function disconnectMicrosoft(){
     const link=msLink();
     if(serverSession){try{await fetch(serverUrl+'/api/microsoft/disconnect',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}}
-    msTok=null;msTokExp=0;msLast=null;msErr='';setLS('daylight-ms-pending','');
+    msTok=null;msLast=null;msErr='';setLS('daylight-ms-pending','');
     let report=null;
-    setLS(msKey(),''); // no new syncs for it from here on
+    setLS(msKey(),'');bumpMsGen(); // no new syncs for it from here on; running ones stop before their next write
     if(link&&link.account){inventory()?.markOrphan(link.account,'disconnected',{owner:v2AccountKey(),email:link.email||'',provider:'microsoft'});try{report=await deleteDeviceAccount(link.account)}catch(e){console.warn('delete microsoft data',e)}}
     return report;
   }

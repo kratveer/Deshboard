@@ -5,12 +5,21 @@
  *   - New tasks created in V2 (quick add, "Add to Plan", "Follow up") — these exist only in the graph
  * Import is idempotent and reconciles: a pass or V1 task that disappeared (deleted, or removed by Disconnect) loses its Item.
  * Never invents codes: a QR/barcode image is kept only when the pass marks it authentic (scan or real attachment).
+ * Ownership (v112): a pass Daylight saved from an email (older releases did this; mailId / id 'mail:…' / source 'gmail')
+ * belongs to the Gmail account that email came from, not to the device. Its Item gets that account's accountId, so it is
+ * hidden and left out of exports with the rest of that account's data. The owner is resolved only on evidence (that
+ * account's email Item for the message is in the graph) and kept on the pass as ownerAccount. A mail-derived pass whose
+ * owner is not proven is held back ('unassigned-mail': hidden, not exported, removed by Delete all) until the evidence
+ * appears or the user assigns it in Privacy Centre. Passes you scanned or typed stay device data ('local').
  */
 (function (root) {
   'use strict';
   const read = (ls, k) => { try { const v = JSON.parse(ls.getItem(k) || 'null'); return Array.isArray(v) ? v : []; } catch { return []; } };
   const ms = (v) => { if (v == null || v === '') return null; const t = typeof v === 'number' ? v : Date.parse(v); return Number.isFinite(t) ? t : null; };
   const hasClock = (v) => typeof v === 'string' && /T\d{2}:\d{2}|\d{1,2}:\d{2}/.test(v);
+  const UNASSIGNED = 'unassigned-mail';
+  const fromMail = (p) => !!(p && (p.mailId || /^mail:/.test(String(p.id || '')) || p.source === 'gmail'));
+  const mailIdOf = (p) => String((p && (p.mailId || (/^mail:/.test(String(p.id || '')) ? String(p.id).slice(5) : ''))) || '');
 
   function createLocalConnector(o) {
     const graph = o.graph, now = o.now || (() => Date.now());
@@ -19,6 +28,7 @@
     const iid = (k) => G.itemId(k);
     const mailKey = o.mailKey || null; // (mailId) → natural key of the Gmail email Item, to link a pass to its email
 
+    const ownerOf = (p) => (fromMail(p) ? (p.ownerAccount || UNASSIGNED) : 'local');
     function passItem(p) {
       const kind = p.kind || 'others';
       const type = kind === 'documents' ? 'document' : 'ticket';
@@ -28,7 +38,7 @@
       const factsArr = [['from', f.from], ['to', f.to], ['reference', f.pnr || p.reference], ['seat', f.seat], ['gate', f.gate], ['start', p.travelAt || p.eventAt || f.depart]]
         .filter(([, v]) => v != null && v !== '').map(([key, value]) => ({ key, value: String(value), sourceItemId: null, method: p.scanSource ? 'scan' : 'local' }));
       return {
-        key: `wallet:${p.id}`, accountId: 'local', type, title: p.title || (f.from && f.to ? `${f.from} → ${f.to}` : 'Pass'), description: p.note || '',
+        key: `wallet:${p.id}`, accountId: ownerOf(p), type, title: p.title || (f.from && f.to ? `${f.from} → ${f.to}` : 'Pass'), description: p.note || '',
         dueAt: at, createdAt: ms(p.at) || now(),
         sources: [{ app: 'wallet', accountId: 'local', itemId: String(p.id), url: null, role: 'primary' }],
         privacyClass: kind === 'documents' ? 'identity' : 'normal', aiExclude: kind === 'documents',
@@ -38,7 +48,7 @@
              image services and are never passed on, so nothing re-sends a code's value */
           qrImage: null, barcodeImage: null, codeText: authentic ? (p.qrPayload || p.barcode || null) : null,
           codeFormat: authentic && (p.qrPayload || p.barcode) ? String(p.barcodeFormat || 'qr_code').toLowerCase() : null,
-          mailId: p.mailId || null }
+          mailId: p.mailId || null, fromMail: fromMail(p) || undefined }
       };
     }
     function taskItem(t) {
@@ -51,23 +61,34 @@
       };
     }
 
-    /** Mirror wallet passes and V1 tasks into the graph; remove Items whose local record is gone. */
-    async function importLocal() {
+    /** Mirror wallet passes and V1 tasks into the graph; remove Items whose local record is gone.
+     *  v112: imports run one at a time (Web Locks across tabs when available, a queue within the tab), and every write
+     *  decision uses the CURRENT localStorage record, re-read after each wait — another tab may add, stamp or delete
+     *  passes meanwhile. A pass deleted elsewhere is never written back; a pass added elsewhere is never reconciled away. */
+    let queue = Promise.resolve();
+    function importLocal() {
+      const L = (() => { try { return root.navigator && root.navigator.locks; } catch { return null; } })();
+      const run = () => (L && L.request ? L.request('daylight-local-import', () => importLocalNow()) : importLocalNow());
+      const p = queue.then(run, run); queue = p.catch(() => {}); return p;
+    }
+    const livePasses = () => read(ls, 'daylight-wallet').filter((p) => p && p.id);
+    async function importLocalNow() {
       if (!ls) return { passes: 0, tasks: 0, removed: 0 };
-      const passes = read(ls, 'daylight-wallet').filter((p) => p && p.id);
+      await resolveOwners(livePasses());
+      const passes = livePasses(); // re-read: includes owners stamped just now or by another tab
       const tasks = read(ls, 'daylight-personal-tasks').filter((t) => t && t.id && !t.suggested && !t.aiGenerated);
       const parts = [...passes.map(passItem), ...tasks.map(taskItem)];
       // a pass Daylight saved from an email that already produced a booking Item is the SAME thing: merge into that booking
       if (mailKey) {
-        const mailItems = await graph.getMany(passes.filter((p) => p.mailId).map((p) => iid(mailKey(p.mailId))));
+        const mailItems = await graph.getMany(passes.filter((p) => p.mailId && p.ownerAccount).map((p) => iid(mailKey(p.mailId, p.ownerAccount))));
         const byMail = new Map(mailItems.map((m) => [m.sourceItemId, m]));
         const rel = await graph.getMany([...new Set(mailItems.flatMap((m) => m.relatedItemIds || []))]);
         const bookings = new Map(rel.filter((x) => x.type === 'booking').map((x) => [x.id, x]));
         parts.forEach((p, i) => {
-          const pass = passes[i]; if (!pass || !pass.mailId) return;
+          const pass = passes[i]; if (!pass || !pass.mailId || !pass.ownerAccount) return;
           const m = byMail.get(String(pass.mailId)); if (!m) return;
           const b = (m.relatedItemIds || []).map((id) => bookings.get(id)).filter(Boolean);
-          if (b.length !== 1) return;
+          if (b.length !== 1 || b[0].accountId !== pass.ownerAccount) return;
           p.key = b[0].key; p.type = 'booking'; p.title = b[0].title; p.dueAt = b[0].dueAt || p.dueAt; p.accountId = b[0].accountId; p.meta.mergedInto = b[0].id;
           p.sources = p.sources.map((s) => Object.assign({}, s, { role: 'evidence' }));
         });
@@ -75,13 +96,27 @@
       // a V1 task's done flag is the user's: only apply it on first import, later the graph status wins
       const prev = new Map((await graph.getMany(parts.map((p) => iid(p.key)))).map((x) => [x.id, x]));
       parts.forEach((p) => { if (prev.has(iid(p.key))) delete p.status; });
-      if (parts.length) await graph.upsertMany(parts);
+      // just before writing: drop passes deleted meanwhile (e.g. an account disconnected in another tab) and take an owner
+      // another tab recorded meanwhile (owners are only ever added, never changed)
+      const nowPass = new Map(livePasses().map((p) => [String(p.id), p]));
+      const write = parts.map((p, i) => {
+        if (i >= passes.length) return p;
+        const cur = nowPass.get(String(passes[i].id)); if (!cur) return null;
+        return cur.ownerAccount && !passes[i].ownerAccount ? passItem(cur) : p;
+      }).filter(Boolean);
+      if (write.length) await graph.upsertMany(write);
+      // …and right after: if another tab recorded an owner while we were writing, write that pass again with its owner
+      const afterPass = new Map(livePasses().map((p) => [String(p.id), p]));
+      const fix = write.filter((p) => p.meta && p.meta.origin === 'wallet' && !p.meta.mergedInto)
+        .map((p) => ({ p, cur: afterPass.get(String(p.key).slice('wallet:'.length)) }))
+        .filter(({ p, cur }) => cur && ownerOf(cur) !== p.accountId).map(({ cur }) => cur);
+      if (fix.length) await graph.upsertMany(fix.map(passItem));
       const links = [];
-      passes.forEach((p) => { if (p.mailId && mailKey) links.push([iid(`wallet:${p.id}`), iid(mailKey(p.mailId)), 'evidence']); });
+      passes.forEach((p) => { if (p.mailId && p.ownerAccount && mailKey && nowPass.has(String(p.id))) links.push([iid(`wallet:${p.id}`), iid(mailKey(p.mailId, p.ownerAccount)), 'evidence']); });
       if (links.length && graph.linkMany) await graph.linkMany(links, 'local');
-      // reconcile
-      // reconcile: any wallet/task source whose local record is gone is dropped (Items left with no source are deleted)
-      const livePass = new Set(passes.map((p) => String(p.id))), liveTask = new Set(tasks.map((t) => String(t.id)));
+      // reconcile: any wallet/task source whose local record is gone is dropped (Items left with no source are deleted).
+      // Uses a fresh read, so a pass another tab added during this import is kept.
+      const livePass = new Set(livePasses().map((p) => String(p.id))), liveTask = new Set(tasks.map((t) => String(t.id)));
       const gone = [];
       (await graph.query()).forEach((x) => (x.sources || []).forEach((s) => {
         if (s.accountId !== 'local') return;
@@ -91,6 +126,40 @@
       let removed = 0;
       for (const s of gone) removed += await graph.removeSourceItem(s.app, 'local', s.itemId);
       return { passes: passes.length, tasks: tasks.length, removed };
+    }
+
+    /** Which Gmail account a mail-derived pass came from — only on evidence: exactly one known Gmail account holds that
+     *  message's email Item in the graph. There is no fallback to "the only account on this device" (the pass may come
+     *  from an account deleted earlier). Resolved owners are kept on the pass (ownerAccount, an added field — nothing else
+     *  in the record changes, and an owner already recorded is never replaced); unresolved passes stay unassigned
+     *  (hidden, not exported) and are tried again next time, or the user assigns them (assignUnassigned). */
+    async function resolveOwners(passes) {
+      const todo = passes.filter((p) => fromMail(p) && !p.ownerAccount && mailIdOf(p));
+      if (!todo.length || !mailKey) return 0;
+      const known = new Set((o.gmailAccounts ? (o.gmailAccounts() || []) : []).filter((a) => a && !/^(local|sample|ms-)/.test(a)));
+      try { (await graph.query()).forEach((x) => { if (x.sourceApp === 'gmail' && x.accountId && !/^(local|sample|ms-)/.test(x.accountId)) known.add(x.accountId); }); } catch {}
+      const cands = [...known]; if (!cands.length) return 0;
+      let n = 0;
+      for (const p of todo) {
+        const mid = mailIdOf(p);
+        const hits = (await graph.getMany(cands.map((a) => iid(mailKey(mid, a))))).map((m) => m.accountId);
+        const owner = hits.length === 1 ? hits[0] : null;
+        if (owner) { p.ownerAccount = owner; n++; }
+      }
+      if (n) { try { const raw = read(ls, 'daylight-wallet'); const by = new Map(todo.filter((p) => p.ownerAccount).map((p) => [String(p.id), p.ownerAccount])); ls.setItem('daylight-wallet', JSON.stringify(raw.map((p) => (p && by.has(String(p.id)) && !p.ownerAccount ? Object.assign({}, p, { ownerAccount: by.get(String(p.id)) }) : p)))); } catch {} }
+      return n;
+    }
+
+    /** The user's explicit choice: show the unassigned mail-derived passes in this account (acct). Only passes with no
+     *  recorded owner are changed; the choice is recorded (ownerAssignedBy: 'user'). Returns how many were assigned. */
+    async function assignUnassigned(acct) {
+      if (!ls || !acct || /^(local|sample|unassigned)/.test(acct)) return 0;
+      let n = 0;
+      const raw = read(ls, 'daylight-wallet');
+      const next = raw.map((p) => { if (p && p.id && fromMail(p) && !p.ownerAccount) { n++; return Object.assign({}, p, { ownerAccount: acct, ownerAssignedBy: 'user' }); } return p; });
+      if (n) ls.setItem('daylight-wallet', JSON.stringify(next));
+      await importLocal();
+      return n;
     }
 
     /** A task created in V2. relatedTo links it to the Item it came from (an email, a bill, a person). */
@@ -119,7 +188,7 @@
       async fetchItems(q) { return graph.query(Object.assign({ accountId: 'local' }, q || {})); },
       normalise: (rec) => (rec && rec.kind ? passItem(rec) : taskItem(rec || {})),
       async sync() { return importLocal(); },
-      importLocal, createTask, passItem, taskItem
+      importLocal, assignUnassigned, createTask, passItem, taskItem
     };
   }
 

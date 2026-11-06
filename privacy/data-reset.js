@@ -43,12 +43,14 @@
   const mailIdOf = (x) => String((x && (x.mailId || (/^mail:/.test(String(x.id || '')) ? String(x.id).slice(5) : ''))) || '');
   const readJ = (ls, k, d) => { try { const v = JSON.parse(ls.getItem(k) || 'null'); return v == null ? d : v; } catch { return d; } };
 
-  function pruneWallet(ls, owns) {
+  // ownerAccount (v112): the Gmail account a mail-derived pass came from, recorded by the local connector
+  function pruneWallet(ls, owns, ownerIs) {
+    ownerIs = ownerIs || (() => false);
     let removed = 0;
     try {
       const raw = readJ(ls, 'daylight-wallet', []);
       if (!Array.isArray(raw)) return 0;
-      const keep = raw.filter((p) => { const fromMail = !!(p && (p.mailId || /^mail:/.test(String(p.id || '')) || p.source === 'gmail')); const mine = fromMail && owns(mailIdOf(p)); if (mine) removed++; return !mine; });
+      const keep = raw.filter((p) => { const fromMail = !!(p && (p.mailId || /^mail:/.test(String(p.id || '')) || p.source === 'gmail')); const mine = fromMail && (p.ownerAccount ? ownerIs(p.ownerAccount) : owns(mailIdOf(p))); if (mine) removed++; return !mine; });
       ls.setItem('daylight-wallet', JSON.stringify(keep));
     } catch {}
     return removed;
@@ -78,7 +80,7 @@
     const report = { account: acct, active, databases: [], keys: 0, walletPasses: 0, tasks: 0, graphItems: 0, mailCache: null, rules: 0, keptOtherAccounts: [] };
     const known = ls ? readJ(ls, 'daylight-gmail-accounts', []) : [];
     let graphAccounts = [];
-    try { if (root.DaylightGraph?.query) graphAccounts = [...new Set((await root.DaylightGraph.query()).map((x) => x.accountId))].filter((a) => a && a !== 'local' && a !== 'sample'); } catch {}
+    try { if (root.DaylightGraph?.query) graphAccounts = [...new Set((await root.DaylightGraph.query()).map((x) => x.accountId))].filter((a) => a && a !== 'local' && a !== 'sample' && a !== 'unassigned-mail'); /* held-back passes are not an account */ } catch {}
     const others = [...new Set([...(Array.isArray(known) ? known : []), ...graphAccounts])].filter((a) => a && a !== acct);
     report.keptOtherAccounts = acct ? others : [];
     const single = !acct || !others.length;
@@ -97,7 +99,7 @@
       if (single) { if (ls.getItem('daylight-gmail-accounts') != null) { ls.removeItem('daylight-gmail-accounts'); report.keys++; } }
       else { try { ls.setItem('daylight-gmail-accounts', JSON.stringify(known.filter((a) => a !== acct))); } catch {} }
       try { const names = readJ(ls, 'daylight-v2-account-names', {}); if (single) ls.removeItem('daylight-v2-account-names'); else { delete names[acct]; ls.setItem('daylight-v2-account-names', JSON.stringify(names)); } } catch {}
-      report.walletPasses = pruneWallet(ls, owns);
+      report.walletPasses = pruneWallet(ls, owns, (a) => (acct ? a === acct : true));
       report.tasks = prunePersonalTasks(ls, owns);
     }
     // Gmail mail cache (message index, facts, checkpoint, metrics): this account's rows only, or the whole db if it was the only one

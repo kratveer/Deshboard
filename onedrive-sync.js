@@ -25,6 +25,7 @@
     const sleep = o.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
     const G = root.DaylightItemGraph || o.itemGraphApi;
     const helper = o.mailHelper || null; // createMailPipeline(...) helpers: recordFromMeta + bodyDecide
+    const writeOk = () => { if (o.guard && !o.guard()) { const e = new Error('Microsoft account changed during sync · results discarded'); e.aborted = true; throw e; } };
 
     async function call(url, init, raw) {
       for (let attempt = 0; ; attempt++) {
@@ -130,10 +131,10 @@
       }
       // keep facts from earlier reads of unchanged files
       items.forEach((it) => { const p = prev.get(it.key); if (p && p.meta && p.meta.readTag && !it.meta.readTag && p.meta.tag === it.meta.tag) { it.meta.readTag = p.meta.readTag; it.meta.docKind = p.meta.docKind; it.meta.readAt = p.meta.readAt; it.extractedFacts = p.extractedFacts; it.privacyClass = p.privacyClass; } });
-      await graph.upsertMany([...items, ...derived]);
-      for (const id of [...new Set(gone)]) report.removed += await graph.removeSourceItem('onedrive', acct, id);
+      writeOk(); await graph.upsertMany([...items, ...derived]);
+      for (const id of [...new Set(gone)]) { writeOk(); report.removed += await graph.removeSourceItem('onedrive', acct, id); }
       report.added = items.filter((x) => !prev.has(x.key)).length;
-      if (report.ok && link) store.set(linkKey, link);
+      if (report.ok && link) { writeOk(); store.set(linkKey, link); }
       report.ms = now() - t0;
       return report;
     }

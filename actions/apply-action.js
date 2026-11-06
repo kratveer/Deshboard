@@ -16,6 +16,9 @@
   const SNAPSHOT = ['status', 'snoozedUntil', 'pinned', 'userPriority', 'priority', 'notes', 'type', 'classification', 'userCorrections', 'plannedAt', 'plannedMinutes'];
   const pick = (it) => { const o = {}; SNAPSHOT.forEach((k) => { o[k] = it[k] === undefined ? null : JSON.parse(JSON.stringify(it[k])); }); return o; };
   let seq = 0;
+  // v112: ids also carry a random part — the clock + per-page counter alone could repeat across tabs, reloads or a clock
+  // set back, and a repeated id would overwrite an older history entry. Existing ids are never rewritten.
+  const rnd = () => { try { const a = new Uint32Array(2); root.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); } catch { return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10); } };
 
   function createActions(opts) {
     const o = opts || {};
@@ -56,7 +59,7 @@
       }
       // write-back plan: only providers that granted this write get a job; otherwise the change stays in Daylight
       const writeBack = (item.sources || []).map((s) => ({ app: s.app, itemId: s.itemId, status: registry && registry.canWrite(s.app, kind) ? 'queued' : 'local-only' }));
-      const action = { id: `act_${at.toString(36)}_${(++seq).toString(36)}`, accountId: item.accountId, itemId, kind, payload: payload || {}, prev, at, by: (ctx && ctx.by) || 'user', writeBack, undone: false };
+      const action = { id: `act_${at.toString(36)}_${(++seq).toString(36)}_${rnd()}`, accountId: item.accountId, itemId, kind, payload: payload || {}, prev, at, by: (ctx && ctx.by) || 'user', writeBack, undone: false };
       next.actionHistory = [...(item.actionHistory || []), { id: action.id, kind, at, payload: payload || {} }];
       try {
         await graph.putItem(next);

@@ -139,7 +139,7 @@
     const linked = S.sample ? [] : ((S.host.linkedAccounts && S.host.linkedAccounts()) || []); // a Microsoft account connected to this Daylight session
     const items = all.filter((x) => x.accountId === 'local' || (acct && x.accountId === acct) || (acct && linked.includes(x.accountId)));
     S.hiddenOtherAccounts = all.length - items.length;
-    S.accountCounts = {}; all.forEach((x) => { if (x.accountId && x.accountId !== 'local' && x.accountId !== 'sample' && !linked.includes(x.accountId)) S.accountCounts[x.accountId] = (S.accountCounts[x.accountId] || 0) + 1; });
+    S.accountCounts = {}; all.forEach((x) => { if (x.accountId && x.accountId !== 'local' && x.accountId !== 'sample' && x.accountId !== 'unassigned-mail' && !linked.includes(x.accountId)) S.accountCounts[x.accountId] = (S.accountCounts[x.accountId] || 0) + 1; });
     try { S.inventory = !S.sample && S.host.accountInventory ? await S.host.accountInventory() : []; S.replaced = !S.sample && S.host.replacedPrompt ? S.host.replacedPrompt() : null; } catch { S.inventory = []; S.replaced = null; }
     S.items = M.applySettlements ? M.applySettlements(items) : items; S.byId = M.index(S.items); const vis = new Set(S.items.map((x) => x.id)); S.actions = actions.filter((a) => vis.has(a.itemId)); S.rules = rules.filter((r) => !r.accountId || r.accountId === acct || r.accountId === 'local'); S.loadedAt = nowMs();
     render();
@@ -925,11 +925,22 @@
   }
 
   async function openPrivacy() {
-    const logs = await S.core.log.list().catch(() => []);
-    const counts = await S.core.graph.counts();
+    const INV = root.DaylightAccountInventory;
+    const visible = S.sample ? ['sample'] : [S.account, ...((S.host.linkedAccounts && S.host.linkedAccounts()) || [])].filter(Boolean);
+    const [allItems, allLinks, logs0] = await Promise.all([S.core.graph.query().catch(() => []), S.core.graph.links().catch(() => []), S.core.log.list().catch(() => [])]);
+    const st = new Map((S.inventory || []).map((r) => [r.key, r.status]));
+    // v112: counts and the log cover only what this login can see; hidden data is shown as two totals, never detailed
+    const counts = INV && INV.scopeCounts ? INV.scopeCounts(allItems, allLinks, visible, (a) => st.get(a)) : { byType: {}, links: 0, hidden: { otherLogins: 0, disconnected: 0 } };
+    counts.rules = S.rules.length;
+    const logs = INV && INV.filterExport ? INV.filterExport({ items: allItems, log: logs0 }, visible).log.sort((a, b) => b.at - a.at) : [];
+    const hid = counts.hidden;
+    // passes an older release saved from an email whose account is not proven (connectors/local-connector.js): count only
+    const unassigned = S.sample ? 0 : allItems.filter((x) => x.accountId === 'unassigned-mail' && x.meta && x.meta.origin === 'wallet').length;
     const aiOn = !!(S.host.ai && S.host.ai.enabled && S.host.ai.enabled());
     const html = `<p style="font-size:14.5px;margin:2px 0 10px">Everything Daylight knows lives on this device. The server only signs you in and relays AI requests you allow.</p>
       <div class="v-section"><h4>What is stored here</h4><div class="v-mini">${Object.entries(counts.byType).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<button type="button"><span style="flex:1">${esc(M.KIND_LABEL[k] || k)}</span><span class="r">${v}</span></button>`).join('')}<button type="button"><span style="flex:1">Links between items</span><span class="r">${counts.links}</span></button><button type="button"><span style="flex:1">Your rules</span><span class="r">${counts.rules}</span></button><button type="button"><span style="flex:1">Actions you took</span><span class="r">${S.actions.length}</span></button></div>
+      ${hid.otherLogins || hid.disconnected ? `<div class="v-mini" style="margin-top:8px" data-hidden-counts>${hid.otherLogins ? `<button type="button"><span style="flex:1">Hidden · other Daylight accounts on this device</span><span class="r">${hid.otherLogins}</span></button>` : ''}${hid.disconnected ? `<button type="button"><span style="flex:1">Hidden · disconnected or unassigned data</span><span class="r">${hid.disconnected}</span></button>` : ''}</div><p class="v-muted" style="font-size:12.5px">Counts above are for this account only. Hidden items are never shown or exported here; manage them under Settings → Accounts on this device.</p>` : ''}
+      ${unassigned && S.account ? `<div class="v-banner" style="margin-top:8px;flex-wrap:wrap" data-unassigned-passes><span style="flex:1;min-width:200px">${unassigned} Wallet ${unassigned === 1 ? 'pass' : 'passes'} saved from email by an earlier Daylight version could not be matched to an account on this device, so ${unassigned === 1 ? 'it is' : 'they are'} hidden. If ${unassigned === 1 ? 'it is' : 'they are'} yours, you can show ${unassigned === 1 ? 'it' : 'them'} in this account.</span><button class="v-pbtn" type="button" data-assign-passes>Show in this account…</button></div>` : ''}
       <p class="v-muted" style="font-size:12.5px">Emails keep sender, subject, a short preview and extracted facts (amounts, dates, references). Full messages stay in Gmail. Identity documents are never sent to AI.</p></div>
       <div class="v-section"><h4>AI processing</h4><div class="v-setrow">Allow “Ask AI” answers<span class="r"><button class="v-switch" type="button" role="switch" aria-checked="${aiOn}" data-aitoggle aria-label="AI processing"></button></span></div><p class="v-muted" style="font-size:12.5px">Off by default. Only when you tap <b>Ask AI instead</b>: your question and up to 60 items (titles, senders, dates, amounts) go through the Daylight server to Google Gemini. Email bodies and identity documents are never sent. <a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></p></div>
       <div class="v-section"><h4>What left your device</h4>${logs.length ? `<div class="v-log">${logs.slice(0, 40).map((l) => `<div><time>${esc(M.ago(l.at, nowMs()))}</time><span><b style="font-weight:600">${esc(l.dest || l.kind)}</b> — ${esc(l.what || '')}${l.bytes ? ` · ${Math.round(l.bytes / 100) / 10} kB` : ''}</span></div>`).join('')}</div>` : '<p class="v-muted" style="font-size:14px">Nothing has been sent anywhere yet.</p>'}</div>
@@ -939,7 +950,13 @@
   }
   async function exportData() {
     const g = S.core.graph;
-    const data = { exportedAt: new Date().toISOString(), app: 'Daylight V2', items: await g.query(), links: await g.links(), rules: await g.rules.all(), actions: await g.actions.all(), log: await g.log.all() };
+    const raw = { items: await g.query(), links: await g.links(), rules: await g.rules.all(), actions: await g.actions.all(), log: await g.log.all() };
+    // only this login's data: its own account, its linked account(s) and local Items (never other logins or disconnected accounts)
+    const visible = S.sample ? ['sample'] : [S.account, ...((S.host.linkedAccounts && S.host.linkedAccounts()) || [])].filter(Boolean);
+    const F = root.DaylightAccountInventory && root.DaylightAccountInventory.filterExport;
+    if (!F) { toast('Export is not available right now'); return; } // fail closed: never export unfiltered
+    const scoped = F(raw, visible);
+    const data = Object.assign({ exportedAt: new Date().toISOString(), app: 'Daylight V2', scope: 'signed-in account, its connected accounts and this device\'s own items' }, scoped);
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = doc.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `daylight-export-${new Date().toISOString().slice(0, 10)}.json`; doc.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     try { S.core.log.add({ kind: 'export', dest: 'Downloaded to this device', what: `${data.items.length} items exported`, bytes: blob.size }); } catch {}
@@ -1233,6 +1250,7 @@
     if (d.switchacct !== undefined) return S.host.switchAccount();
     if (d.syncnow !== undefined) { toast('Syncing…'); try { await S.host.syncNow(); toast('Synced'); } catch (er) { toast('Sync failed'); } return; }
     if (d.disconnect) return confirmIn(t, `Disconnect this account and delete its ${d.disconnect} items, rules, history and cached mail from this device? Other accounts and your own tasks and passes stay.`, 'Disconnect and delete', async () => { closeSheet(); const r = await S.host.disconnect(); toast(r ? `Disconnected · ${r.graphItems} items deleted${r.keptOtherAccounts && r.keptOtherAccounts.length ? ` · ${r.keptOtherAccounts.length} other account kept` : ''}` : 'Gmail disconnected'); await load(); });
+    if (d.assignPasses !== undefined) return confirmIn(t, 'Show these hidden Wallet passes in this account? They will be treated as this account\'s data (shown, exported and deleted with it). Only do this if they are yours.', 'Show them in this account', async () => { const n = S.core.local && S.core.local.assignUnassigned ? await S.core.local.assignUnassigned(S.account) : 0; toast(n ? `${n} ${n === 1 ? 'pass' : 'passes'} added to this account` : 'Nothing to add'); await load(); closeSheet(); openPrivacy(); });
     if (d.delacct) return confirmIn(t, `Delete everything Daylight stored for this account on this device (${(S.accountCounts || {})[d.delacct] || 0} items, its rules, history and cached mail)? To also revoke its Google access, sign in as it and disconnect, or remove Daylight at myaccount.google.com/permissions.`, 'Delete this account\'s data', async () => { const r = await S.host.deleteAccountData(d.delacct); toast(`Deleted ${r.graphItems} items`); await load(); refreshOpenSheet(); });
     if (d.deleteall !== undefined) return confirmIn(t, 'Delete ALL Daylight data on this device — every account, your own tasks and passes, settings — and sign out? This cannot be undone. Gmail itself is not changed.', 'Delete all', async () => { if (S.sample) { location.reload(); return; } await S.host.deleteAll(); });
     if (d.export !== undefined) return exportData();
@@ -1287,7 +1305,7 @@
   async function createTask(t, label) {
     let it;
     if (S.core.local && S.core.local.createTask) it = await S.core.local.createTask(t);
-    else { it = await S.core.graph.upsertItem({ key: 'task:v2:' + Date.now().toString(36), accountId: 'local', type: 'task', title: t.title, dueAt: t.dueAt || null, sources: [{ app: 'daylight', accountId: 'local', itemId: Date.now().toString(36) }], meta: { origin: 'v2', timed: !!t.timed } }); if (t.relatedTo) await S.core.graph.link(it.id, t.relatedTo, 'about', 'local'); }
+    else { const tid = Date.now().toString(36) + Math.random().toString(36).slice(2, 7); it = await S.core.graph.upsertItem({ key: 'task:v2:' + tid, accountId: 'local', type: 'task', title: t.title, dueAt: t.dueAt || null, sources: [{ app: 'daylight', accountId: 'local', itemId: tid }], meta: { origin: 'v2', timed: !!t.timed } }); if (t.relatedTo) await S.core.graph.link(it.id, t.relatedTo, 'about', 'local'); }
     toast(label || 'Task added', async () => { await S.core.actions.applyAction(it.id, 'dismiss', {}); });
     await load();
     return it;
@@ -1319,7 +1337,7 @@
     }
     if (f.dataset.passform !== undefined) {
       const kind = fd.get('kind'), title = String(fd.get('title') || '').trim(), at = fd.get('at'), ref = String(fd.get('ref') || '').trim(); if (!title) return;
-      const pass = { id: 'v2_' + Date.now().toString(36), kind, title, at: new Date().toISOString(), note: ref ? 'Ref ' + ref : '' };
+      const pass = { id: 'v2_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), kind, title, at: new Date().toISOString(), note: ref ? 'Ref ' + ref : '' };
       if (at) { const iso = new Date(at).toISOString(); if (kind === 'documents') pass.expires = iso; else pass.travelAt = iso; }
       if (ref && kind !== 'documents') pass.reference = ref;
       closeSheet();

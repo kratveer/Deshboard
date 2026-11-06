@@ -18,8 +18,12 @@
   'use strict';
   const KEY = 'daylight-device-accounts';
   const DAY = 86400000, RETAIN = 30 * DAY, WARN_BEFORE = 7 * DAY, MIN_NOTICE = 7 * DAY;
-  const NOT_ACCOUNTS = new Set(['local', 'sample', 'default', '', null, undefined]);
-  const providerOf = (key, led) => (led && led.provider) || (String(key).startsWith('ms-') ? 'microsoft' : 'google');
+  // 'unassigned-mail': passes saved from an email whose account cannot be resolved (connectors/local-connector.js) —
+  // hidden device data, not an account
+  const NOT_ACCOUNTS = new Set(['local', 'sample', 'default', 'unassigned-mail', '', null, undefined]);
+  // F3 (v112): the provider comes from the authoritative ledger entry, else from the account key ('ms-' = Microsoft).
+  // It is never inferred from the sources of an account's Items.
+  const providerOf = (key, led) => (led && (led.provider === 'microsoft' || led.provider === 'google') ? led.provider : (String(key).startsWith('ms-') ? 'microsoft' : 'google'));
 
   function createInventory(o) {
     const ls = o.ls || (typeof localStorage !== 'undefined' ? localStorage : null);
@@ -51,7 +55,7 @@
       const out = []; let changed = false;
       keys.forEach((key) => {
         const L = Object.assign({}, led[key] || {});
-        const provider = providerOf(key, L) === 'microsoft' || (counts[key] && (counts[key].apps.has('outlook') || counts[key].apps.has('onedrive'))) ? 'microsoft' : 'google';
+        const provider = providerOf(key, L);
         const hasData = !!counts[key] || cacheIds.includes(key);
         let status;
         if (provider === 'google') status = key === login ? 'active' : 'other-login';
@@ -94,7 +98,44 @@
       RETAIN, WARN_BEFORE, MIN_NOTICE, KEY
     };
   }
-  const api = { createInventory, KEY };
+  /**
+   * F2 (v112): what Privacy Centre → Export may contain. visible = accountIds the signed-in login may see (its own Gmail
+   * key, its linked Microsoft account(s)) — 'local' is always included. Every collection is filtered consistently; the
+   * stored data is not changed. Excluded: other logins on this device, disconnected and orphaned accounts.
+   */
+  function filterExport(data, visibleAccounts) {
+    const vis = new Set([...(visibleAccounts || []), 'local']);
+    const items0 = (data.items || []).filter((x) => vis.has(x.accountId));
+    const ids = new Set(items0.map((x) => x.id));
+    const srcIds = new Set(); items0.forEach((x) => (x.sources || []).forEach((s) => { if (vis.has(s.accountId)) srcIds.add(String(s.itemId)); }));
+    const items = items0.map((x) => Object.assign({}, x, {
+      relatedItemIds: (x.relatedItemIds || []).filter((r) => ids.has(r)),
+      extractedFacts: (x.extractedFacts || []).filter((f) => !f.sourceItemId || ids.has(f.sourceItemId)),
+      sources: (x.sources || []).filter((s) => !s.accountId || vis.has(s.accountId))
+    }));
+    const links = (data.links || []).filter((l) => ids.has(l.from) && ids.has(l.to) && (!l.accountId || vis.has(l.accountId)));
+    const rules = (data.rules || []).filter((r) => !r.accountId || vis.has(r.accountId));
+    const actions = (data.actions || []).filter((a) => ids.has(a.itemId) && (!a.accountId || vis.has(a.accountId)));
+    const log = (data.log || []).filter((e) => e.accountId ? vis.has(e.accountId) : e.itemId ? ids.has(e.itemId) : e.messageId ? srcIds.has(String(e.messageId)) : true)
+      .map((e) => (e.accountId || e.itemId || e.messageId) ? e : Object.assign({}, e, { detail: null })); // device-level entries: no details (they may name other accounts)
+    return { items, links, rules, actions, log, accounts: [...vis].filter((a) => a !== 'local').map((a) => ({ accountId: a, provider: providerOf(a, null) })) };
+  }
+  /**
+   * Privacy Centre "What is stored here" (v112): counts for what the signed-in login can see (by type, links between
+   * visible Items), plus two totals for hidden data — other Daylight logins on this device, and disconnected / orphaned /
+   * unassigned data. Only numbers; no account names, emails or titles. statusOf(accountId) → an inventory status.
+   */
+  function scopeCounts(items, links, visibleAccounts, statusOf) {
+    const vis = new Set([...(visibleAccounts || []), 'local']);
+    const byType = {}; const ids = new Set(); let otherLogins = 0, disconnected = 0;
+    (items || []).forEach((x) => {
+      if (vis.has(x.accountId)) { ids.add(x.id); byType[x.type] = (byType[x.type] || 0) + 1; return; }
+      if (x.accountId === 'sample') return;
+      if ((statusOf ? statusOf(x.accountId) : null) === 'other-login') otherLogins++; else disconnected++;
+    });
+    return { byType, items: ids.size, links: (links || []).filter((l) => ids.has(l.from) && ids.has(l.to)).length, hidden: { otherLogins, disconnected } };
+  }
+  const api = { createInventory, filterExport, scopeCounts, providerOf, KEY };
   root.DaylightAccountInventory = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

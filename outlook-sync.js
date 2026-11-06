@@ -40,6 +40,9 @@
     const helper = (root.DaylightMailPipeline || o.mailPipelineApi).createMailPipeline({ engine: null, cache, rules: R, config: cfgAll, derive: o.derive, dates: o.dates, now });
     const sleep = o.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
     const maxPages = o.maxPages || 40;
+    // o.guard(): is this still the account the sync was started for? Checked immediately before every write to storage;
+    // if not, the run stops and nothing more is stored (a response that arrives after an account change is discarded).
+    const writeOk = () => { if (o.guard && !o.guard()) { const e = new Error('Microsoft account changed during sync · results discarded'); e.aborted = true; throw e; } };
 
     async function call(ctx, url, init) {
       for (let attempt = 0; ; attempt++) {
@@ -125,8 +128,8 @@
         rec.provider = 'outlook'; rec.webLink = meta._webLink;
         newRecs.push(rec);
       }
-      await cache.putMany(acct, newRecs);
-      const deletedNow = await cache.markDeleted(acct, [...removes]);
+      writeOk(); await cache.putMany(acct, newRecs);
+      writeOk(); const deletedNow = await cache.markDeleted(acct, [...removes]);
 
       // bodies, from the persistent queue (this sync's and earlier backlog)
       const all = await cache.all(acct);
@@ -150,10 +153,10 @@
         factsOut.push({ messageId: rec.messageId, kind: category, fields: d0.c.facts, structured: d0.c.structured.map((s) => ({ type: s.type, source: s.source })), source: d0.c.source, missing: d0.c.missing, bodyHash: d0.c.bodyHash, derived: d0.derived, at: now() });
         doneRecs.push(rec);
       }
-      await cache.putMany(acct, doneRecs);
-      await cache.putFacts(acct, factsOut);
+      writeOk(); await cache.putMany(acct, doneRecs);
+      writeOk(); await cache.putFacts(acct, factsOut);
       const discoveryOk = !ctx.fatal && Object.values(folderInfo).every((f) => f === 'absent' || !f.error);
-      await cache.setCheckpoint(acct, { msDelta: links, backfilledAt: cp.backfilledAt || (discoveryOk ? now() : null), windowDays, lastSyncAt: discoveryOk ? now() : (cp.lastSyncAt || 0), lastMode: cold ? 'backfill' : 'delta' });
+      writeOk(); await cache.setCheckpoint(acct, { msDelta: links, backfilledAt: cp.backfilledAt || (discoveryOk ? now() : null), windowDays, lastSyncAt: discoveryOk ? now() : (cp.lastSyncAt || 0), lastMode: cold ? 'backfill' : 'delta' });
       const backlog = (await cache.all(acct)).filter((r) => r.status === 'body-queued').length;
       const partial = !discoveryOk || bodyDeferred > 0;
       const report = { provider: 'outlook', ok: !partial, partial, fatal: ctx.fatal, cold, durationMs: now() - t0, requests: ctx.requests, batches: ctx.batches, throttled: ctx.throttled, folders: folderInfo,
