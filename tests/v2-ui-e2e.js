@@ -6,7 +6,7 @@ const { createMockGmail } = require('./mock-gmail.js');
 const S = require('./home-audit-scenario.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -85,7 +85,7 @@ async function mockGoogle(page, g) {
   });
 }
 async function settle(page) {
-  await page.waitForFunction(() => { const t = document.querySelector('#sync-status')?.textContent || ''; return /updated|Partial sync|Sync failed/.test(t) && !/refreshing/.test(t); }, null, { timeout: 180000 });
+  await page.waitForFunction(() => { const h = window.DaylightV2Host; if (!h) return false; const s = h.syncState(); return !s.busy && (s.lastAt > 0 || !!s.error); }, null, { timeout: 180000 });
   await page.waitForTimeout(1500);
 }
 async function newPage(browser, g, viewport, mobile) {
@@ -101,7 +101,7 @@ async function newPage(browser, g, viewport, mobile) {
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date(S.NOW));
   await mockGoogle(page, g);
-  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
   await page.goto('http://127.0.0.1:8783/index.html', { waitUntil: 'domcontentloaded' });
   await settle(page);
   return { ctx, page, errs };
@@ -117,8 +117,8 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     const { page, errs } = await newPage(browser, makeGmail(), { width: 390, height: 844 }, true);
     await page.waitForFunction(() => window.DaylightV2 && window.DaylightV2.lastIngest && window.DaylightV2UI && window.DaylightV2UI.state.items.length > 20, null, { timeout: 60000 });
     await page.waitForTimeout(800);
-    const shell = await page.evaluate(() => ({ v2: !!document.querySelector('#v2'), classicHidden: getComputedStyle(document.querySelector('#mapp') || document.querySelector('.shell')).display === 'none', tabs: [...document.querySelectorAll('#v2 .v-tab')].map((b) => b.querySelector(':scope > span:last-child').textContent.trim()) }));
-    check('V2 app replaces the classic UI with five tabs (no Health)', shell.v2 && shell.classicHidden && shell.tabs.join() === 'Today,Inbox,Plan,Money,Wallet', shell);
+    const shell = await page.evaluate(() => ({ v2: !!document.querySelector('#v2'), noClassicMarkup: !document.querySelector('#mapp, .shell, #layout, #overlay, .m-tabs'), tabs: [...document.querySelectorAll('#v2 .v-tab')].map((b) => b.querySelector(':scope > span:last-child').textContent.trim()) }));
+    check('the app is the only interface: five tabs, no classic markup on the page', shell.v2 && shell.noClassicMarkup && shell.tabs.join() === 'Today,Inbox,Plan,Money,Wallet', shell);
     if (process.env.SHOTS) for (const t of ['today', 'inbox', 'plan', 'money', 'wallet']) { await page.click(`.v-tab[data-tab=${t}]`); await page.waitForTimeout(500); await page.screenshot({ path: `${process.env.SHOTS}/real-${t}.png` }); }
     await page.click('.v-tab[data-tab=today]');
     const graphIds = async () => page.evaluate(async () => (await window.DaylightV2.graph.query()).map((x) => x.id));
@@ -226,11 +226,15 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     check('a token that also carries calendar/tasks/contacts/drive (older grant) is NOT used for them unless the connector was turned on — no request to any of those APIs', calLog.length === 0 && optionalCalls.length === 0, { calLog: calLog.length, optionalCalls: [...new Set(optionalCalls)] });
     check('no page errors', errs.length === 0, errs);
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/real-after-disconnect.png` });
-    // classic view still reachable
-    const p2 = await browser.newPage(); await p2.route(/googleapis|gstatic|accounts\.google|msauth|jsdelivr|fonts\./, (r) => r.abort());
-    await p2.goto('http://127.0.0.1:8783/index.html?ui=v1', { waitUntil: 'domcontentloaded' }); await p2.waitForTimeout(2500);
-    const classic = await p2.evaluate(() => ({ v2: !!document.querySelector('#v2'), tabs: document.querySelectorAll('.m-tabs [data-tab]').length }));
-    check('Classic view still available with ?ui=v1', !classic.v2 && classic.tabs === 5, classic);
+    // the classic view is gone: no route, no stored choice, no switch in Settings
+    const p2ctx = await browser.newContext({ serviceWorkers: 'block' }); await p2ctx.addInitScript(() => { try { if (!sessionStorage.getItem('x')) { localStorage.setItem('daylight-ui', 'v1'); sessionStorage.setItem('x', '1'); } } catch {} });
+    const p2 = await p2ctx.newPage(); await p2.route(/^https:\/\//, (r) => r.abort());
+    const p2errs = []; p2.on('pageerror', (e) => p2errs.push(e.message));
+    await p2.goto('http://127.0.0.1:8783/index.html?ui=v1&demo=1', { waitUntil: 'domcontentloaded' }); await p2.waitForSelector('#v2', { timeout: 20000 }).catch(() => {});
+    await p2.evaluate(() => window.DaylightV2UI && window.DaylightV2UI.openSettings && window.DaylightV2UI.openSettings()); await p2.waitForTimeout(800);
+    const classic = await p2.evaluate(() => ({ v2: !!document.querySelector('#v2'), classicMarkup: !!document.querySelector('#mapp, .shell, #layout, .m-tabs'), storedChoice: localStorage.getItem('daylight-ui'), settingsText: (document.querySelector('.v-sheet') || {}).innerText || '', classicButton: !!document.querySelector('[data-classic]') }));
+    check('?ui=v1, ?demo=1 and a stored classic choice all open the app; the stored choice is removed', classic.v2 && !classic.classicMarkup && classic.storedChoice === null && p2errs.length === 0, { ...classic, settingsText: undefined, p2errs });
+    check('Settings has no switch to a classic view', /Appearance/i.test(classic.settingsText) && !/classic/i.test(classic.settingsText) && !classic.classicButton, { appearance: /Appearance/i.test(classic.settingsText), classic: (classic.settingsText.match(/.{0,40}classic.{0,40}/i) || [])[0], button: classic.classicButton });
   } finally { await browser.close(); srv.close(); }
   let fail = 0; checks.forEach(([n, ok, info]) => { console.log((ok ? 'PASS ' : 'FAIL ') + n + (ok || info === undefined ? '' : '  ← ' + JSON.stringify(info).slice(0, 400))); if (!ok) fail++; });
   if (process.env.DBG) console.log(out.dgText);

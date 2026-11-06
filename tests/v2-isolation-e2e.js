@@ -6,7 +6,7 @@ const { createMockGmail } = require('./mock-gmail.js');
 const S = require('./home-audit-scenario.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -102,7 +102,7 @@ const waitIngest = (page, sub) => page.waitForFunction((s) => { const U = window
       if (forbid) { window.__leaks = []; const scan = () => { const U = window.DaylightV2UI; const v2 = document.getElementById('v2'); if (U && U.state.items.some((x) => x.accountId === forbid.acct)) window.__leaks.push('state'); if (v2) { if ([...v2.querySelectorAll('[data-open],[data-sw],[data-person]')].some((n) => forbid.ids.includes(n.dataset.open || n.dataset.sw || n.dataset.person))) window.__leaks.push('dom'); if (forbid.name && v2.innerText.includes(forbid.name)) window.__leaks.push('name'); } }; setInterval(scan, 15); document.addEventListener('DOMContentLoaded', () => new MutationObserver(scan).observe(document.documentElement, { subtree: true, childList: true, characterData: true })); }
     }, { w: WORKER });
     const page = await ctx.newPage(); await page.clock.setFixedTime(new Date(S.NOW)); await mockGoogle2(page, st);
-    const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
     const items = () => page.evaluate(() => window.DaylightV2UI.state.items.map((x) => ({ id: x.id, a: x.accountId, t: x.title, type: x.type })));
     const graphByAcct = () => page.evaluate(async () => { const all = await window.DaylightV2.graph.query(); const c = {}; all.forEach((x) => { c[x.accountId] = (c[x.accountId] || 0) + 1; }); return c; });
     const rulesByAcct = () => page.evaluate(async () => { const r = await window.DaylightV2.graph.rules.all(); const c = {}; r.forEach((x) => { c[x.accountId] = (c[x.accountId] || 0) + 1; }); return c; });

@@ -34,7 +34,10 @@
         privacyClass: kind === 'documents' ? 'identity' : 'normal', aiExclude: kind === 'documents',
         extractedFacts: kind === 'documents' ? [] : factsArr,
         meta: { origin: 'wallet', walletKind: kind, timed: hasClock(p.travelAt || p.eventAt || f.depart || ''), expiresAt: ms(p.expires || p.expiresAt) || null,
-          qrImage: authentic ? (p.qrImage || null) : null, barcodeImage: authentic ? (p.barcodeImage || null) : null, codeText: authentic ? (p.barcode || p.qrPayload || null) : null,
+          /* codes are drawn locally from the value (ui/codes.js); stored image URLs from older releases pointed at external
+             image services and are never passed on, so nothing re-sends a code's value */
+          qrImage: null, barcodeImage: null, codeText: authentic ? (p.qrPayload || p.barcode || null) : null,
+          codeFormat: authentic && (p.qrPayload || p.barcode) ? String(p.barcodeFormat || 'qr_code').toLowerCase() : null,
           mailId: p.mailId || null }
       };
     }

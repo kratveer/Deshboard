@@ -96,7 +96,7 @@
       categories: Object.freeze(['bill', 'travel', 'document', 'receipt'])
     }),
     // ---- engine selection (reversible) ----
-    engine: Object.freeze({ mode: 'optimised' }) // 'optimised' | 'legacy' (Phase 1 six-search plan)
+    engine: Object.freeze({ mode: 'optimised' }) // the only engine; the Phase 1 six-search plan was removed in v103
   });
 
   function isObj(x) { return x && typeof x === 'object' && !Array.isArray(x); }

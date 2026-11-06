@@ -1,7 +1,7 @@
 {
   "name": "Daylight — your day, in one place",
   "short_name": "Daylight",
-  "description": "Personal dashboard for your calendar, mail, tasks, files and more.",
+  "description": "Your day from Gmail: bills, bookings, deadlines and people waiting for a reply.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

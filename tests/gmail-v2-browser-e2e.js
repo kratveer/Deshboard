@@ -14,7 +14,7 @@ const { MAIL } = require('./fixtures/mail-200.js');
 const BT = require('../gmail-batch.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const DAY = 86400000;
@@ -63,13 +63,16 @@ async function mockGoogle(page) {
     return route.abort('blockedbyclient');
   });
 }
-async function settle(page) {
-  await page.waitForFunction(() => { const t = document.querySelector('#sync-status')?.textContent || ''; return /updated|Partial sync|Sync failed/.test(t) && !/refreshing/.test(t); }, null, { timeout: 180000 });
+/** Wait until the app finished more refreshes than `after` (a page load starts one by itself). */
+async function settle(page, after = 0) {
+  await page.waitForFunction((n) => { const h = window.DaylightV2Host; if (!h) return false; const s = h.syncState(); return !s.busy && s.runs > n; }, after, { timeout: 180000 });
   await page.waitForTimeout(700);
 }
-const money = (page) => page.evaluate(() => { window.DaylightMoneyUI.open(); const out = {}; document.querySelectorAll('#fin-body .fin-sec').forEach((s) => { out[s.querySelector('h4 span')?.textContent] = [...s.querySelectorAll('[data-fin-open]')].map((r) => r.dataset.finOpen).sort(); }); window.DaylightMoneyUI.close(); return out; });
+const runs = (page) => page.evaluate(() => window.DaylightV2Host.syncState().runs);
+/** A manual refresh (Settings → Gmail → Sync now) and wait for it to finish. */
+async function refresh(page) { const n = await runs(page); await page.evaluate(() => { window.DaylightV2Host.syncNow(); }); await settle(page, n); }
+const money = (page) => page.evaluate(() => { const out = {}; window.DaylightV2UI.state.items.filter((x) => ['bill', 'transaction', 'subscription'].includes(x.type)).forEach((x) => { (out[x.type] = out[x.type] || []).push(x.id); }); Object.values(out).forEach((v) => v.sort()); return out; });
 const idx = (page) => page.evaluate(() => new Promise((res) => { const r = indexedDB.open('daylight-mail'); r.onsuccess = () => { const db = r.result; const t = db.transaction(['mailIndex', 'checkpoint', 'domainCategory', 'syncMetrics'], 'readonly'); const g = (s) => new Promise((ok) => { const q = t.objectStore(s).getAll(); q.onsuccess = () => ok(q.result); }); Promise.all(['mailIndex', 'checkpoint', 'domainCategory', 'syncMetrics'].map(g)).then(([m, c, d, x]) => res({ rows: m.length, byStatus: m.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {}), checkpoint: c[0] || null, domains: d, metrics: x, sample: m.slice(0, 2).map((r) => Object.keys(r)) })); }; r.onerror = () => res(null); }));
-const inboxCards = (page) => page.evaluate(() => document.querySelectorAll('.m-swipe').length);
 
 (async () => {
   const srv = await serve(appDir, 8779);
@@ -83,13 +86,13 @@ const inboxCards = (page) => page.evaluate(() => document.querySelectorAll('.m-s
 
     // V1 cold open (backfill)
     mock.resetStats(); gmailHttp = [];
-    await page.goto('http://127.0.0.1:8779/index.html?ui=v1', { waitUntil: 'domcontentloaded' }); await settle(page);
+    await page.goto('http://127.0.0.1:8779/index.html', { waitUntil: 'domcontentloaded' }); await settle(page);
     const s1 = await idx(page), u1 = mock.stats.units, h1 = gmailHttp.length;
     ck('V1 cold open: 30-day backfill into the persistent cache, batch used', s1.rows >= 150 && gmailHttp.includes('batch') && s1.checkpoint?.historyId, { rows: s1.rows, http: h1, units: u1, byStatus: s1.byStatus });
     const metaBody = batchBodies.find((b) => /format=metadata/.test(b)) || '';
     ck('V1 metadata requests trimmed (metadataHeaders + fields)', /metadataHeaders=List-Unsubscribe/.test(metaBody) && /fields=/.test(metaBody) && !/metadataHeaders=Received/.test(metaBody), metaBody.slice(0, 300));
     // drain the body backlog (manual refreshes) so later checks start from steady state
-    for (let i = 0; i < 6; i++) { const st = await idx(page); if (!st.byStatus['body-queued'] && !st.byStatus['meta-pending']) break; await page.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); }); await settle(page); }
+    for (let i = 0; i < 6; i++) { const st = await idx(page); if (!st.byStatus['body-queued'] && !st.byStatus['meta-pending']) break; await refresh(page); }
     const m1 = await money(page);
     const s1b = await idx(page);
     ck('Backlog drained: no bodies or metadata waiting', !s1b.byStatus['body-queued'] && !s1b.byStatus['meta-pending'], s1b.byStatus);
@@ -99,19 +102,19 @@ const inboxCards = (page) => page.evaluate(() => document.querySelectorAll('.m-s
     await page.reload({ waitUntil: 'domcontentloaded' }); await settle(page);
     const m2 = await money(page);
     ck('V2 reload within 15 min: 0 Gmail requests', gmailHttp.length === 0, gmailHttp);
-    ck('V2 Money view is populated (bills / payments found)', Object.values(m1).flat().length >= 10 && ((m1['To pay now'] || []).length + (m1['Upcoming'] || []).length) >= 1, m1);
-    ck('V2 Money view identical after reload (stored results stand in for bodies)', JSON.stringify(m1) === JSON.stringify(m2), { before: m1, after: m2 });
-    ck('V2 status line is truthful (not "partial")', /updated/.test(await page.textContent('#sync-status')), await page.textContent('#sync-status'));
+    ck('V2 Money Items are populated (bills / payments found)', Object.values(m1).flat().length >= 5 && (m1.bill || []).length >= 1, m1);
+    ck('V2 Money Items identical after reload (stored results stand in for bodies)', JSON.stringify(m1) === JSON.stringify(m2), { before: m1, after: m2 });
+    ck('V2 sync state is truthful (no error, not partial)', await page.evaluate(() => { const s = window.DaylightV2Host.syncState(); return !s.error && s.lastAt > 0; }), await page.evaluate(() => window.DaylightV2Host.syncState()));
 
     // V3 manual refresh, no new mail → profile only
     mock.resetStats(); gmailHttp = [];
-    await page.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); }); await settle(page);
+    await refresh(page);
     ck('V3 manual refresh with no new mail: 1 Gmail request (profile), 1 quota unit', gmailHttp.length === 1 && mock.stats.units === 1, { http: gmailHttp, units: mock.stats.units });
 
     // V4 new mail → history.list + only the new message
     mock.add({ id: 'new-1', threadId: 'tnew1', from: 'Vodafone CZ <ebill@vodafone.cz>', subject: 'Nová faktura 2026115566', snippet: 'Faktura č. 2026115566. Celkem k úhradě 712 Kč, splatnost 3. 12. 2026.', body: 'Faktura č. 2026115566. Celkem k úhradě 712 Kč, splatnost 3. 12. 2026.', labelIds: ['INBOX', 'CATEGORY_UPDATES', 'UNREAD'], internalDate: Date.now() });
     mock.resetStats(); gmailHttp = [];
-    await page.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); }); await settle(page);
+    await refresh(page);
     const s4 = await idx(page);
     ck('V4 new mail: found via history.list, only that message fetched', gmailHttp.some((x) => x.startsWith('/history')) && (mock.stats.byKind.getMeta || 0) === 1 && (mock.stats.byKind.getFull || 0) <= 1, { http: gmailHttp, byKind: mock.stats.byKind });
     ck('V4 new bill is in the index with a rule reason', s4.rows === s1b.rows + 1, { before: s1b.rows, after: s4.rows });
@@ -119,23 +122,22 @@ const inboxCards = (page) => page.evaluate(() => document.querySelectorAll('.m-s
     // V5 label-only change → no body GET, no AI
     mock.relabel('m0001', [], ['UNREAD']);
     mock.resetStats(); gmailHttp = [];
-    await page.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); }); await settle(page);
+    await refresh(page);
     ck('V5 label change: labels updated with no message or body GET', !(mock.stats.byKind.getMeta || 0) && !(mock.stats.byKind.getFull || 0), mock.stats.byKind);
 
     // V6 deletion of a bill email → record kept + flagged
-    const billKey = (m2['To pay now'] || m2['Upcoming'] || [])[0];
     mock.remove('m0001'); // ČEZ bill
-    await page.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); }); await settle(page);
-    const flagged = await page.evaluate(() => { window.DaylightMoneyUI.open(); const t = document.querySelector('#fin-body').innerText; window.DaylightMoneyUI.close(); return /Email deleted in Gmail · record kept/.test(t); });
+    await refresh(page);
     const s6 = await idx(page);
-    ck('V6 deleted bill email: tombstone in cache, finance record kept and flagged', flagged && s6.byStatus.deleted >= 1, { flagged, byStatus: s6.byStatus, billKey });
+    ck('V6 deleted bill email: tombstone in the mail cache', s6.byStatus.deleted >= 1, { byStatus: s6.byStatus });
 
     // V7 two tabs refreshing at the same moment → one sync
     const page2 = await ctx.newPage(); await mockGoogle(page2); page2.on('pageerror', (e) => errs.push('tab2: ' + e.message));
-    await page2.goto('http://127.0.0.1:8779/index.html?ui=v1', { waitUntil: 'domcontentloaded' }); await settle(page2);
+    await page2.goto('http://127.0.0.1:8779/index.html', { waitUntil: 'domcontentloaded' }); await settle(page2);
     mock.resetStats(); gmailHttp = [];
-    await Promise.all([page, page2].map((p) => p.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); })));
-    await settle(page); await settle(page2);
+    const [n1, n2] = [await runs(page), await runs(page2)];
+    await Promise.all([page, page2].map((p) => p.evaluate(() => { window.DaylightV2Host.syncNow(); })));
+    await settle(page, n1); await settle(page2, n2);
     ck('V7 two tabs refreshing together: Gmail profile read once (one sync, no overlap)', (mock.stats.byKind.profile || 0) === 1, mock.stats.byKind);
     await page2.close();
 
@@ -148,17 +150,12 @@ const inboxCards = (page) => page.evaluate(() => document.querySelectorAll('.m-s
     // V9 batch endpoint failing (CORS-like) → single GET fallback, mail still arrives
     batchMode = 'fail';
     for (let i = 0; i < 3; i++) mock.add({ id: 'bf-' + i, threadId: 'tbf' + i, from: 'Wolt <info@wolt.com>', subject: 'Your order from Burger Bar ' + i, snippet: 'Total 299 Kč', body: 'Thanks for your order! Total 299 Kč.', labelIds: ['INBOX', 'CATEGORY_UPDATES'], internalDate: Date.now() });
-    await page.evaluate(() => { document.querySelector('#sync-status').textContent = 'x refreshing'; document.querySelector('#refresh').click(); }); await settle(page);
+    await refresh(page);
     const s9 = await idx(page);
     ck('V9 batch endpoint fails: falls back to single GETs, no mail lost', s9.rows === s6.rows + 3, { before: s6.rows, after: s9.rows });
     batchMode = 'ok';
 
-    // V10 review queue → choice teaches the sender domain (domain → category only)
-    const rv = await page.evaluate(async () => { window.DaylightReviewUI.open(); await new Promise((r) => setTimeout(r, 400)); const b = document.querySelector('#rv-body [data-rv-pick="bill"]'); if (!b) return { none: true, text: document.querySelector('#rv-body').innerText.slice(0, 200) }; b.click(); await new Promise((r) => setTimeout(r, 400)); return { clicked: true }; });
     const s10 = await idx(page);
-    const userDom = s10.domains.find((d) => d.source === 'user');
-    ck('V10 review queue: your choice stored for the sender domain only', rv.none || (userDom && Object.keys(userDom).every((k) => ['accountId', 'domain', 'votes', 'hits', 'category', 'source', 'active', 'userCategory', 'at'].includes(k))), { rv, userDom });
-
     // V11 cache never stores bodies
     const leak = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('daylight-mail'); r.onsuccess = () => { const t = r.result.transaction(['mailIndex', 'mailFacts'], 'readonly'); const a = t.objectStore('mailIndex').getAll(), b = t.objectStore('mailFacts').getAll(); t.oncomplete = () => { const s = JSON.stringify(a.result) + JSON.stringify(b.result); res({ hasBodyData: /"data":"[A-Za-z0-9_-]{40,}/.test(s), hasPayloadParts: /"parts":\[/.test(s), bytes: s.length }); }; }; }));
     ck('V11 no raw bodies in IndexedDB (only metadata, results and hashes)', !leak.hasBodyData && !leak.hasPayloadParts, leak);

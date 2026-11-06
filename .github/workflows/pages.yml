@@ -27,9 +27,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # publish only the app's own files (site-files.txt), not tests, docs or server source
+      - name: Build site
+        run: |
+          mkdir _site
+          grep -v '^#' site-files.txt | grep -v '^$' | while read -r f; do
+            test -f "$f" || { echo "missing $f"; exit 1; }
+            mkdir -p "_site/$(dirname "$f")" && cp "$f" "_site/$f"
+          done
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
           include-hidden-files: true
       - id: deployment
         uses: actions/deploy-pages@v4

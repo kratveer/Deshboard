@@ -6,7 +6,7 @@ const { createMockGmail } = require('./mock-gmail.js');
 const S = require('./home-audit-scenario.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -83,7 +83,7 @@ async function mockGoogle(page, g) {
   });
 }
 async function settle(page) {
-  await page.waitForFunction(() => { const t = document.querySelector('#sync-status')?.textContent || ''; return /updated|Partial sync|Sync failed/.test(t) && !/refreshing/.test(t); }, null, { timeout: 180000 });
+  await page.waitForFunction(() => { const h = window.DaylightV2Host; if (!h) return false; const s = h.syncState(); return !s.busy && (s.lastAt > 0 || !!s.error); }, null, { timeout: 180000 });
   await page.waitForTimeout(1500);
 }
 async function newPage(browser, g, viewport, mobile) {
@@ -99,8 +99,8 @@ async function newPage(browser, g, viewport, mobile) {
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date(S.NOW));
   await mockGoogle(page, g);
-  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-  await page.goto('http://127.0.0.1:8781/index.html?ui=v1', { waitUntil: 'domcontentloaded' });
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
+  await page.goto('http://127.0.0.1:8781/index.html', { waitUntil: 'domcontentloaded' });
   await settle(page);
   return { ctx, page, errs };
 }
@@ -125,7 +125,7 @@ const inventory = (page) => page.evaluate(async () => {
     ledgerKeys: Object.keys(ls).filter((k) => k.startsWith('daylight-finance-ledger')).length,
     gmailKeys: ['daylight-ai-extractions', 'daylight-google-scopes', 'daylight-profile', 'daylight-loops', 'daylight-seen'].filter((k) => ls[k] != null),
     session: ls['daylight-session'] || '', theme: ls['daylight-theme'] || '', serverUrl: ls['daylight-api'] || '', prio: ls['daylight-prio-range'] || '',
-    inboxCards: document.querySelectorAll('#m-inbox .m-inbox-card').length, prioCards: document.querySelectorAll('#m-loop-grid .pa-row').length
+    inboxCards: (window.DaylightV2UI ? window.DaylightV2UI.state.items : []).filter((x) => x.accountId !== 'local').length, prioCards: 0
   };
 });
 
@@ -135,16 +135,19 @@ const inventory = (page) => page.evaluate(async () => {
   const out = {};
   try {
     const { page, errs } = await newPage(browser, makeGmail(), { width: 390, height: 844 }, true);
-    const workerCalls = []; page.on('request', (r) => { if (r.url().startsWith('https://daylight-api.test')) workerCalls.push(new URL(r.url()).pathname); });
+    const workerCalls = []; page.on('request', (r) => { if (r.url().startsWith(WORKER)) workerCalls.push(new URL(r.url()).pathname); });
     // unrelated data that must survive: theme, a filter, the user's own task, a manually added Wallet card
     await page.evaluate(() => {
       localStorage.setItem('daylight-theme', 'dark'); localStorage.setItem('daylight-prio-range', 'payments');
-      const w = JSON.parse(localStorage.getItem('daylight-wallet') || '[]'); w.push({ id: 'manual-gym', kind: 'others', title: 'Gym card', note: 'added by hand', at: Date.now() }); localStorage.setItem('daylight-wallet', JSON.stringify(w));
+      const w = JSON.parse(localStorage.getItem('daylight-wallet') || '[]'); w.push({ id: 'manual-gym', kind: 'others', title: 'Gym card', note: 'added by hand', at: Date.now() });
+      // passes and a ledger saved from this account's mail by an older release must go too
+      w.push({ id: 'mail:m-old-1', mailId: 'm-old-1', kind: 'tickets', title: 'Train ticket from mail', at: Date.now() }); localStorage.setItem('daylight-wallet', JSON.stringify(w));
+      localStorage.setItem('daylight-finance-ledger:' + window.DaylightV2Host.accountId(), JSON.stringify({ records: [{ id: 'x' }] }));
     });
+    await page.evaluate(() => window.DaylightV2 && window.DaylightV2.local && window.DaylightV2.local.importLocal());
     await clickTab(page, 'inbox');
     out.before = await inventory(page);
-    await page.evaluate(() => document.querySelector('[data-da="signout"]').click());
-    await page.waitForFunction(() => /Gmail data deleted|disconnected/i.test(document.body.innerText), null, { timeout: 20000 }).catch(() => {});
+    out.report = await page.evaluate(() => window.DaylightV2Host.disconnect());
     await page.waitForTimeout(1500);
     out.after = await inventory(page);
     out.workerCalls = [...new Set(workerCalls)];
@@ -156,7 +159,6 @@ const inventory = (page) => page.evaluate(async () => {
   const checks = [
     ['there was Gmail data to delete', b.mailIndex > 0 && b.walletFromMail > 0 && b.ledgerKeys > 0 && b.graphItems > 0],
     ['Gmail cache (messages, facts, AI queue, checkpoint) empty', a.mailIndex === 0 && a.mailFacts === 0 && a.aiQueue === 0 && a.checkpoint === 0],
-    ['entities / relationships / facts for the account cleared', a.entities === 0 && a.relationships === 0 && a.facts === 0],
     ['Item Graph had Gmail Items and now has none (items, links); only your own tasks remain', b.graphGmailItems > 0 && a.graphGmailItems === 0 && a.graphLinks === 0, { before: b.graphGmailItems, after: a.graphGmailItems, links: a.graphLinks, left: a.graphItems }],
     ['Wallet passes from Gmail removed', a.walletFromMail === 0],
     ['manual Wallet card kept', a.walletManual.includes('manual-gym')],
@@ -164,11 +166,11 @@ const inventory = (page) => page.evaluate(async () => {
     ['suggested tasks from email removed, own tasks kept, no task keeps a mail link', a.tasksSuggested === 0 && a.tasksWithMail === 0 && a.tasksOwn.length >= 1],
     ['session token removed and Worker logout (Google revoke) called', !a.session && out.workerCalls.includes('/auth/logout')],
     ['unrelated settings kept (theme, filter, server address)', a.theme === 'dark' && a.prio === 'payments' && !!a.serverUrl],
-    ['nothing from Gmail shown after disconnect', a.inboxCards === 0 && a.prioCards === 0],
+    ['nothing from Gmail shown after disconnect', b.inboxCards > 0 && a.inboxCards === 0, { before: b.inboxCards, after: a.inboxCards }],
     ['still empty after reload (no re-sync without sign-in)', r.mailIndex === 0 && r.walletFromMail === 0 && !r.session],
     ['no page errors', out.errors.length === 0]
   ];
-  let fail = 0; checks.forEach(([n, ok]) => { console.log((ok ? 'PASS ' : 'FAIL ') + n); if (!ok) fail++; });
+  let fail = 0; checks.forEach(([n, ok, info]) => { console.log((ok ? 'PASS ' : 'FAIL ') + n + (ok || info === undefined ? '' : '  ← ' + JSON.stringify(info))); if (!ok) fail++; });
   out.checks = checks.map(([n, ok]) => ({ n, ok }));
   fs.writeFileSync(path.join(__dirname, 'v2-disconnect-report.json'), JSON.stringify(out, null, 2));
   console.log(JSON.stringify({ before: b, after: a }, null, 0).slice(0, 900));

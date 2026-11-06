@@ -6,7 +6,7 @@ const { createMockGmail } = require('./mock-gmail.js');
 const S = require('./home-audit-scenario.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -96,7 +96,7 @@ const waitIngest = (page, sub) => page.waitForFunction((s) => { const U = window
     const ctx = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 }, timezoneId: 'Europe/Prague', locale: 'en-GB' });
     await ctx.addInitScript(({ w }) => { if (!localStorage.getItem('dl-h')) { localStorage.setItem('daylight-api', w); localStorage.setItem('daylight-session', 'S'.repeat(43)); localStorage.setItem('daylight-gmail-config', JSON.stringify({ global: { quota: { limitPerMinute: 60000 }, pipeline: { maxFullPerSync: 80 } } })); localStorage.setItem('dl-h', '1'); } }, { w: WORKER });
     const page = await ctx.newPage(); await page.clock.setFixedTime(new Date(S.NOW)); await mockGoogle2(page, st);
-    const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
     // reproduce the device state: both databases exist at version 1 with NO object stores
     await page.goto('http://127.0.0.1:8787/blank.txt').catch(() => {});
     await page.evaluate(async () => { for (const n of ['daylight-mail', 'daylight-graph']) await new Promise((res) => { const r = indexedDB.open(n, 1); r.onsuccess = () => { r.result.close(); res(); }; r.onerror = () => res(); }); });

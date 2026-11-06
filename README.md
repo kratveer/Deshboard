@@ -1,83 +1,31 @@
-# Daylight — personal connected dashboard
+# Daylight
 
-This personal build reads connected Google data in the browser after you authorize access. Microsoft 365 connection code is ready but needs an Entra app registration first. Daylight has no backend and does not upload your account data. Google access tokens stay in memory; Microsoft sign-in uses MSAL's browser session cache. Personal tasks and daily notes are saved in this browser's local storage. Weather uses browser location permission and Open-Meteo.
+Daylight reads your Gmail **read-only** and turns it into one picture of your day: bills and payments, bookings and passes, deadlines and appointments, and people waiting for a reply. Everything Daylight works out stays in your browser on your device.
 
-## Included live connections
+The app has five tabs — **Today · Inbox · Plan · Money · Wallet** — plus **Ask**, **Settings** (Connections, rules, appearance) and the **Privacy Centre**. On phones and tablets the tabs sit in a floating pill-shaped bar at the bottom; on wide screens they become a sidebar.
 
-- Google Calendar: today's primary calendar events (read only)
-- Gmail: up to six inbox message headers (sender, subject, date, unread status); no email body, send, or delete access
-- Google Tasks: open tasks in up to three task lists (read only)
-- Google Drive: names, types and dates of your six most recently viewed files, linking to Drive (no file contents)
-- Birthdays: upcoming birthdays (next 60 days) from your Google Contacts (read only)
-- Markets: a watchlist of currency pairs (ECB daily reference rates via Frankfurter) and crypto prices (CoinGecko); no account needed, saved in this browser
-- Today's timeline and focus suggestions: worked out in the browser from the calendar and tasks already loaded
-- Personal tasks: add and complete tasks saved only in this browser
-- Daily notes: one note per date saved only in this browser
-- Weather: current conditions and today's high/low through Open-Meteo after you grant location access
-- Outlook Calendar, Outlook Mail, and Microsoft To Do: available after you register the Microsoft app and connect it
+## How it works
 
-## Open loops
+- **Sign-in** goes through the small Cloudflare Worker in [`server/`](server/README.md). The only Google permission Daylight asks for is reading Gmail (`gmail.readonly`), plus your basic profile. The Worker keeps Google's long-term token encrypted and gives the app short-lived tokens; the app then talks to Gmail directly.
+- **Gmail engine** (`gmail-sync.js`, `gmail-pipeline.js`, `gmail-cache.js`, `gmail-rules.js`, `gmail-batch.js`, `sync-scheduler.js`): history-driven discovery, metadata first, bodies only when needed, HTTP batch, a per-account cache in IndexedDB (`daylight-mail`) and a quota ceiling.
+- **Item Graph** (`graph/`, `connectors/`, `classification/`, `actions/`): one model of Items (emails, bills, transactions, subscriptions, bookings, deadlines, people, organisations, passes, tasks) in IndexedDB (`daylight-graph`). Your actions (done, snooze, paid) and corrections are kept across syncs.
+- **Interface** (`ui/`): `v2-app.js` (the app), `v2-model.js` (what each screen shows), `v2-scan.js` (Wallet scanner), `codes.js` (QR / Code 128 drawn locally — no code value is sent to any service), `code-reader.js` (local QR / Code 128 reader for browsers without BarcodeDetector), `v2-diagnostics.js` (developer diagnostics), `v2.css`.
+- **Core** (`app.js`): sign-in, account confirmation, the sync loop and the bridge between the engine and the interface.
+- **Accounts**: one Google account is signed in at a time. Data for other accounts on the same device stays hidden and can be deleted from Settings.
+- **Privacy**: *Disconnect* revokes Daylight's Google access and deletes that account's Gmail data from the device. *Delete all Daylight data on this device* removes everything, including your own tasks and passes.
+- **Optional AI** (off by default) answers *Ask AI* questions through the Worker and logs every request in the Privacy Centre. Email bodies are never sent.
+- **Content-Security-Policy** in `index.html` limits the page to the app's own files, Google (sign-in, Gmail, profile picture) and the Worker. If you deploy the Worker under another address, add it to `connect-src`.
+- **Fonts**: Inter is served from `ui/fonts` (SIL OFL 1.1, see `ui/fonts/OFL.txt`); no font service is contacted.
+- **Privacy policy**: [`privacy.html`](privacy.html).
 
-Daylight looks for things you started but haven't finished and shows them as action cards, worked out in your browser from data it already reads:
+## Running it locally
 
-- **Reply**: unread or important personal emails in Primary, older than 2 hours, from real people (not no-reply senders)
-- **Follow up**: emails you sent 3–14 days ago where the conversation ends with your message
-- **Prepare**: meetings with other people today or tomorrow, with a related Drive file when one matches
-- **Reschedule / Due soon**: overdue tasks, tasks due today or tomorrow, and calendar entries mentioning a deadline
-- **Renewal**: subscription, renewal, trial or payment emails
-- **Trip**: booking and ticket emails, and travel events in the next week
+Serve this folder over HTTP, for example `python -m http.server 8000`, and open `http://localhost:8000/?v2sample=1` to see the app with sample data (nothing real, nothing stored). Signing in needs the Worker; point the app at it with `localStorage.setItem('daylight-api', '<worker url>')`.
 
-Each card has **Open** (straight to Gmail, Calendar or Tasks), **Snooze** (one day) and **Done**; these choices are saved in this browser. The bell next to your photo lists meetings starting within 30 minutes and new open loops.
+## Tests
 
-## On your phone
+Browser tests use Playwright with Google mocked (`tests/mock-gmail.js`), for example `node tests/v2-ui-e2e.js`, `node tests/v2-isolation-e2e.js`, `node tests/gmail-v2-browser-e2e.js`, `node tests/v2-nav-scan-e2e.js`, `node tests/sw-upgrade-e2e.js`. `node tests/privacy-audit-e2e.js` checks privacy.html against real requests and storage; `node tests/site-build-check.js` checks a clean checkout builds and serves the published site. `python3 tests/codes-decode-check.py` and `python3 tests/crosscheck/crosscheck.py` verify drawing and reading of codes against independent libraries (OpenCV, ZXing, ZBar, libqrencode). Unit tests run in Node, for example `node tests/v2-model-unit.js`.
 
-Below 680px wide Daylight becomes an app with a tab bar: **Home** (today's events, tasks and reminders with a progress ring and All / Personal / Work filters), **Calendar** (week strip and day view), **+** (quick capture), **Assistant** (ask or capture in a chat) and **Statistics** (last 7 days). Tap your photo for the menu, including **All widgets** for the full dashboard.
+## Deploying
 
-## Ask and capture (command bar)
-
-The bar at the bottom of the page (Ctrl+K or / to focus) answers questions and saves things in one step:
-
-- **Capture**: start with "Remember", "Remind me", "Add", "Buy", "Call", "Pay"… or press **+**. Daylight picks up dates and times ("Friday", "tomorrow 18:30", "15.11.", "in 2 hours", "tonight") and projects ("for my research project", "#travel"), and saves the item to your tasks. Timed reminders appear under the bell and, if you allow it, as a desktop alert while Daylight is open.
-- **Ask**: "What do I have tomorrow?", "Show unfinished tasks from last week", "What bills or renewals are coming up?", "Who is waiting for a reply?", "Summarise my latest project activity".
-- **Search**: anything else searches your recent inbox, calendar (±120 days), Drive file names, tasks and daily notes, with a link to search all of Gmail.
-
-Open loops shows as an attention list by default (⚙ → View → Cards for the card grid).
-
-## Stay signed in (optional server)
-
-Browser-only Google access lasts about an hour. To stay connected, deploy the small Cloudflare Worker in [`server/`](server/README.md) and choose **Stay signed in** in the connections panel. The server keeps Google's long-term token encrypted and hands the dashboard short-lived tokens; the dashboard still talks to Google directly for your data.
-
-## Widgets (Daylight 2.0)
-
-Every tile is a widget on one [GridStack](https://gridstackjs.com/) layout (loaded from jsDelivr; without it the dashboard falls back to a simple 3/2/1 grid).
-
-- Widgets grow and shrink to fit their content, so nothing scrolls inside them.
-- Menu → **Customize** to drag widgets, change their width from the sides, open ⚙ settings or remove them with ×.
-- **+ Add widget** opens the gallery. Markets can be added several times, each with its own name and watchlist.
-- **Layout** presets: Default, Work focus, Inbox zero and Minimal. **Reset** returns to Default.
-- **Smart summary** describes your day from your calendar, open loops and free time.
-- The layout is saved as `daylight-layout-v3` and widget settings as `daylight-widget-settings`, both in this browser.
-
-- Daylight can be installed as an app. In Chrome or Edge, use the **Install** button that appears in the top bar (or the install icon in the address bar). On iPhone, open it in Safari and choose Share → Add to Home Screen. A service worker keeps the app's own files available offline; it never caches your Google, Microsoft or market data.
-
-## Microsoft setup
-
-Register a Microsoft Entra single-page application that accepts work/school and personal Microsoft accounts. Set its redirect URI to `https://kratveer.github.io/Deshboard/` using the **Single-page application** platform. Add only delegated Microsoft Graph permissions `User.Read`, `Mail.ReadBasic`, `Calendars.ReadBasic`, and `Tasks.Read`. Do not create a client secret. Enter the application (client) ID in Daylight's Connections panel. Microsoft will ask the user to sign in and consent before any data loads.
-
-## Google setup
-
-1. In Google Cloud Console, enable Google Calendar API, Gmail API, Google Tasks API, Google Drive API, and People API.
-2. Configure the OAuth consent screen as **External** and keep it in **Testing** for personal use. Add the Google account you will connect as a test user.
-3. Create an OAuth client ID of type **Web application**. Add the exact site origin under Authorized JavaScript origins. For local development use `http://localhost:8000`; for GitHub Pages use `https://YOUR-USERNAME.github.io`.
-4. Serve this folder over localhost or HTTPS. For example, from this directory run `python -m http.server 8000`, then visit `http://localhost:8000`.
-5. Choose the chain-link button in Daylight, enter the OAuth Client ID, and select **Connect**. Review and approve the read-only scopes.
-
-Google may show an unverified-app warning while the OAuth app is in Testing. Gmail's metadata scope is restricted by Google; public use may require verification and a security review. The personal test setup is not ready for public account connections.
-
-## Deploying to GitHub Pages
-
-Publish these files to a GitHub repository. Register the exact production URI with each provider. Do not commit access tokens or OAuth client secrets. OAuth client IDs are public identifiers; access is controlled by provider consent and registered origins.
-
-## Current boundaries
-
-Samsung Calendar is not connected. If it syncs to the same Google account, those events may already appear through Google Calendar. Apple Mail, Calendar, and Reminders need an Apple supported connection path; the web app does not ask for an Apple password. Social-media personal notifications are not included because there is no common notification API across platforms. The app does not yet support multiple accounts per provider, background sync, or user accounts for a public product.
+The app is a static site (GitHub Pages). The workflow publishes only the files in `site-files.txt` (not tests, docs or server). Bump the service-worker cache name in `sw.js` and the `?v=` numbers in `index.html` when files change. Deploy the Worker with `npx wrangler deploy` in `server/`. Never commit tokens, secrets or `.env` files.

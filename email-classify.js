@@ -499,7 +499,7 @@
       fromName: c.fromName,
       fromEmail: c.fromEmail,
       domain: c.domain,
-      logo: c.domain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(c.domain)}&sz=128` : '',
+      logo: '', // sender logos are not fetched from third-party favicon services
       meta: c.status && c.status !== 'active' ? String(c.status).replace(/_/g, ' ') : '',
       href: c.href,
       when: c.whenMs,

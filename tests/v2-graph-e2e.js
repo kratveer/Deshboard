@@ -6,7 +6,7 @@ const { createMockGmail } = require('./mock-gmail.js');
 const S = require('./home-audit-scenario.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -83,7 +83,7 @@ async function mockGoogle(page, g) {
   });
 }
 async function settle(page) {
-  await page.waitForFunction(() => { const t = document.querySelector('#sync-status')?.textContent || ''; return /updated|Partial sync|Sync failed/.test(t) && !/refreshing/.test(t); }, null, { timeout: 180000 });
+  await page.waitForFunction(() => { const h = window.DaylightV2Host; if (!h) return false; const s = h.syncState(); return !s.busy && (s.lastAt > 0 || !!s.error); }, null, { timeout: 180000 });
   await page.waitForTimeout(1500);
 }
 async function newPage(browser, g, viewport, mobile) {
@@ -99,7 +99,7 @@ async function newPage(browser, g, viewport, mobile) {
   const page = await ctx.newPage();
   await page.clock.setFixedTime(new Date(S.NOW));
   await mockGoogle(page, g);
-  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
   await page.goto('http://127.0.0.1:8781/index.html', { waitUntil: 'domcontentloaded' });
   await settle(page);
   return { ctx, page, errs };
@@ -117,12 +117,12 @@ const clickTab = async (page, t) => { await page.evaluate((x) => document.queryS
     // a second refresh (5 minutes later) must be incremental and must not duplicate anything
     await page.clock.setFixedTime(new Date(S.NOW + 5 * 60000));
     const before = await page.evaluate(() => window.DaylightV2.lastIngest.at);
-    await page.evaluate(() => { document.querySelector('#refresh').click(); });
+    await page.evaluate(() => { window.DaylightV2Host.syncNow(); });
     await page.waitForFunction((b) => window.DaylightV2.lastIngest && window.DaylightV2.lastIngest.at > b, before, { timeout: 60000 });
     // and a further quiet refresh 5 minutes later re-ingests nothing (watermark ties are re-read once, harmlessly)
     await page.clock.setFixedTime(new Date(S.NOW + 10 * 60000));
     const before2 = await page.evaluate(() => window.DaylightV2.lastIngest.at);
-    await page.evaluate(() => { document.querySelector('#refresh').click(); });
+    await page.evaluate(() => { window.DaylightV2Host.syncNow(); });
     await page.waitForFunction((b) => window.DaylightV2.lastIngest && window.DaylightV2.lastIngest.at > b, before2, { timeout: 60000 });
     out.second = await page.evaluate(async () => ({ ingest: window.DaylightV2.lastIngest, gmail: (await window.DaylightV2.graph.query({ sourceApp: 'gmail' })).length, counts: await window.DaylightV2.graph.counts() }));
     // act on an Item and correct another one

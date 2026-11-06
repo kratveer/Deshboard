@@ -75,6 +75,13 @@
   const rhythm = () => Object.assign({ dayStart: 8, dayEnd: 18, focusStart: 9, focusEnd: 12, briefTime: 7 }, LS.get('daylight-v2-rhythm', {}));
   const connected = () => S.sample || !!(S.host && S.host.connected && S.host.connected());
 
+  /** Floating pill navigation: slide the highlight behind the active tab. */
+  function moveTabThumb() {
+    const th = $('.v-tab-thumb'), on = $('.v-tab.on');
+    if (!th || !on || !on.offsetWidth) { if (th) th.style.width = '0px'; return; }
+    th.style.width = on.offsetWidth + 'px'; th.style.height = on.offsetHeight + 'px';
+    th.style.transform = `translate3d(${on.offsetLeft}px,${on.offsetTop}px,0)`;
+  }
   // ---------- mount ----------
   function mount(opts) {
     const o = opts || {};
@@ -89,6 +96,7 @@
     load().then(() => { if (!S.sample && S.core.local) S.core.local.importLocal().catch(() => {}); try { if (/[?&]diag=1\b/.test(location.search)) S.diagOnLoad = true; } catch {} });
     setInterval(() => { if (doc.visibilityState === 'visible') { S.core.actions.wakeSnoozed().catch(() => {}); render(); } }, 60000);
     setInterval(renderRing, 1500);
+    root.addEventListener('resize', () => moveTabThumb());
     root.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openAsk(); } });
     root.addEventListener('popstate', () => { if (S.sheets.length) closeSheet(true); });
     // account changed or not yet confirmed: drop everything account-specific from memory and the screen at once
@@ -139,7 +147,7 @@
     if (reduced()) el.classList.add('reduced');
     const tab = (id, label) => `<button class="v-tab" type="button" data-tab="${id}" aria-label="${label}"><span class="ico">${ic(id, 22)}<span class="v-badge" data-badge="${id}" hidden></span></span><span>${label}</span></button>`;
     el.innerHTML = `
-      <nav class="v-tabs" aria-label="Sections"><div class="v-brand"><i></i>Daylight</div>${tab('today', 'Today')}${tab('inbox', 'Inbox')}${tab('plan', 'Plan')}${tab('money', 'Money')}${tab('wallet', 'Wallet')}</nav>
+      <nav class="v-tabs" aria-label="Sections"><span class="v-tab-thumb" aria-hidden="true"></span><div class="v-brand"><i></i>Daylight</div>${tab('today', 'Today')}${tab('inbox', 'Inbox')}${tab('plan', 'Plan')}${tab('money', 'Money')}${tab('wallet', 'Wallet')}</nav>
       <div class="v-shell">
         <header class="v-top">
           <button class="v-avatar" type="button" data-open-settings aria-label="Settings"></button>
@@ -181,8 +189,9 @@
     const showWelcome = !pending && !connected() && !S.welcomeSkipped && !S.items.length;
     $('[data-welcome]').hidden = !showWelcome;
     $$('.v-screen').forEach((s) => { s.hidden = showWelcome || s.dataset.screen !== S.tab; });
-    $$('.v-tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
+    $$('.v-tab').forEach((b) => { const on = b.dataset.tab === S.tab; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     $('.v-orb').hidden = showWelcome; $('.v-tabs').hidden = showWelcome; $('.v-top').hidden = showWelcome;
+    moveTabThumb();
     if (showWelcome) { renderWelcome(); return; }
     if (pending) {
       $$('.v-badge').forEach((b) => { b.hidden = true; });
@@ -227,8 +236,10 @@
     Object.entries(b).forEach(([k, v]) => {
       const el = $(`[data-badge="${k}"]`); if (!el) return;
       const prev = S.badges[k];
-      el.hidden = !v; el.textContent = v > 99 ? '99+' : String(v);
-      if (prev != null && prev !== v && !reduced()) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+      // a small red dot (no number) on the tab; the count stays available to screen readers
+      el.hidden = !v; el.textContent = '';
+      const tb = el.closest('.v-tab'); if (tb) { const lb = tb.querySelector('span:last-child'); tb.setAttribute('aria-label', (lb ? lb.textContent : k) + (v ? ` · ${v} new` : '')); }
+      if (prev != null && v > prev && !reduced()) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
     });
     S.badges = b;
   }
@@ -561,8 +572,14 @@
     const seen = new Set(); const chips = [];
     (it.extractedFacts || []).forEach((f) => { const l = FACTLBL[f.key]; if (l === null || f.key.startsWith('date:') || f.key === 'amount') return; const k = f.key + '|' + f.value; if (seen.has(k)) return; seen.add(k); chips.push(`<button class="v-fact" type="button" data-copy="${esc(f.value)}" title="Copy"><small>${esc(l || f.key)}</small><b>${esc(f.value)}</b></button>`); });
     if (chips.length) h += `<div class="v-facts">${chips.join('')}</div>`;
-    if (it.meta && it.meta.qrImage) h += `<img class="v-qr" src="${esc(it.meta.qrImage)}" alt="Ticket code">`;
-    if (it.meta && it.meta.codeText) h += `<p class="v-muted" style="text-align:center;font-family:ui-monospace,monospace">${esc(it.meta.codeText)}</p>`;
+    // a pass's code is drawn here, in the browser, from its value (ui/codes.js); stored image URLs are never loaded
+    if (it.meta && it.meta.codeText) {
+      const C = root.DaylightCodes, fmt = it.meta.codeFormat || 'qr_code';
+      const drawn = C && C.render ? C.render(String(it.meta.codeText), fmt) : null;
+      if (drawn) h += `<div class="v-code ${drawn.kind}" data-code="${drawn.kind}">${drawn.svg}</div>`;
+      else h += `<p class="v-muted" style="text-align:center;font-size:13px">This ${esc(fmt.replace(/_/g, ' ').toUpperCase())} code can’t be redrawn here. Show the original ticket to scan it.</p>`;
+      h += `<p class="v-muted" style="text-align:center;font-family:ui-monospace,monospace;word-break:break-all">${esc(it.meta.codeText)}</p>`;
+    }
     // actions
     const acts = [];
     if (isDone) acts.push(`<button class="v-pbtn" type="button" data-act="reopen" data-id="${it.id}">${ic('undo', 16)} Reopen</button>`);
@@ -741,7 +758,6 @@
     h += `<div class="v-section"><h4>Your rules</h4>${S.rules.length ? `<div class="v-mini">${S.rules.map((x) => `<div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--v-line)"><span style="flex:1;min-width:0"><b style="font-weight:600;font-size:14px">${esc(x.label)}</b><br><span class="v-muted" style="font-size:12.5px">${x.hits ? `Used ${x.hits}×` : 'Applies to new mail'}${x.enabled === false ? ' · off' : ''}</span></span><button class="v-switch" type="button" role="switch" aria-checked="${x.enabled !== false}" data-ruletoggle="${x.id}" aria-label="Rule on"></button><button class="v-close" type="button" data-ruledel="${x.id}" aria-label="Delete rule">${ic('trash', 15)}</button></div>`).join('')}</div>` : '<p class="v-muted" style="font-size:14px">No rules yet. When you change an email\'s type, Daylight remembers it for that sender and lists the rule here.</p>'}</div>`;
     h += `<div class="v-section"><h4>Appearance</h4><div class="v-seg" style="margin:0 0 8px">${['system', 'light', 'dark'].map((t) => `<button type="button" class="${theme === t ? 'on' : ''}" data-theme="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div><div class="v-seg" style="margin:0">${[['full', 'Full motion'], ['reduced', 'Reduced motion']].map(([k, l]) => `<button type="button" class="${motion === k ? 'on' : ''}" data-motion="${k}">${l}</button>`).join('')}</div></div>`;
     h += `<div class="v-section"><h4>Privacy</h4><button class="v-setrow" type="button" data-privacy>${ic('shield', 20)} Privacy Centre<span class="r">${ic('right', 18)}</span></button>
-      <button class="v-setrow" type="button" data-classic>${ic('undo', 20)} Switch to the classic view<span class="r">${ic('right', 18)}</span></button>
       ${S.sample ? `<button class="v-setrow" type="button" data-exit-sample>${ic('x', 20)} Leave sample data<span class="r"></span></button>` : ''}</div>`;
     h += `<div class="v-section"><h4>Developer</h4><button class="v-setrow" type="button" data-diag>${ic('gear', 20)} Intelligence Diagnostics<span class="r">${ic('right', 18)}</span></button><button class="v-setrow" type="button" data-label>${ic('check', 20)} Review emails (validation)<span class="r">${ic('right', 18)}</span></button></div>`;
     h += `<p class="v-muted" style="font-size:12px;text-align:center;margin-top:24px">Daylight V2 · read-only Gmail release</p>`;
@@ -785,7 +801,7 @@
     const html = `<p style="font-size:14.5px;margin:2px 0 10px">Everything Daylight knows lives on this device. The server only signs you in and relays AI requests you allow.</p>
       <div class="v-section"><h4>What is stored here</h4><div class="v-mini">${Object.entries(counts.byType).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<button type="button"><span style="flex:1">${esc(M.KIND_LABEL[k] || k)}</span><span class="r">${v}</span></button>`).join('')}<button type="button"><span style="flex:1">Links between items</span><span class="r">${counts.links}</span></button><button type="button"><span style="flex:1">Your rules</span><span class="r">${counts.rules}</span></button><button type="button"><span style="flex:1">Actions you took</span><span class="r">${S.actions.length}</span></button></div>
       <p class="v-muted" style="font-size:12.5px">Emails keep sender, subject, a short preview and extracted facts (amounts, dates, references). Full messages stay in Gmail. Identity documents are never sent to AI.</p></div>
-      <div class="v-section"><h4>AI processing</h4><div class="v-setrow">Allow AI for unclear emails and Ask<span class="r"><button class="v-switch" type="button" role="switch" aria-checked="${aiOn}" data-aitoggle aria-label="AI processing"></button></span></div></div>
+      <div class="v-section"><h4>AI processing</h4><div class="v-setrow">Allow “Ask AI” answers<span class="r"><button class="v-switch" type="button" role="switch" aria-checked="${aiOn}" data-aitoggle aria-label="AI processing"></button></span></div><p class="v-muted" style="font-size:12.5px">Off by default. Only when you tap <b>Ask AI instead</b>: your question and up to 60 items (titles, senders, dates, amounts) go through the Daylight server to Google Gemini. Email bodies and identity documents are never sent. <a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></p></div>
       <div class="v-section"><h4>What left your device</h4>${logs.length ? `<div class="v-log">${logs.slice(0, 40).map((l) => `<div><time>${esc(M.ago(l.at, nowMs()))}</time><span><b style="font-weight:600">${esc(l.dest || l.kind)}</b> — ${esc(l.what || '')}${l.bytes ? ` · ${Math.round(l.bytes / 100) / 10} kB` : ''}</span></div>`).join('')}</div>` : '<p class="v-muted" style="font-size:14px">Nothing has been sent anywhere yet.</p>'}</div>
       <div class="v-section"><h4>Your data</h4><div class="v-actions"><button class="v-pbtn" type="button" data-export>${ic('down', 16)} Export (JSON)</button>${connected() && !S.sample ? '<button class="v-pbtn danger" type="button" data-conn="gmail">Disconnect this Gmail account…</button>' : ''}<button class="v-pbtn danger" type="button" data-deleteall>${ic('trash', 16)} Delete all Daylight data on this device</button></div>
       <p class="v-muted" style="font-size:12.5px">“Delete all” signs out, revokes Google access, and removes every account's items, rules, history and mail cache, your own tasks and Wallet passes, settings and Daylight's offline files on this device. Your Gmail itself is never changed.</p><div data-confirm></div></div>`;
@@ -844,7 +860,7 @@
     h += `<div class="v-section"><h4>Provenance and source links</h4>${tbl([['Cards checked on all tabs', prov.checked], ['Cards without a graph Item or source', prov.problems.length], ['Items with no source', a.provenance.noSource.length], ['Facts citing a missing email', a.provenance.orphanFacts.length], ['Broken links', a.provenance.brokenLinks], ['Gmail-derived Items not linked to their email', a.provenance.derivedNoEvidence.length], ['Links in total', a.links]])}${prov.problems.length ? `<pre class="v-pre">${esc(JSON.stringify(prov.problems.slice(0, 10), null, 1))}</pre>` : ''}</div>`;
     if (sync && sync.engine === 'v2') {
       const t = sync.today, w = sync.week, runs = sync.runs || [];
-      if (sync.engineError) h += `<div class="v-banner" style="background:var(--v-bad-soft)">${ic('urgent', 18)}<span><b>The V2 Gmail engine failed on the last sync</b> (${esc(fmtT(sync.engineError.at))}${sync.engineError.stage ? ', ' + esc(sync.engineError.stage) : ''}). ${sync.engineError.stage === 'graph ingest' ? 'Mail was read but did not reach these screens' : 'The classic engine was used instead, so new Gmail items did not reach these screens'}: ${esc(sync.engineError.message)}</span></div>`;
+      if (sync.engineError) h += `<div class="v-banner" style="background:var(--v-bad-soft)">${ic('urgent', 18)}<span><b>The Gmail engine failed on the last sync</b> (${esc(fmtT(sync.engineError.at))}${sync.engineError.stage ? ', ' + esc(sync.engineError.stage) : ''}). ${sync.engineError.stage === 'graph ingest' ? 'Mail was read but did not reach these screens' : 'No new Gmail items reached these screens'}: ${esc(sync.engineError.message)}</span></div>`;
       const cold = runs.filter((r) => r.cold), warm = runs.filter((r) => !r.cold);
       const avg = (xs, k) => (xs.length ? Math.round(xs.reduce((s2, r) => s2 + (r[k] || 0), 0) / xs.length) : null);
       h += `<div class="v-section"><h4>Gmail API quota (real counters)</h4>${tbl([
@@ -1087,7 +1103,6 @@
       const box = t.closest('.v-lrow'); let pick = $('.v-lpick', box); if (pick) { pick.remove(); return; }
       box.insertAdjacentHTML('beforeend', `<div class="v-lpick">${types.map((ty) => `<button type="button" class="v-chip" data-lexp="${id}|${ty}">${esc(M.TYPE_LABEL[ty])}</button>`).join('')}</div>`); return; }
     if (d.lexp) { const [id, ty] = d.lexp.split('|'); return setLabel(id, { ok: false, expected: ty }); }
-    if (d.classic !== undefined) { try { localStorage.setItem('daylight-ui', 'v1'); } catch {} location.reload(); return; }
     if (d.theme) { S.host.theme && S.host.theme.set && S.host.theme.set(d.theme); refreshOpenSheet(); return; }
     if (d.motion) { LS.set('daylight-v2-motion', d.motion); $('#v2').classList.toggle('reduced', reduced()); refreshOpenSheet(); return; }
     if (d.ruletoggle) { const r = S.rules.find((x) => x.id === d.ruletoggle); await S.core.ruleStore.edit(d.ruletoggle, { enabled: r && r.enabled === false }); await load(); return; }
@@ -1210,6 +1225,6 @@
   // live countdown on the Now card
   setInterval(() => { const el = doc.querySelector('[data-countdown]'); if (!el) return; const at = Number(el.dataset.countdown); const mins = Math.round((at - nowMs()) / 60000); el.textContent = mins > 0 ? `In ${mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min'}` : mins > -5 ? 'Now' : `Started ${-mins} min ago`; }, 30000);
 
-  const api = { mount, render, load, setTab, openItem, openAsk, openSettings, openDiagnostics, provenanceCheck, state: S, act };
+  const api = { mount, render, load, setTab, openItem, openAsk, openSettings, openDiagnostics, provenanceCheck, toast: (m) => toast(m), state: S, act };
   root.DaylightV2UI = api;
 })(typeof window !== 'undefined' ? window : globalThis);

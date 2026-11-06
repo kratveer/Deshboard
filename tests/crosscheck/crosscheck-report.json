@@ -1,0 +1,174 @@
+{
+ "encoders": {
+  "qr_zbar": [
+   52,
+   52
+  ],
+  "qr_zxing": [
+   52,
+   52
+  ],
+  "c128_zbar": [
+   9,
+   9
+  ],
+  "c128_zxing": [
+   9,
+   9
+  ],
+  "c128_bits_equal_zxing_writer": [
+   6,
+   6
+  ]
+ },
+ "readers": {
+  "c128:blur": {
+   "images": 18,
+   "daylight": 18,
+   "zbar": 18,
+   "zxing": 18,
+   "slowest_ms": 39
+  },
+  "c128:clean": {
+   "images": 18,
+   "daylight": 18,
+   "zbar": 18,
+   "zxing": 18,
+   "slowest_ms": 37
+  },
+  "c128:jpeg": {
+   "images": 18,
+   "daylight": 18,
+   "zbar": 18,
+   "zxing": 18,
+   "slowest_ms": 33
+  },
+  "c128:light": {
+   "images": 18,
+   "daylight": 18,
+   "zbar": 18,
+   "zxing": 0,
+   "slowest_ms": 36
+  },
+  "c128:noise": {
+   "images": 18,
+   "daylight": 18,
+   "zbar": 0,
+   "zxing": 18,
+   "slowest_ms": 3128
+  },
+  "c128:photo": {
+   "images": 18,
+   "daylight": 13,
+   "zbar": 8,
+   "zxing": 1,
+   "slowest_ms": 71
+  },
+  "c128:rot4": {
+   "images": 18,
+   "daylight": 18,
+   "zbar": 16,
+   "zxing": 16,
+   "slowest_ms": 49
+  },
+  "c128:rot90": {
+   "images": 18,
+   "daylight": 18,
+   "zbar": 18,
+   "zxing": 18,
+   "slowest_ms": 30
+  },
+  "c128:small": {
+   "images": 18,
+   "daylight": 0,
+   "zbar": 0,
+   "zxing": 0,
+   "slowest_ms": 19
+  },
+  "qr:blur": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 13
+  },
+  "qr:clean": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 19
+  },
+  "qr:inverted": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 0,
+   "zxing": 96,
+   "slowest_ms": 16
+  },
+  "qr:jpeg": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 14
+  },
+  "qr:light": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 13
+  },
+  "qr:noise": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 15
+  },
+  "qr:perspective": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 90,
+   "zxing": 96,
+   "slowest_ms": 588
+  },
+  "qr:photo": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 95,
+   "zxing": 96,
+   "slowest_ms": 8
+  },
+  "qr:rot15": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 37
+  },
+  "qr:rot33": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 11
+  },
+  "qr:rot90": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 96,
+   "zxing": 96,
+   "slowest_ms": 8
+  },
+  "qr:small": {
+   "images": 96,
+   "daylight": 96,
+   "zbar": 84,
+   "zxing": 96,
+   "slowest_ms": 310
+  }
+ },
+ "wrong_values_from_daylight_reader": []
+}

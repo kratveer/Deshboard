@@ -1,0 +1,47 @@
+{
+  "hosts": [
+    "fonts.googleapis.com",
+    "daylight-api.kratveer050.workers.dev",
+    "www.googleapis.com",
+    "gmail.googleapis.com"
+  ],
+  "worker": [
+    "/api/google/token",
+    "/api/gemini/analyse"
+  ],
+  "gmailRequests": 16,
+  "aiPayload": {
+    "keys": [
+      "id",
+      "kind",
+      "type",
+      "title",
+      "from",
+      "when",
+      "status",
+      "amount"
+    ],
+    "items": 60,
+    "promptChars": 8729
+  },
+  "storage": {
+    "dbs": [
+      "daylight-graph",
+      "daylight-mail"
+    ],
+    "localStorageKeys": [
+      "daylight-api",
+      "daylight-gmail-accounts",
+      "daylight-gmail-config",
+      "daylight-gmail-last-sync:42",
+      "daylight-google-scopes",
+      "daylight-graph-ingest:x3:42",
+      "daylight-profile",
+      "daylight-session",
+      "daylight-session-owner",
+      "daylight-v2-account-names",
+      "daylight-v2-ingest-log:42",
+      "dl-pa"
+    ]
+  }
+}

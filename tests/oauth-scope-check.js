@@ -57,13 +57,13 @@ const worker = fs.readFileSync(path.join(__dirname, '..', 'server', 'src', 'work
 const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 const checks = [
   [/gmail\.readonly/, worker, 'worker requests gmail.readonly'],
-  [/const mergePrior=false;/, app, 'browser-only sign-in never merges older grants'],
   [/include_granted_scopes: add && !upgrade \? 'true' : 'false'/, worker, 'worker: upgrade and normal sign-in never merge older grants; only adding a connector does'],
   [/gmail_readonly_required/, worker, 'worker rejects missing readonly'],
   [/needs_gmail_upgrade/, worker, 'token payload exposes needs_gmail_upgrade'],
   [/hasGmailReadonly/, app, 'app has hasGmailReadonly'],
-  [/google-upgrade-readonly/, app, 'app reconnect button id'],
-  [/q\.set\('upgrade','1'\)|upgrade:'1'/, app, 'app passes upgrade=1'],
+  [/\/auth\/google\/start\?/, app, 'app signs in only through the Daylight server'],
+  [/q\.set\('upgrade','1'\)/, app, 'app passes upgrade=1'],
+  [/q\.set\('switch','1'\)/, app, 'app passes switch=1 for another account'],
   [/gmail\.metadata/, worker, 'worker must NOT request gmail.metadata as a scope']
 ];
 // Last check inverted: worker GOOGLE_SCOPES must not include gmail.metadata
@@ -86,13 +86,13 @@ if (failed) process.exitCode = 1;
   const w = fs2.readFileSync(path2.join(__dirname, '..', 'server', 'src', 'worker.js'), 'utf8');
   const a = fs2.readFileSync(path2.join(__dirname, '..', 'app.js'), 'utf8');
   const base = /const GOOGLE_SCOPES = \[([\s\S]*?)\]\.join/.exec(w)[1];
-  const appBase = /const scopes = \[([^\]]*)\]\.join/.exec(a)[1];
   const v2 = [
     [!/gmail\.(send|compose|modify)|drive|fitness|calendar|tasks|contacts/.test(base) && /gmail\.readonly/.test(base), 'worker onboarding = openid/email/profile + gmail.readonly only'],
-    [!/gmail\.(send|compose|modify)|drive|fitness|calendar|tasks|contacts/.test(appBase) && /gmail\.readonly/.test(appBase), 'app onboarding = gmail.readonly only'],
+    [!/initTokenClient|accounts\.google\.com\/gsi|client_id|msal/.test(a), 'app has no browser-only sign-in (no Google client ID, no GIS, no Microsoft)'],
+    [!/gmail\.(send|compose|modify)|auth\/drive|fitness/.test(a), 'app never refers to send/compose/modify, Drive or Fit scopes'],
     [/OPTIONAL_SCOPES = \{[\s\S]*calendar[\s\S]*tasks[\s\S]*contacts/.test(w) && /scopesFor\(add\)/.test(w), 'worker supports incremental optional connectors'],
     [!/['"]https:\/\/www\.googleapis\.com\/auth\/gmail\.send['"]/.test(w.replace(/const hasGmailSend[^\n]*/, '')), 'worker never asks for gmail.send'],
-    [/V2 read-only release/.test(a), 'app reply opens Gmail instead of sending'],
+    [!/messages\/send|drafts/.test(a), 'app has no code that sends mail or creates drafts'],
     [/DaylightDataReset\?\.deleteGmailData/.test(a), 'disconnect deletes local Gmail data']
   ];
   let f2 = 0;

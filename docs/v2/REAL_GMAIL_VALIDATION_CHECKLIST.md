@@ -7,8 +7,8 @@ Record every result as **observed**, with a date. If a step was not done, write 
 ## 0. Before you start
 
 - [ ] Worker redeployed (`npx wrangler deploy` in `server/`). Check that `https://daylight-api.kratveer050.workers.dev/health` shows `"features":["logout_keep_grant"]`.
-- [ ] Frontend pushed. On the site, DevTools → Application → Cache Storage shows `daylight-v99`. If an old version sticks, reload twice.
-- [ ] `https://kratveer.github.io/Deshboard/?ui=v1` still opens the classic view.
+- [ ] Frontend pushed. On the site, DevTools → Application → Cache Storage shows `daylight-v104`. If an old version sticks, reload twice.
+- [ ] `https://kratveer.github.io/Deshboard/?ui=v1` opens the same app (the classic view has been removed), and Settings has no classic-view switch.
 - [ ] Google Cloud → OAuth consent screen:
   - [ ] the scopes are exactly `openid`, `email`, `profile` and `gmail.readonly`;
   - [ ] the tester is listed under Test users;

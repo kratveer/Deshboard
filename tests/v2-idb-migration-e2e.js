@@ -11,7 +11,7 @@ const srv = http.createServer((q, r) => { const p = decodeURIComponent(new URL(q
   const checks = []; const check = (n, ok, info) => checks.push([n, !!ok, info]);
   try {
     const page = await browser.newPage();
-    const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
     await page.goto('http://127.0.0.1:8788/t.html');
     const res = await page.evaluate(async () => {
       const raw = (name, version, upgrade) => new Promise((res, rej) => { const r = version ? indexedDB.open(name, version) : indexedDB.open(name); r.onupgradeneeded = () => upgrade && upgrade(r.result, r.transaction); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });

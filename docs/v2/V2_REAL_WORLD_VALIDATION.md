@@ -2,6 +2,10 @@
 
 **Status: pre-deployment.** Everything marked TESTED below was run in Chromium against synthetic mailboxes with Google mocked. **No real Gmail account has been tested yet**, neither yours nor the external tester's. Those rows say NOT RUN, and no result is claimed for them.
 
+> **2026-11-06 — Version 1 removed.** The classic view, its route (`?ui=v1`, the stored `daylight-ui` choice, demo mode) and the Settings switch are gone; the five-tab app is the only interface. Removed with it: Microsoft 365, browser-only Google sign-in (Client ID), GridStack widgets, the V1 stores (`daylight-store.js`, `daylight-data.js`, `health-data.js`) and the Phase 1 fallback Gmail engine (a failed V2 sync is now reported, not silently replaced). The Wallet scanner was ported (`ui/v2-scan.js`). Rows below that mention the classic view are historical.
+
+> **2026-11-06 — v104 production-readiness pass.** Scanner codes are now drawn locally (`ui/codes.js`); no code value is sent to api.qrserver.com or bwipjs-api.metafloor.com, and image URLs stored by older releases are ignored. A Content-Security-Policy restricts the page to the app, Google and the Worker. `privacy.html` rewritten for the actual architecture. The unused Phase 1 sync engine was removed from `gmail-sync.js`. All of this is tested with Google mocked; real-account validation is still pending.
+
 ## 1. Scope and method
 
 | Brief item | Status | How |
@@ -106,7 +110,28 @@ Follow `REAL_GMAIL_VALIDATION_CHECKLIST.md` step by step and record what is obse
   - Console: `gmail v2 — falling back to the Phase 1 engine NotFoundError … object stores was not found`.
   - These are issues #13 and #14. No classification, extraction or quota result can be taken from this run.
 
-## 4. Real Gmail quota — NOT RUN
+## 4. Real Gmail quota — FIRST OBSERVATIONS (your account, 2026-11-06, v102, Claude browser)
+
+**Observed.** These are numbers read from Diagnostics, not estimates.
+
+- **Build check.** The live files are byte-identical to the v102 build. The cache is `daylight-v102`. The mail database was repaired, now `daylight-mail` v2 (it had no stores before). There is no V2 engine error.
+- **Sync runs:**
+
+  | Run | Units | Discovered | Metadata | Bodies | Skipped | Deferred | Time | Notes |
+  |---|---|---|---|---|---|---|---|---|
+  | 1 (cold, catch-up) | 4,551 | 880 | 200 | 0 | 391 | 289 | 8 s | getMeta 4,000, threadsGet 480, messages.list 60, threads.list 10, profile 1. Partial. |
+  | 2 (manual, 38 s later) | 16 | | 0 | | | | | Everything deferred: the client's own 4,800 units/min ceiling was still spent. |
+  | 3 (manual, +75 s) | 4,796 | | 239 | 0 | | 50 | | |
+  | 4 (manual, +65 s) | 3,458 | | 51 | 40 | | 0 | | getFull 2,400. **Complete (not partial).** |
+
+- **Total units so far: 12,821.** 207 messages are still queued for a full read. At 40 per sync and 60 units each, that is about 12,400 more units over at least 6 syncs.
+- **Index:** 880 messages.
+  - Read: 243 classified + 11 done + 29 review. Queued for a full read: 207. Skipped (never read): 391.
+  - Skipped by category: promotions 217/286, updates 128/227, social 34/49, forums 10/10, primary 2/303, sent 0/5.
+- **Graph:** 490 emails and 71 organisations; derived Items are 4 bills, 5 transactions, 1 subscription, 5 bookings, 7 deadlines, 3 appointments and 6 deliveries. Provenance: 103 cards checked, 0 problems, 0 malformed facts. 1 likely duplicate, not yet inspected. 33 links point to Items not present: probably Wallet passes from emails that have not been read yet. Not yet confirmed.
+- **Not yet meaningful:** 85 money-type emails have no money Item, and bills have a due date only 1/4 times. Most bodies have not been read yet, so judge extraction only after the full-read queue is empty.
+- **Still open:** the token still carries `gmail.send`, Drive, Calendar, Tasks and Contacts. The old Google grant was not revoked, or no fresh sign-in followed the revoke (the existing session still works). V2 does not call those APIs (the guard is in place), but the grant must be removed at Google.
+- **UX finding:** the status text says "waiting for quota" when the limit is Daylight's own per-minute ceiling, not Google's.
 ## 5. Classification and ranking on real mail — NOT RUN
 ## 6. External tester — NOT RUN
 

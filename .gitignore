@@ -11,3 +11,5 @@ dist/
 *.p12
 .DS_Store
 Thumbs.db
+tests/crosscheck/__pycache__/
+tests/crosscheck/zxing-shim

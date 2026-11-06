@@ -6,7 +6,7 @@ const { createMockGmail } = require('./mock-gmail.js');
 const S = require('./home-audit-scenario.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -102,9 +102,9 @@ const waitIngest = (page, sub) => page.waitForFunction((s) => { const U = window
       hook('DaylightGmailConnector', (api) => Object.assign({}, api, { createGmailConnector: (o) => { const c = api.createGmailConnector(o); const ing = c.ingest; c.ingest = async (...a) => { if (sessionStorage.getItem('dl-fail') === 'ingest') throw new Error('injected: graph write failed'); return ing(...a); }; return c; } }));
     }, { w: WORKER });
     const page = await ctx.newPage(); await page.clock.setFixedTime(new Date(S.NOW)); await mockGoogle2(page, st);
-    const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
     const state = () => page.evaluate(async () => { const d = await window.DaylightV2Host.syncDiagnostics(); return { err: d.engineError, banner: !document.querySelector('[data-engineerr]').hidden, emails: window.DaylightV2UI.state.items.filter((x) => x.type === 'email').length }; });
-    const waitUI = () => page.waitForFunction(() => window.DaylightV2UI && window.DaylightV2Host && window.DaylightV2Host.accountId() && document.querySelector('#sync-status') && /updated|Partial|failed/i.test(document.querySelector('#sync-status').textContent), null, { timeout: 90000 });
+    const waitUI = () => page.waitForFunction(() => window.DaylightV2UI && window.DaylightV2Host && window.DaylightV2Host.accountId() && (() => { const st = window.DaylightV2Host.syncState(); return !st.busy && (st.lastAt > 0 || !!st.error); })(), null, { timeout: 90000 });
     // 1) V2 sync fails
     await page.goto('http://127.0.0.1:8789/blank.txt').catch(() => {}); await page.evaluate(() => sessionStorage.setItem('dl-fail', 'sync'));
     await page.goto('http://127.0.0.1:8789/index.html', { waitUntil: 'domcontentloaded' }); await waitUI(); await page.waitForTimeout(2500);
@@ -113,7 +113,7 @@ const waitIngest = (page, sub) => page.waitForFunction((s) => { const U = window
     check('…and a banner tells the user what they see may be incomplete', s1.banner);
     await page.evaluate(async () => { await window.DaylightV2UI.openDiagnostics(); await new Promise((r) => setTimeout(r, 800)); });
     const diagText = await page.evaluate(() => document.querySelector('.v-sheet .bd').innerText);
-    check('…and Diagnostics names the failure', /V2 Gmail engine failed on the last sync/.test(diagText) && /injected: object store not found/.test(diagText));
+    check('…and Diagnostics names the failure', /Gmail engine failed on the last sync/.test(diagText) && /injected: object store not found/.test(diagText));
     // 2) graph ingest fails after a good sync
     await page.evaluate(() => sessionStorage.setItem('dl-fail', 'ingest'));
     await page.reload({ waitUntil: 'domcontentloaded' }); await waitUI(); await page.waitForTimeout(2500);

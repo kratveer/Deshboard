@@ -6,7 +6,7 @@ const { createMockGmail } = require('./mock-gmail.js');
 const S = require('./home-audit-scenario.js');
 
 const appDir = path.resolve(__dirname, '..');
-const WORKER = 'https://daylight-api.test';
+const WORKER = 'https://daylight-api.kratveer050.workers.dev'; // mocked: every request to it is answered by the test (the real Worker is never contacted); same host as production, so the page's Content-Security-Policy applies unchanged
 const T = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png' };
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
 const json = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -96,7 +96,7 @@ const waitIngest = (page, sub) => page.waitForFunction((s) => { const U = window
     await ctx.addInitScript(({ w }) => { if (!localStorage.getItem('dl-x')) { localStorage.setItem('daylight-api', w); localStorage.setItem('daylight-session', 'S'.repeat(43)); localStorage.setItem('daylight-profile', JSON.stringify({ name: 'Ravi Kumar', email: 'ravi@example.com', sub: '42' })); localStorage.setItem('daylight-v2-account-names', JSON.stringify({ 42: 'ravi@example.com' })); localStorage.setItem('daylight-personal-tasks', JSON.stringify([{ id: 'own1', title: 'My own task' }])); localStorage.setItem('dl-x', '1'); } }, { w: WORKER });
     const page = await ctx.newPage();
     await page.route('**/*', (route) => { const u = new URL(route.request().url()); if (u.hostname === '127.0.0.1') return route.continue(); if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS }); if (u.origin === WORKER && u.pathname === '/api/google/token') return json(route, 401, { error: 'reauth' }); if (u.origin === WORKER) return json(route, 200, { ok: true }); return route.abort('blockedbyclient'); });
-    const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) errs.push('CSP: ' + m.text().slice(0, 200)); });
     await page.goto('http://127.0.0.1:8786/index.html', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(5000);
     const st = await page.evaluate(() => ({ text: document.querySelector('#v2 .v-screen:not([hidden])')?.innerText || '', banner: !document.querySelector('[data-reauth]').hidden, accts: [...new Set(window.DaylightV2UI.state.items.map((x) => x.accountId))], name: document.querySelector('#v2').innerText.includes('Ravi') }));
