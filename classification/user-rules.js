@@ -15,7 +15,7 @@
     urgent_action: 'Urgent action', personal: 'Important personal', university_work: 'University and work', financial: 'Financial', receipt: 'Receipt',
     invoice: 'Invoice', subscription: 'Subscription', travel: 'Travel', booking: 'Booking', delivery: 'Delivery', documents: 'Documents',
     appointment: 'Appointment', deadline: 'Deadline', follow_up: 'Follow-up', newsletter: 'Newsletter', social_notification: 'Social notification',
-    marketing: 'Marketing', automated: 'Automated notification'
+    marketing: 'Marketing', automated: 'Automated notification', feedback: 'Feedback request'
   };
 
   /**

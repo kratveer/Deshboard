@@ -9,12 +9,12 @@
   const NEEDS = new Set(['urgent_action', 'personal', 'university_work', 'deadline', 'appointment']);
   const MONEY = new Set(['financial', 'receipt', 'invoice', 'subscription', 'delivery']);
   const TRAVEL = new Set(['travel', 'booking']);
-  const UPDATES = new Set(['newsletter', 'social_notification', 'marketing', 'automated']);
+  const UPDATES = new Set(['newsletter', 'social_notification', 'marketing', 'automated', 'feedback']);
   const DATED = new Set(['deadline', 'appointment', 'booking', 'event', 'ticket', 'task', 'bill', 'subscription', 'delivery']);
   const TYPE_LABEL = {
     urgent_action: 'Urgent', personal: 'Personal', university_work: 'Study & work', financial: 'Payment', receipt: 'Receipt', invoice: 'Bill',
     subscription: 'Subscription', travel: 'Travel', booking: 'Booking', delivery: 'Delivery', documents: 'Document', appointment: 'Appointment',
-    deadline: 'Deadline', follow_up: 'Sent', newsletter: 'Newsletter', social_notification: 'Social', marketing: 'Promotion', automated: 'Notification'
+    deadline: 'Deadline', follow_up: 'Sent', newsletter: 'Newsletter', social_notification: 'Social', marketing: 'Promotion', automated: 'Notification', feedback: 'Feedback request'
   };
   const KIND_LABEL = { bill: 'Bill', transaction: 'Payment', subscription: 'Subscription', booking: 'Booking', trip: 'Trip', ticket: 'Ticket', delivery: 'Delivery',
     deadline: 'Deadline', appointment: 'Appointment', task: 'Task', event: 'Event', document: 'Document', warranty: 'Warranty', email: 'Email', person: 'Person', organisation: 'Organisation', project: 'Project', file: 'File' };
@@ -28,7 +28,7 @@
   const importance = (it) => Number.isFinite(it.userPriority) ? it.userPriority : (it.classification && Number.isFinite(it.classification.importance) ? it.classification.importance : (it.priority || 0));
   const isSent = (it) => it.type === 'email' && ctype(it) === 'follow_up';
   /** open = not done/dismissed, and not snoozed into the future */
-  const isOpen = (it, now) => it.status === 'open' || (it.status === 'snoozed' && (!it.snoozedUntil || it.snoozedUntil <= now));
+  const isOpen = (it, now) => (it.status === 'open' || (it.status === 'snoozed' && (!it.snoozedUntil || it.snoozedUntil <= now))) && !(it.meta && it.meta.notAPass); // notAPass: an older pass made from a feedback request
   const isSnoozed = (it, now) => it.status === 'snoozed' && it.snoozedUntil && it.snoozedUntil > now;
   /** When the Item happens: a time the user planned beats the source date. */
   const whenOf = (it) => (Number.isFinite(it.plannedAt) ? it.plannedAt : (it.dueAt || null));
@@ -386,7 +386,8 @@
 
   // ---------- Wallet ----------
   function wallet(items, now) {
-    const passes = items.filter((it) => ['booking', 'ticket', 'document', 'warranty'].includes(it.type) && it.status !== 'dismissed');
+    // meta.notAPass: an older pass made from a review / feedback request (connectors/local-connector.js) — not shown
+    const passes = items.filter((it) => ['booking', 'ticket', 'document', 'warranty'].includes(it.type) && it.status !== 'dismissed' && !(it.meta && it.meta.notAPass));
     const future = (it) => { const w = whenOf(it); return w && w >= now - 6 * HOUR; };
     const travel = passes.filter((it) => (it.type === 'booking' || (it.type === 'ticket' && (it.meta?.walletKind || 'tickets') === 'tickets')) && future(it)).sort((a, b) => whenOf(a) - whenOf(b));
     // trips: bookings/tickets within 3 days of each other form one trip

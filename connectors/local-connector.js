@@ -95,6 +95,7 @@
       }
       // a V1 task's done flag is the user's: only apply it on first import, later the graph status wins
       const prev = new Map((await graph.getMany(parts.map((p) => iid(p.key)))).map((x) => [x.id, x]));
+      await markFeedbackPasses(passes, parts, prev);
       parts.forEach((p) => { if (prev.has(iid(p.key))) delete p.status; });
       // just before writing: drop passes deleted meanwhile (e.g. an account disconnected in another tab) and take an owner
       // another tab recorded meanwhile (owners are only ever added, never changed)
@@ -111,8 +112,11 @@
         .map((p) => ({ p, cur: afterPass.get(String(p.key).slice('wallet:'.length)) }))
         .filter(({ p, cur }) => cur && ownerOf(cur) !== p.accountId).map(({ cur }) => cur);
       if (fix.length) await graph.upsertMany(fix.map(passItem));
+      // a pass merged into its booking may still have its own older standalone Item (made before the booking existed)
+      const merged = new Set(); parts.forEach((p, i) => { if (i < passes.length && p.meta && p.meta.mergedInto) merged.add(String(passes[i].id)); });
+      if (merged.size) await settleMergedDuplicates(passes.filter((p) => merged.has(String(p.id)) && nowPass.has(String(p.id))), parts);
       const links = [];
-      passes.forEach((p) => { if (p.mailId && p.ownerAccount && mailKey && nowPass.has(String(p.id))) links.push([iid(`wallet:${p.id}`), iid(mailKey(p.mailId, p.ownerAccount)), 'evidence']); });
+      passes.forEach((p) => { if (p.mailId && p.ownerAccount && mailKey && nowPass.has(String(p.id)) && !merged.has(String(p.id))) links.push([iid(`wallet:${p.id}`), iid(mailKey(p.mailId, p.ownerAccount)), 'evidence']); });
       if (links.length && graph.linkMany) await graph.linkMany(links, 'local');
       // reconcile: any wallet/task source whose local record is gone is dropped (Items left with no source are deleted).
       // Uses a fresh read, so a pass another tab added during this import is kept.
@@ -148,6 +152,65 @@
       }
       if (n) { try { const raw = read(ls, 'daylight-wallet'); const by = new Map(todo.filter((p) => p.ownerAccount).map((p) => [String(p.id), p.ownerAccount])); ls.setItem('daylight-wallet', JSON.stringify(raw.map((p) => (p && by.has(String(p.id)) && !p.ownerAccount ? Object.assign({}, p, { ownerAccount: by.get(String(p.id)) }) : p)))); } catch {} }
       return n;
+    }
+
+    /** v112 (seen in real data): older releases saved some review / feedback requests ("Write a review for …") as Wallet
+     *  passes. When the email such a pass came from is now read as a feedback request, the pass is kept (its record and
+     *  Item are not deleted) but marked meta.notAPass = 'feedback', so Wallet does not show it. A pass you acted on (pin,
+     *  note, status, plan …) stays in Wallet. Recomputed on every import, so correcting the email's type undoes it. */
+    async function markFeedbackPasses(passes, parts, prev) {
+      if (!mailKey) return 0;
+      const idx = []; passes.forEach((p, i) => { if (fromMail(p) && p.ownerAccount && mailIdOf(p) && !(parts[i].meta && parts[i].meta.mergedInto)) idx.push(i); });
+      if (!idx.length) return 0;
+      const mails = new Map((await graph.getMany(idx.map((i) => iid(mailKey(mailIdOf(passes[i]), passes[i].ownerAccount))))).map((m) => [m.id, m]));
+      let actions = null, allLinks = null, n = 0;
+      for (const i of idx) {
+        const m = mails.get(iid(mailKey(mailIdOf(passes[i]), passes[i].ownerAccount)));
+        const fb = !!(m && m.accountId === passes[i].ownerAccount && m.classification && m.classification.type === 'feedback');
+        let flag = fb ? 'feedback' : null;
+        if (fb) {
+          const before = prev.get(iid(parts[i].key));
+          if (before) { if (!actions) { actions = graph.actions ? await graph.actions.all().catch(() => []) : []; allLinks = graph.links ? await graph.links().catch(() => []) : []; } if (hasUserState(before, actions, allLinks)) flag = null; }
+        }
+        parts[i].meta.notAPass = flag; if (flag) n++;
+      }
+      return n;
+    }
+
+    /** Older standalone Items of passes that are now merged into a booking (v112, found in real data: they stayed
+     *  'local', so they were duplicates and visible to other logins). For each — only when the pass came from an email,
+     *  its owner is proven, the booking it merges into exists and belongs to that same account:
+     *    no user state on the standalone Item → remove that Item (only its own wallet source; the booking is untouched)
+     *    user state (status, snooze, pin, notes, plan, corrections, history, actions, links you made) → keep it whole, owned
+     *    by the pass's account (hidden from other logins, exported only with that account)
+     *  Passes you scanned or typed are never merged, so never touched here. Returns { removed, rescoped }. */
+    async function settleMergedDuplicates(mergedPasses, parts) {
+      const out = { removed: 0, rescoped: 0 };
+      if (!mergedPasses.length) return out;
+      const stand = new Map((await graph.getMany(mergedPasses.map((p) => iid(`wallet:${p.id}`)))).map((x) => [x.id, x]));
+      if (!stand.size) return out;
+      const actions = graph.actions ? await graph.actions.all().catch(() => []) : [];
+      const allLinks = graph.links ? await graph.links().catch(() => []) : [];
+      const drop = [], keep = [];
+      for (const p of mergedPasses) {
+        if (!fromMail(p) || !p.ownerAccount) continue;
+        const it = stand.get(iid(`wallet:${p.id}`)); if (!it) continue;
+        const part = parts.find((x) => x.meta && x.meta.mergedInto && (x.sources || []).some((s) => s.app === 'wallet' && String(s.itemId) === String(p.id)));
+        const booking = part ? (await graph.getMany([part.meta.mergedInto]))[0] : null;
+        if (!booking || booking.accountId !== p.ownerAccount || booking.id === it.id) continue; // ownership or target not proven: leave it
+        if (hasUserState(it, actions, allLinks)) { if (it.accountId !== p.ownerAccount) keep.push(Object.assign(passItem(p), { key: `wallet:${p.id}` })); }
+        else drop.push({ itemId: it.id, app: 'wallet', accountId: 'local', sourceItemId: String(p.id) });
+      }
+      if (keep.length) { await graph.upsertMany(keep); out.rescoped = keep.length; }
+      if (drop.length && graph.detachSources) out.removed = await graph.detachSources(drop);
+      return out;
+    }
+    const OPEN = (v) => v == null || v === 'open' || v === false || (Array.isArray(v) && !v.length);
+    function hasUserState(it, actions, allLinks) {
+      if (['status', 'snoozedUntil', 'pinned', 'userPriority', 'plannedAt', 'plannedMinutes', 'notes', 'userCorrections', 'actionHistory'].some((k) => !OPEN(it[k]))) return true;
+      if (it.classification && it.classification.userSet) return true;
+      if (actions.some((a) => a.itemId === it.id)) return true;
+      return allLinks.some((l) => (l.from === it.id || l.to === it.id) && l.kind !== 'evidence'); // e.g. a task you planned "about" it
     }
 
     /** The user's explicit choice: show the unassigned mail-derived passes in this account (acct). Only passes with no

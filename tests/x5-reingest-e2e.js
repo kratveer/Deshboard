@@ -184,8 +184,12 @@ const dupes = (snap) => { const per = {}; snap.filter((x) => ['bill', 'transacti
     ROOT = v108Dir; const c2 = await open(ctx3, g3, T0 + 5 * MIN); const s108 = await state(c2.page); const snap108 = await c2.page.evaluate(SNAP); await c2.page.close();
     ROOT = appDir; const c3 = await open(ctx3, g3, T0 + 25 * MIN); const s109 = await state(c3.page); const snap109 = await c3.page.evaluate(SNAP);
     check('6a setup: the deployed v108 build did the x5 full re-ingest', s108.last.incremental === false && s108.x5.length === 1, s108.last);
-    check('6b opening the fixed build after deployed v108: incremental, no second full re-ingest, same graph', s109.last.incremental === true && s109.log.filter((l) => l.full).length === s108.log.filter((l) => l.full).length && JSON.stringify(snap109) === JSON.stringify(snap108), { last: s109.last });
-    check('no page errors or CSP violations (v108 → fixed)', c3.errs.length === 0, c3.errs);
+    // v112 adds one full re-ingest of its own (review / feedback requests are no bookings: fb1 watermark); the x5 one is not repeated
+    check('6b opening the current build after deployed v108: exactly one more full re-ingest (v112 feedback rules, not x5), x5 kept, same graph', s109.log.filter((l) => l.full).length === s108.log.filter((l) => l.full).length + 1 && s109.x5.length === 1 && JSON.stringify(snap109) === JSON.stringify(snap108), { last: s109.last });
+    await c3.page.close(); const c4 = await open(ctx3, g3, T0 + 45 * MIN); const s110 = await state(c4.page); const snap110 = await c4.page.evaluate(SNAP);
+    check('6c the next open is incremental: no further full re-ingest, same graph', s110.last.incremental === true && s110.log.filter((l) => l.full).length === s109.log.filter((l) => l.full).length && JSON.stringify(snap110) === JSON.stringify(snap108), { last: s110.last });
+    await c4.page.close();
+    check('no page errors or CSP violations (v108 → fixed)', c3.errs.length === 0 && c4.errs.length === 0, [c3.errs, c4.errs]);
     await ctx3.close();
   } finally { await browser.close(); srv.close(); fs.rmSync(oldDir, { recursive: true, force: true }); fs.rmSync(v108Dir, { recursive: true, force: true }); }
   let fail = 0; checks.forEach(([n, ok, info]) => { console.log((ok ? 'PASS ' : 'FAIL ') + n + (ok || info === undefined ? '' : '  ← ' + JSON.stringify(info).slice(0, 600))); if (!ok) fail++; });

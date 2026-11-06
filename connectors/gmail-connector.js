@@ -27,6 +27,8 @@
     const G = root.DaylightItemGraph || o.itemGraphApi;
     const iid = (k) => G.itemId(k);
 
+    const KEEP_TYPES = new Set(['bill', 'transaction', 'subscription', 'organisation', 'person']);
+    const userTouched = (it) => ['status', 'snoozedUntil', 'pinned', 'userPriority', 'plannedAt', 'notes', 'userCorrections', 'actionHistory'].some((k) => { const v = it[k]; return !(v == null || v === 'open' || v === false || (Array.isArray(v) && !v.length)); }) || !!(it.classification && it.classification.userSet);
     function factList(pairs, srcId, method) { return pairs.filter(([, v]) => v != null && v !== '').map(([key, value]) => ({ key, value, sourceItemId: srcId, method: method || 'rule' })); }
 
     /** normalise(record, facts, ctx) → { items, links } (pure). */
@@ -77,7 +79,8 @@
       // a payment confirmation is a payment (never a second bill); a transfer between the user's own accounts is not spending.
       // A category the user chose by hand (userCategory) is trusted as-is.
       const ev = rec.userCategory ? { ok: true, kind: null } : (Cls.moneyEvidence ? Cls.moneyEvidence({ subject: rec.subject, snippet: rec.snippet, labels: rec.labels, facts: f }) : { ok: true, kind: null });
-      const money = MONEY_CATS.has(rec.userCategory || rec.category) && amount && amount.value != null && cls.type !== 'personal' && ev.ok; // a person writing about money is a message, not a transaction
+      const feedback = cls.type === 'feedback'; // v112: a review / feedback request is never a booking, ticket, money record or obligation
+      const money = MONEY_CATS.has(rec.userCategory || rec.category) && amount && amount.value != null && cls.type !== 'personal' && !feedback && ev.ok; // a person writing about money is a message, not a transaction
       if (money) {
         const base = rec.userCategory || rec.category;
         const cat = ev.kind === 'self-transfer' || ev.kind === 'transfer' ? 'transfer' : ev.kind === 'paid' ? 'payment' : (ev.kind === 'receipt' && base === 'bill') ? 'receipt' : base;
@@ -101,7 +104,7 @@
         links.push([emailId, iid(k), 'evidence']);
       }
       // dated obligations: one per thread and kind (the newest email in the thread wins on re-ingest)
-      (rec.keyDates || []).filter((kd) => kd.kind !== 'travel').forEach((kd) => {
+      (feedback ? [] : (rec.keyDates || [])).filter((kd) => kd.kind !== 'travel').forEach((kd) => {
         if (money && kd.kind === 'deadline') return; // a bill's due date lives on the bill Item
         const type = kd.kind === 'reminder' || kd.kind === 'event' ? 'appointment' : 'deadline';
         const k = `date:${acct}:${rec.threadId || rec.messageId}:${type}`;
@@ -110,12 +113,14 @@
           extractedFacts: factList([['date', kd.date + (kd.time ? ' ' + kd.time : '')], ['quote', kd.quote]], emailId, kd.source === 'schema.org' ? 'schema' : 'rule') });
         links.push([emailId, iid(k), 'evidence']);
       });
+      // …but it may point at the booking it is about (linked for context only if that booking already exists)
+      const context = feedback && ref ? [[emailId, iid(`booking:${acct}:${String(ref).toUpperCase()}`), domain]] : [];
       if (cls.type === 'delivery') {
         const k = `delivery:${acct}:${ref || rec.threadId}`;
         items.push({ key: k, accountId: acct, type: 'delivery', title: rec.subject || 'Delivery', description: rec.snippet || '', priority: cls.importance, sources: [src('evidence')], createdAt: rec.internalDate || undefined, datedBySource: true, extractedFacts: factList([['reference', ref]], emailId) });
         links.push([emailId, iid(k), 'evidence']);
       }
-      return { items, links, classification: cls };
+      return { items, links, classification: cls, context };
     }
 
     /**
@@ -130,8 +135,8 @@
       const live = rows.filter((r) => !['skipped', 'meta-pending', 'deleted'].includes(r.status) && (!since || (r.lastProcessedAt || 0) >= since));
       const facts = await o.mailCache.getFacts(acct, live.map((r) => r.messageId));
       const rules = Rules ? (await Rules.all()).filter((r) => !r.accountId || r.accountId === acct) : []; // another account's rules never apply here
-      const out = [], linkList = [];
-      live.forEach((r) => { const n = normalise(r, facts.get(r.messageId), { accountId: acct, rules, now: (opts && opts.now) || now(), vipSenders: (opts && opts.vipSenders) || [] }); out.push(...n.items); linkList.push(...n.links); });
+      const out = [], linkList = [], context = [], feedbackIds = new Set();
+      live.forEach((r) => { const n = normalise(r, facts.get(r.messageId), { accountId: acct, rules, now: (opts && opts.now) || now(), vipSenders: (opts && opts.vipSenders) || [] }); out.push(...n.items); linkList.push(...n.links); if (n.context) context.push(...n.context); if (n.classification && n.classification.type === 'feedback') feedbackIds.add(String(r.messageId)); });
       // a re-read email that no longer produces a derived Item (fixed extraction, reclassified, user rule) stops supporting it
       const stale = [];
       if (graph.detachSources && live.length) {
@@ -139,7 +144,12 @@
         const liveIds = new Set(live.map((r) => String(r.messageId)));
         (await graph.query({ accountId: acct })).forEach((it) => {
           if (it.type === 'email') return;
-          (it.sources || []).forEach((s) => { if (s.app === APP && (s.role === 'evidence' || s.role === 'mention') && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id)) stale.push({ itemId: it.id, app: APP, accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`${APP}:${acct}:${s.itemId}`) }); });
+          // v112: an email now read as a feedback request stops supporting the booking / dates it used to make — but a
+          // money record it made is never removed this way, and neither is an Item you acted on (status, notes, plan …)
+          // (an Item you acted on that is supported by another email only loses the feedback email as evidence)
+          const onlyFeedback = !(it.sources || []).some((s2) => !(s2.app === APP && feedbackIds.has(String(s2.itemId))));
+          const keepForFeedback = (s) => feedbackIds.has(String(s.itemId)) && (KEEP_TYPES.has(it.type) || (userTouched(it) && onlyFeedback));
+          (it.sources || []).forEach((s) => { if (s.app === APP && (s.role === 'evidence' || s.role === 'mention') && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id) && !keepForFeedback(s)) stale.push({ itemId: it.id, app: APP, accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`${APP}:${acct}:${s.itemId}`) }); });
         });
       }
       writeOk(); const stored = await graph.upsertMany(out);
@@ -162,6 +172,14 @@
           if (changed) { writeOk(); await graph.putItem(n); carried++; }
         }
         writeOk(); await graph.detachSources(stale);
+      }
+      if (context.length) {
+        // only to a booking of this account whose own emails come from the same sender (a reference alone may be unrelated)
+        const base = (d) => String(d || '').toLowerCase().split('.').slice(-2).join('.');
+        const bks = new Map((await graph.getMany([...new Set(context.map((c) => c[1]))])).filter((x) => x && x.type === 'booking' && x.accountId === acct).map((x) => [x.id, x]));
+        const rel = (b) => [...new Set([...((bks.get(b) || {}).relatedItemIds || []), ...linkList.filter((l) => l[1] === b && l[2] === 'evidence').map((l) => l[0])])];
+        const mails = new Map((await graph.getMany([...new Set([...bks.keys()].flatMap(rel))])).filter((m) => m && m.type === 'email' && m.accountId === acct).map((m) => [m.id, m]));
+        context.forEach(([a, b, dom]) => { const bk = bks.get(b); if (!bk || !dom) return; const same = rel(b).some((r) => { const m = mails.get(r); return m && r !== a && base(m.extractedEntities && m.extractedEntities.senderDomain) === base(dom); }); if (same) linkList.push([a, b, 'about']); });
       }
       writeOk(); if (graph.linkMany) await graph.linkMany(linkList, acct); else for (const [a, b, kind] of linkList) await graph.link(a, b, kind, acct);
       // Gmail deleted / trashed → drop the email Item (derived Items survive while another email still supports them)

@@ -1264,7 +1264,7 @@
     if (d.lfilter !== undefined) { S.labelFilter = S.labelFilter === 'todo' ? null : 'todo'; return refreshOpenSheet(); }
     if (d.lok) return setLabel(d.lok, { ok: true, expected: null });
     if (d.limp) { const [id, v] = d.limp.split('|'); return setLabel(id, { important: v === '1' }); }
-    if (d.lwrong) { const id = d.lwrong; const types = ['urgent_action', 'personal', 'university_work', 'invoice', 'receipt', 'financial', 'subscription', 'booking', 'travel', 'delivery', 'documents', 'deadline', 'appointment', 'follow_up', 'newsletter', 'marketing', 'social_notification', 'automated'];
+    if (d.lwrong) { const id = d.lwrong; const types = ['urgent_action', 'personal', 'university_work', 'invoice', 'receipt', 'financial', 'subscription', 'booking', 'travel', 'delivery', 'documents', 'deadline', 'appointment', 'follow_up', 'newsletter', 'marketing', 'social_notification', 'automated', 'feedback'];
       const box = t.closest('.v-lrow'); let pick = $('.v-lpick', box); if (pick) { pick.remove(); return; }
       box.insertAdjacentHTML('beforeend', `<div class="v-lpick">${types.map((ty) => `<button type="button" class="v-chip" data-lexp="${id}|${ty}">${esc(M.TYPE_LABEL[ty])}</button>`).join('')}</div>`); return; }
     if (d.lexp) { const [id, ty] = d.lexp.split('|'); return setLabel(id, { ok: false, expected: ty }); }
@@ -1288,7 +1288,7 @@
   function openNotRight(id) {
     const it = S.byId.get(id); if (!it) return;
     const who = M.sender(it) || 'this sender';
-    const types = ['urgent_action', 'personal', 'university_work', 'invoice', 'receipt', 'subscription', 'booking', 'travel', 'delivery', 'documents', 'deadline', 'appointment', 'newsletter', 'marketing', 'social_notification', 'automated'];
+    const types = ['urgent_action', 'personal', 'university_work', 'invoice', 'receipt', 'subscription', 'booking', 'travel', 'delivery', 'documents', 'deadline', 'appointment', 'newsletter', 'marketing', 'social_notification', 'automated', 'feedback'];
     openSheet({ title: 'What is this?', back: true, html: `<p class="v-muted" style="margin:0 0 10px">Daylight thought: ${esc(M.TYPE_LABEL[M.ctype(it)] || 'unknown')}.</p><label class="v-check"><input type="checkbox" name="always" checked> Always do this for ${esc(who)}</label><div class="v-opts">${types.map((ty) => `<button class="v-opt${M.ctype(it) === ty ? ' on' : ''}" type="button" data-settype="${ty}" data-id="${id}">${esc(M.TYPE_LABEL[ty])}</button>`).join('')}</div>` });
   }
   function openSlot(at) {

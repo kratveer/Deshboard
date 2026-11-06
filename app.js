@@ -155,9 +155,9 @@
   async function v2IngestGmail(){
     const c=v2Core();if(!c||!v2Enabled())return null;
     if(!identityVerified){v2IngestGmail.last={skipped:'account not confirmed yet',at:Date.now()};return null}
-    const key='daylight-graph-ingest:x5:'+v2AccountKey(); /* x5 (v108): receipts are never bills; tax documents no longer merge into their order → one full re-ingest */let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}
+    const key='daylight-graph-ingest:x5:'+v2AccountKey(); /* x5 (v108): receipts are never bills; tax documents no longer merge into their order → one full re-ingest */let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}const fbKey='daylight-graph-ingest-fb1:'+v2AccountKey();/* v112: review / feedback requests are no bookings → one full re-ingest (the x5 watermark is kept) */try{if(!localStorage.getItem(fbKey))since=0}catch{}
     const t0=Date.now();
-    try{const r=await c.gmail.ingest(v2AccountKey(),{since});try{localStorage.setItem(key,String(t0))}catch{};try{await c.local?.importLocal()}catch(e){console.warn('local import',e)};v2IngestGmail.last=c.lastIngest={...r,at:Date.now(),ms:Date.now()-t0,incremental:!!since};try{const lk='daylight-v2-ingest-log:'+v2AccountKey();const l=JSON.parse(localStorage.getItem(lk)||'[]');l.push(c.lastIngest);localStorage.setItem(lk,JSON.stringify(l.slice(-20)))}catch{};return r}catch(e){console.warn('graph ingest',e);try{localStorage.setItem('daylight-v2-engine-error:'+v2AccountKey(),JSON.stringify({at:Date.now(),stage:'graph ingest',message:String(e&&e.message||e).slice(0,300)}))}catch{};v2IngestGmail.last={error:String(e?.message||e),at:Date.now()};return null}
+    try{const r=await c.gmail.ingest(v2AccountKey(),{since});try{localStorage.setItem(key,String(t0));localStorage.setItem(fbKey,String(t0))}catch{};try{await c.local?.importLocal()}catch(e){console.warn('local import',e)};v2IngestGmail.last=c.lastIngest={...r,at:Date.now(),ms:Date.now()-t0,incremental:!!since};try{const lk='daylight-v2-ingest-log:'+v2AccountKey();const l=JSON.parse(localStorage.getItem(lk)||'[]');l.push(c.lastIngest);localStorage.setItem(lk,JSON.stringify(l.slice(-20)))}catch{};return r}catch(e){console.warn('graph ingest',e);try{localStorage.setItem('daylight-v2-engine-error:'+v2AccountKey(),JSON.stringify({at:Date.now(),stage:'graph ingest',message:String(e&&e.message||e).slice(0,300)}))}catch{};v2IngestGmail.last={error:String(e?.message||e),at:Date.now()};return null}
   }
   function getMailV2(){
     if(mailV2)return mailV2;
@@ -354,9 +354,9 @@
         if(!mine())return {aborted:true};
         const mail=(await pipe.run({accountId:acct})).report;
         if(!mine())return {aborted:true}; // replaced, disconnected or deleted while syncing: stop (a deletion clears its data under this lock)
-        const key='daylight-graph-ingest:ms1:'+acct,since=Number(getLS(key))||0,t0=Date.now();
+        const key='daylight-graph-ingest:ms1:'+acct,fbKey='daylight-graph-ingest-fb1:'+acct,since=getLS(fbKey)?(Number(getLS(key))||0):0,t0=Date.now(); /* v112: one full re-ingest for feedback requests */
         if(!mine())return {aborted:true};
-        const ingest=await c.outlook.ingest(acct,{since,guard:mine});if(!mine())return {aborted:true};setLS(key,String(t0));
+        const ingest=await c.outlook.ingest(acct,{since,guard:mine});if(!mine())return {aborted:true};setLS(key,String(t0));setLS(fbKey,String(t0));
         let files=null;const fl=Number(getLS('daylight-onedrive-last:'+acct))||0;
         if(!mine())return {aborted:true};
         if(link.filesRead!==false&&W.DaylightOneDrive&&(force||pending||Date.now()-fl>60*60000)){

@@ -13,10 +13,10 @@
   const UR = () => root.DaylightUserRules || (typeof require === 'function' ? require('./user-rules.js') : null);
   const DAY = 86400000;
   const TYPES = Object.freeze(['urgent_action', 'personal', 'university_work', 'financial', 'receipt', 'invoice', 'subscription', 'travel', 'booking',
-    'delivery', 'documents', 'appointment', 'deadline', 'follow_up', 'newsletter', 'social_notification', 'marketing', 'automated']);
-  const LOW = new Set(['newsletter', 'social_notification', 'marketing', 'automated']);
+    'delivery', 'documents', 'appointment', 'deadline', 'follow_up', 'newsletter', 'social_notification', 'marketing', 'automated', 'feedback']);
+  const LOW = new Set(['newsletter', 'social_notification', 'marketing', 'automated', 'feedback']);
   const BASE = { urgent_action: 70, personal: 50, university_work: 55, financial: 40, receipt: 22, invoice: 55, subscription: 32, travel: 45, booking: 48,
-    delivery: 30, documents: 38, appointment: 52, deadline: 55, follow_up: 42, newsletter: 6, social_notification: 6, marketing: 4, automated: 12 };
+    delivery: 30, documents: 38, appointment: 52, deadline: 55, follow_up: 42, newsletter: 6, social_notification: 6, marketing: 4, automated: 12, feedback: 5 };
 
   const RX = {
     request: /(please (reply|confirm|register|respond|send|let (me|us) know|review|sign)|could you|can you|would you|let me know|confirm (your )?attendance|reply to confirm|action required|prosím (pošli|potvrď|odpověz|dej vědět)|bitte (bestätigen|antworten))/i,
@@ -76,6 +76,77 @@
   }
   const MONEY_CAT = new Set(['bill', 'payment', 'refund', 'receipt', 'subscription', 'food']);
 
+  /*
+   * Feedback (v112, seen in real mail): after a stay, trip, visit or purchase, companies ask for a review or rating
+   * ("How was your stay?", "Rate your recent purchase", "Leave us a review"). Those emails often repeat the booking
+   * number and dates, so they used to become a booking in Wallet. They are engagement mail, not a booking.
+   * Decided on several signals, never one word: what the subject and text ask for, who sends it (a business, not a
+   * person), whether the stay / event is already over, and whether the email carries a real reservation, ticket,
+   * check-in or payment. A genuine confirmation, ticket, check-in, cancellation or receipt is never downgraded because it
+   * also asks for feedback.
+   */
+  const FEEDBACK_ASK = [
+      'how (was|were|did) (your|you enjoy|we do)\\b[^?.!\\n]{0,40}',
+      'how did you (like|enjoy|find)',
+      '(rate|rating for|review|evaluate) your (recent |last |past |latest )?(stay|visit|trip|journey|holiday|vacation|flight|ride|experience|order|purchase|booking|reservation|hotel|host|meal|delivery|product|item|appointment|tour|rental|event)',
+      '(leave|write|post|submit|share|give) (us |me )?(a |an |your )?(quick |short |brief |honest )?(review|rating|feedback)',
+      'share your (experience|feedback|thoughts|opinion|impressions)',
+      'tell us (about|how) (your|you|we)',
+      'we\'?d (love|like) (to hear |to know |)(your )?(feedback|opinion|thoughts|what you think|how)',
+      '(customer|guest|client) (satisfaction|feedback|experience) (survey|questionnaire|form)',
+      'satisfaction survey',
+      '(take|complete|answer|fill (in|out)) (a|our|this|the) (short |quick |brief |\\d[- ]minute )?(survey|questionnaire)',
+      'your (opinion|feedback|review) (matters|counts|is important|helps)',
+      'rate (us|your experience|the service)',
+      'how likely (are you )?to recommend',
+      // Czech / German
+      'jak se vám (líbil|líbila|líbilo)', 'jak jste byl[aiy]? spokojen', 'jak (byl|proběhl) (váš |vaš )?(pobyt|výlet|nákup|let)',
+      'ohodno(ťte|tit|cení)', 'napište (nám )?(recenzi|hodnocení)', 'hodnocení (pobytu|nákupu|objednávky|služby)', 'zpětn(á|ou) vazb', 'dotazník spokojenosti',
+      'wie war (ihr|dein|euer) (aufenthalt|besuch|einkauf|flug|reise)', 'bewerten sie', 'ihre meinung', 'kundenzufriedenheit', 'feedback geben'
+  ];
+  const FEEDBACK_RX = {
+    ask: new RegExp(FEEDBACK_ASK.join('|'), 'i'),
+    // in the text, "review your order / booking (details)" usually means "check it": only "review your RECENT …" counts there
+    askBody: new RegExp(FEEDBACK_ASK.map((x) => (x.startsWith('(rate|rating for|review|evaluate) your') ? '(rate|rating for|evaluate) your (recent |last |past |latest )?(stay|visit|trip|journey|holiday|vacation|flight|ride|experience|order|purchase|booking|reservation|hotel|host|meal|delivery|product|item|appointment|tour|rental|event)|review your (recent|last|past|latest) (stay|visit|trip|journey|holiday|vacation|flight|ride|experience|order|purchase|booking|reservation|hotel|host|meal|delivery|product|item|appointment|tour|rental|event)|review your (stay|visit|trip|journey|holiday|vacation|flight|ride|experience|hotel|host|meal|tour)' : x)).join('|'), 'i'),
+    // a payment that actually happened (paid with, charged, total paid …)
+    paid: /(paid (with|by|via)|charged to|total paid|amount paid|payment (received|successful|confirmed)|zaplaceno|uhrazeno|bezahlt)/i,
+    // what a real booking / ticket / receipt says
+    confirm: /(booking (is |has been )?confirmed|reservation (is |has been )?confirmed|(booking|reservation|order) confirmation|confirmation (number|no\.?|code)\b[^\n]{0,20}\d|your (booking|reservation|tickets?|e-?tickets?|boarding pass|itinerary)\b[^\n]{0,25}\b(confirmed|ready|attached|below|enclosed)|check-?in (instructions|details|information|opens|is now open)|online check-?in|boarding pass|e-?ticket|itinerary|(booking|reservation) (cancel+ed|cancel+ation)|cancel+ation confirm|has been cancel+ed|potvrzení (rezervace|objednávky|platby)|rezervace (byla )?(potvrzena|zrušena)|palubní vstupenk|jízdenk|vstupenk|buchungsbestätigung|reservierungsbestätigung|bordkarte|stornierung)/i,
+    txnSubject: /(\breceipt\b|invoice|faktur|účtenk|daňový doklad|payment (received|confirmation)|order (confirmed|confirmation|#)|your order\b[^\n]{0,20}(shipped|confirmed|is on))/i
+  };
+  /** feedbackIntent(input, now, automated) → { feedback: boolean, reason, signals[] } */
+  function feedbackIntent(input, now, automated) {
+    const subject = String(input.subject || ''), body = `${input.snippet || ''}\n${input.text || ''}`;
+    const signals = [];
+    const askSubj = FEEDBACK_RX.ask.test(subject), askBody = FEEDBACK_RX.askBody.test(body);
+    if (!askSubj && !askBody) return { feedback: false, reason: null, signals };
+    if (askSubj) signals.push('the subject asks for a review or feedback'); else signals.push('the text asks for a review or feedback');
+    // a person asking you to review something (a paper, a document) is not engagement mail
+    const cat = input.pipelineCategory || 'other';
+    const business = automated || ['travel', 'food', 'receipt', 'subscription', 'promotion', 'newsletter'].includes(cat);
+    if (!business) return { feedback: false, reason: 'asked by a person', signals };
+    // real reservation / ticket / check-in / cancellation / receipt in the subject → it stays what it is
+    if (FEEDBACK_RX.confirm.test(subject) || FEEDBACK_RX.txnSubject.test(subject)) return { feedback: false, reason: 'a confirmation, ticket or receipt that also asks for feedback', signals };
+    const D = root.DaylightMailDates || (typeof require === 'function' ? (() => { try { return require('../mail-dates.js'); } catch { return null; } })() : null);
+    const tripDates = (input.keyDates || []).filter((kd) => kd.kind === 'travel' || kd.kind === 'event').map((kd) => { try { return D ? D.toMs(kd) : Date.parse(kd.date); } catch { return NaN; } }).filter(Number.isFinite);
+    const upcoming = tripDates.some((t) => t >= now - 12 * 3600000), over = tripDates.length && !upcoming;
+    if (over) signals.push('the stay or event is already over');
+    if (upcoming) signals.push('it mentions an upcoming date');
+    const schema = !!(input.facts && input.facts.schemaType);
+    const confirmBody = FEEDBACK_RX.confirm.test(body);
+    if (askSubj) {
+      // an upcoming reservation with structured booking data is a booking, whatever the subject says
+      if (schema && upcoming) return { feedback: false, reason: 'structured reservation for an upcoming date', signals };
+      // "Thanks for booking — tell us how we did" with the confirmation inside: still the booking, unless the stay is over
+      if (confirmBody && !over) return { feedback: false, reason: 'a booking confirmation that also asks for feedback', signals };
+      return { feedback: true, reason: 'review / feedback request' + (over ? ' after the stay or event' : ''), signals };
+    }
+    // only the text asks: feedback when nothing in it is a live booking or a payment
+    if (confirmBody || schema || upcoming) return { feedback: false, reason: 'also carries booking / ticket details', signals };
+    if (FEEDBACK_RX.paid.test(body) || (input.facts && input.facts.amount && input.facts.amount.value != null)) return { feedback: false, reason: 'also carries payment details', signals };
+    return { feedback: true, reason: 'review / feedback request', signals };
+  }
+
   function nearestDue(input, now) {
     const D = root.DaylightMailDates || (typeof require === 'function' ? (() => { try { return require('../mail-dates.js'); } catch { return null; } })() : null);
     const times = [];
@@ -112,7 +183,11 @@
     let type = null;
     if (rule && rule.set?.type) { type = rule.set.type; reasons.push(`your rule: ${rule.label}`); }
 
-    // 2. deterministic type from what the pipeline found
+    // 2. a review / feedback request is never a booking, ticket or receipt (it may mention one)
+    const fb = !type ? feedbackIntent(input, now, automated) : { feedback: false };
+    if (fb.feedback) { type = 'feedback'; reasons.push(fb.reason, ...fb.signals); }
+
+    // 3. deterministic type from what the pipeline found
     let cat2 = cat;
     if (!type && MONEY_CAT.has(cat)) {
       const ev = moneyEvidence({ subject: input.subject, snippet: input.snippet, labels, facts: input.facts });
@@ -163,6 +238,7 @@
     if ((c.vipSenders || []).map((x) => x.toLowerCase()).includes(email)) add(15, 'pinned person');
     if (rule && Number.isFinite(rule.set?.importance)) { score = rule.set.importance; reasons.push(`importance set by your rule (${rule.set.importance})`); }
     if (RX.identity.test(input.subject || '')) reasons.push('identity document: never sent to AI');
+    if (type === 'feedback' && !(rule && Number.isFinite(rule.set?.importance))) score = Math.min(score, 15); // engagement mail never asks for attention
     score = Math.max(0, Math.min(100, Math.round(score)));
     const band = score >= 60 ? 'high' : score >= 30 ? 'normal' : 'low';
     const action = type === 'invoice' ? 'pay' : type === 'personal' || type === 'university_work' ? (RX.request.test(txt) ? 'reply' : null) : type === 'follow_up' ? 'follow_up'
@@ -170,7 +246,7 @@
     return { type, importance: score, band, reasons, ruleId: rule ? rule.id : null, action, dueAt: due ? due.ms : null, identity: RX.identity.test(input.subject || ''), automated };
   }
 
-  const api = { classify, moneyEvidence, TYPES, LOW, RX, MONEY_RX };
+  const api = { classify, moneyEvidence, feedbackIntent, TYPES, LOW, RX, MONEY_RX, FEEDBACK_RX };
   root.DaylightClassifier = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
