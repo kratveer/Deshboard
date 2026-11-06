@@ -45,6 +45,8 @@
     taxDoc: /(daňový doklad|danovy doklad|tax (invoice|document)|vat invoice|steuerbeleg)/i,
     receiptSubject: /(\breceipt\b|účtenk|uctenk|payment received|zaplaceno|quittung)/i,
     stillDue: /(amount due|balance due|k úhradě|splatnost|due (date|on|by)|please pay|zaplaťte do)/i,
+    // the word "receipt" in a dunning or failed-payment email ("no receipt of payment", "payment receipt: payment failed")
+    notPaid: /(overdue|past due|reminder|upomínk|nezaplacen|neuhrazen|unpaid|outstanding|failed|declined|unsuccessful|could ?n[o']t (charge|process)|not (yet )?(been )?(received|paid)|have not received)/i,
     points: /(points? worth|reward ?points|loyalty points|bonusov\w* bod|\bbody v hodnotě)/i,
     ownMove: /(money added to your account|added to your (balance|account)|top.?up (successful|complete)|your withdrawal|withdrawal request|vklad na (váš |)účet|dobití (účtu|kreditu) proběhlo)/i,
     transfer: /^(transfer (sent|completed|cancelled|canceled)|transfer #?\d+ (sent|cancelled|canceled|completed)|převod (odeslán|proveden|zrušen))/i,
@@ -65,8 +67,8 @@
     // a tax document for an order ("Daňový doklad", "VAT invoice") documents a purchase already recorded by its order email
     if (MONEY_RX.taxDoc.test(subject)) return { ok: true, reason: 'tax document for an order', kind: 'tax-document' };
     if (MONEY_RX.paid.test(text)) return { ok: true, reason: 'payment confirmation', kind: 'paid' };
-    // "Your receipt from …" is money already paid, never a bill to pay (unless it states an amount still due)
-    if (MONEY_RX.receiptSubject.test(subject) && !MONEY_RX.stillDue.test(text)) return { ok: true, reason: 'receipt for a payment already made', kind: 'receipt' };
+    // "Your receipt from …" is money already paid, never a bill to pay (unless it states an amount still due, or says payment failed / is overdue)
+    if (MONEY_RX.receiptSubject.test(subject) && !MONEY_RX.stillDue.test(text) && !MONEY_RX.notPaid.test(text)) return { ok: true, reason: 'receipt for a payment already made', kind: 'receipt' };
     // "Hi Jana, … You sent CZK 1,986 to JANA NOVÁKOVÁ" or "Note to self": money moved between the user's own accounts
     const greet = /\b(?:hi|hello|dear|ahoj|dobrý den,?)\s+([A-Za-zÀ-ž]+)/i.exec(text), sentTo = /you sent [^\n]{1,30}? to ([A-Za-zÀ-ž]+)/i.exec(text);
     if (/note to self|own account|vlastní účet|mezi (svými|vlastními) účty/i.test(text) || (greet && sentTo && greet[1].toLowerCase() === sentTo[1].toLowerCase())) return { ok: true, reason: 'transfer between your own accounts', kind: 'self-transfer' };

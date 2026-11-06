@@ -184,15 +184,15 @@
     const today = dayItems(items, now, now).filter((it) => isOpen(it, now));
     const timedToday = today.filter(timed);
     if (!nd.length && !today.length) return { parts: [{ text: 'Nothing needs you today.', ids: [] }], clear: true };
-    if (timedToday.length) parts.push({ text: `${timedToday.length} ${timedToday.length === 1 ? 'thing' : 'things'} on your schedule, first at ${hm(whenOf(timedToday[0]))}`, ids: timedToday.map((x) => x.id) });
+    if (timedToday.length) parts.push({ kind: 'schedule', count: timedToday.length, first: hm(whenOf(timedToday[0])), text: `${timedToday.length} ${timedToday.length === 1 ? 'thing' : 'things'} on your schedule, first at ${hm(whenOf(timedToday[0]))}`, ids: timedToday.map((x) => x.id) });
     if (bills.length) {
       const byCur = {}; bills.forEach((x) => { const a = amountOf(x.item); if (a) byCur[a.currency] = (byCur[a.currency] || 0) + a.value; });
       const tot = Object.entries(byCur).map(([c, v]) => fmtMoney(v, c)).join(' + ');
-      parts.push({ text: `${bills.length} ${bills.length === 1 ? 'bill' : 'bills'} to pay${tot ? ' (' + tot + ')' : ''}`, ids: bills.map((x) => x.item.id) });
+      parts.push({ kind: 'bills', count: bills.length, total: tot, text: `${bills.length} ${bills.length === 1 ? 'bill' : 'bills'} to pay${tot ? ' (' + tot + ')' : ''}`, ids: bills.map((x) => x.item.id) });
     }
-    if (replies.length) parts.push({ text: `${replies.length} ${replies.length === 1 ? 'message waits' : 'messages wait'} for you`, ids: replies.map((x) => x.item.id) });
+    if (replies.length) parts.push({ kind: 'replies', count: replies.length, text: `${replies.length} ${replies.length === 1 ? 'message waits' : 'messages wait'} for you`, ids: replies.map((x) => x.item.id) });
     const rest = nd.filter((x) => x.item.type !== 'bill' && x.item.type !== 'email' && !today.includes(x.item));
-    if (rest.length) parts.push({ text: `${rest.length} more ${rest.length === 1 ? 'thing needs' : 'things need'} you`, ids: rest.map((x) => x.item.id) });
+    if (rest.length) parts.push({ kind: 'rest', count: rest.length, text: `${rest.length} more ${rest.length === 1 ? 'thing needs' : 'things need'} you`, ids: rest.map((x) => x.item.id) });
     return { parts, clear: false };
   }
 
@@ -366,7 +366,8 @@
     // spending by category from payments/receipts this month
     const CAT = { food: 'Food & delivery', receipt: 'Shopping', payment: 'Payments', refund: 'Refunds', subscription: 'Subscriptions', bill: 'Bills' };
     const tx = items.filter((it) => it.type === 'transaction' && inMonth(it.createdAt) && it.status !== 'dismissed');
-    const refs = new Set(); tx.forEach((it) => { if (!(it.meta && it.meta.taxDocFor)) facts(it, 'reference').forEach((f) => refs.add(String(f.value).toLowerCase())); });
+    const refs = new Set(); items.forEach((it) => { if (it.type !== 'transaction' || it.status === 'dismissed') return; // any month: an order on 31 Oct and its tax document on 1 Nov
+      if (!(it.meta && it.meta.taxDocFor)) facts(it, 'reference').forEach((f) => refs.add(String(f.value).toLowerCase())); });
     const spendTx = tx.filter((it) => !(it.meta && (it.meta.ownTransfer || it.meta.category === 'transfer')) // moving money between your own accounts is not spending
       && !(it.meta && it.meta.taxDocFor && refs.has(String(it.meta.taxDocFor).toLowerCase()))); // a tax document for an order already counted
     const cats = {};

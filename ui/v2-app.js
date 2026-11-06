@@ -265,6 +265,21 @@
     const rel = opt.related && opt.related.length ? `<span class="v-stackn">${ic('email', 12)} ${opt.related.length} related</span>` : '';
     const a = amt(it);
     const title = it.type === 'bill' || it.type === 'subscription' || it.type === 'transaction' ? (M.fact(it, 'merchant') || it.title.replace(/\s·\s.*$/, '')) : it.title;
+    if (a && (it.type === 'bill' || it.type === 'subscription' || it.type === 'transaction')) {
+      // money card: merchant left, amount far right on one row; the email subject on its own line (max 2 lines); action at the bottom right
+      const foot = [src(it), when && !reason.includes(when) ? `<span>${esc(when)}</span>` : ''].filter(Boolean).join('');
+      const desc = it.description && !opt.short ? `<p class="v-desc">${esc(it.description).replace(/(#?[A-Za-z0-9]*\d[A-Za-z0-9]*(?:[-\/.][A-Za-z0-9]+)+)/g, '<span class="nw">$1</span>')}</p>` : ''; // references (#2615-9581-3414) never break in the middle
+      return `<div class="v-swipe" data-sw="${it.id}"><div class="under"><span class="l">${ic('check', 18)} Done</span><span class="r">Snooze ${ic('moon', 16)}</span></div>
+      <div class="v-card v-mcard${opt.glow ? ' glow' : ''}" style="${kvar(it)}" data-open="${it.id}" role="button" tabindex="0">
+        <span class="v-kico">${ic(kicon(it), 20)}</span>
+        <div class="v-main">
+          ${reason ? `<span class="v-why${bad ? ' bad' : ''}">${esc(reason)}</span>` : ''}
+          <div class="v-line1"><span class="v-title">${esc(title)}</span><span class="v-amount">${esc(a)}</span></div>
+          ${desc}
+          ${foot || pa || rel ? `<div class="v-mfoot"><span class="v-meta">${foot}${rel}</span>${pa ? `<button class="v-pbtn" type="button" data-act="${pa.kind}" data-id="${it.id}">${esc(pa.label)}</button>` : ''}</div>` : ''}
+        </div>
+      </div></div>`;
+    }
     return `<div class="v-swipe" data-sw="${it.id}"><div class="under"><span class="l">${ic('check', 18)} Done</span><span class="r">Snooze ${ic('moon', 16)}</span></div>
       <div class="v-card${opt.glow ? ' glow' : ''}" style="${kvar(it)}" data-open="${it.id}" role="button" tabindex="0">
         <span class="v-kico">${ic(kicon(it), 20)}</span>
@@ -289,10 +304,26 @@
         ${it.description ? `<span class="p">${esc(it.description)}</span>` : ''}</span>
       </button></div>`;
   }
-  const h2 = (t, n, act) => `<h2 class="v-h2">${esc(t)}${n != null ? ` <span class="n">${n}</span>` : ''}${act || ''}</h2>`;
+  const h2 = (t, n, act, o) => `<h2 class="v-h2"${o && o.sec ? ` data-sec="${o.sec}"` : ''}>${esc(t)}${n != null ? ` <span class="n${o && o.pill ? ' pill' : ''}"${o && o.pill ? ` aria-label="${n} items"` : ''}>${n}</span>` : ''}${act || ''}</h2>`;
   const empty = (title, text, btn) => `<div class="v-empty"><svg class="art" viewBox="0 0 150 96" aria-hidden="true"><defs><linearGradient id="vsg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#FDBA74"/><stop offset="1" stop-color="#F472B6"/></linearGradient></defs><circle cx="75" cy="70" r="30" fill="url(#vsg)" opacity=".9"/><rect x="0" y="70" width="150" height="26" fill="var(--v-bg)"/><path d="M10 70h130" stroke="var(--v-line-2)" stroke-width="2" stroke-linecap="round"/><path d="M30 80h30M80 80h40M50 88h50" stroke="var(--v-line)" stroke-width="2" stroke-linecap="round"/></svg><h3>${esc(title)}</h3><p>${esc(text)}</p>${btn || ''}</div>`;
 
   // ---------- TODAY ----------
+  /** The Brief as one sentence: "You have 1 bill of 10 USD to pay, 27 messages waiting for you and 8 other things that need you."
+   *  Each phrase is a link to where those Items are (the bill, Inbox, Needs you, Your day). The counts come from M.brief(). */
+  function briefSentence(parts) {
+    const n = (c, one, many) => `<b>${c}</b> ${c === 1 ? one : many}`;
+    const others = parts.some((p) => p.kind === 'bills' || p.kind === 'replies');
+    const phrase = (p) => {
+      if (p.kind === 'schedule') return p.count === 1 ? `${n(1, 'thing', 'things')} on your schedule at <b>${esc(p.first)}</b>` : `${n(p.count, 'thing', 'things')} on your schedule from <b>${esc(p.first)}</b>`;
+      if (p.kind === 'bills') return p.count === 1 ? `${n(1, 'bill', 'bills')}${p.total ? ` of <b>${esc(p.total)}</b>` : ''} to pay` : `${n(p.count, 'bill', 'bills')} to pay${p.total ? `, <b>${esc(p.total)}</b> in total` : ''}`;
+      if (p.kind === 'replies') return `${n(p.count, 'message', 'messages')} waiting for you`;
+      if (p.kind === 'rest') return `${n(p.count, others ? 'other thing' : 'thing', others ? 'other things' : 'things')} that ${p.count === 1 ? 'needs' : 'need'} you`;
+      return esc(p.text);
+    };
+    const bits = parts.map((p, i) => `<a class="v-bl" href="#" role="button" data-brief="${i}">${phrase(p)}</a>`); // a link wraps like text; a button would not
+    const list = bits.length > 1 ? bits.slice(0, -1).join(', ') + ' and ' + bits[bits.length - 1] : bits[0] || '';
+    return `You have ${list}.`;
+  }
   function renderToday(el, now) {
     const off = S.todayOffset;
     const day = M.addDays(M.startOfDay(now), off);
@@ -305,9 +336,9 @@
       return;
     }
     const t = M.todayView(S.items, now, { actions: S.actions, dayEndHour: rhythm().dayEnd });
-    const br = t.brief.parts.map((p, i) => `<button type="button" data-brief="${i}">${esc(p.text)}</button>`).join('<span>, </span>');
+    const br = briefSentence(t.brief.parts);
     S.briefParts = t.brief.parts;
-    let html = `<div class="v-col">${head}<p class="v-brief">${t.brief.clear ? esc(t.brief.parts[0].text) : br + '.'}</p>`;
+    let html = `<div class="v-col">${head}<p class="v-brief">${t.brief.clear ? esc(t.brief.parts[0].text) : br}</p>`;
     if (t.evening && (t.evening.open.length || t.evening.done.length)) {
       html += `<div class="v-evening"><h3>Wrapping up the day</h3><p>${t.evening.done.length} done today · ${t.evening.open.length} still open${t.evening.firstTomorrow ? ` · tomorrow starts with ${esc(t.evening.firstTomorrow.title)}${M.timed(t.evening.firstTomorrow) ? ' at ' + M.hm(M.whenOf(t.evening.firstTomorrow)) : ''}` : ''}</p>
         <div class="acts">${t.evening.open.length ? `<button class="pri" type="button" data-evening="tomorrow">Move all to tomorrow</button><button type="button" data-evening="review">Review one by one</button>` : ''}</div></div>`;
@@ -320,12 +351,12 @@
     const needs = t.now ? t.needs.filter((x) => x.item.id !== t.now.item.id) : t.needs;
     if (needs.length) {
       const shown = needs.slice(0, 10);
-      html += h2('Needs you', needs.length) + `<div class="v-list" data-list="needs">${shown.map((x) => card(x.item, now, { reason: x.reason, related: x.related })).join('')}</div>`;
+      html += h2('Needs you', needs.length, '', { pill: true, sec: 'needs' }) + `<div class="v-list" data-list="needs">${shown.map((x) => card(x.item, now, { reason: x.reason, related: x.related })).join('')}</div>`;
       if (needs.length > shown.length) html += `<button class="v-more" type="button" data-tab="inbox">${needs.length - shown.length} more in Inbox</button>`;
     } else if (!t.now) {
       html += empty("You're clear", connected() ? 'Nothing needs you right now. New bills, deadlines and replies will appear here.' : 'Connect Gmail to see what needs you.', connected() ? '' : '<button class="v-pbtn solid" type="button" data-connect>Connect Gmail</button>');
     }
-    html += h2('Your day', t.strip.length || null, `<button class="act" type="button" data-tab="plan">Open Plan</button>`) + strip(now, now);
+    html += h2('Your day', t.strip.length || null, `<button class="act" type="button" data-tab="plan">Open Plan</button>`, { sec: 'day' }) + strip(now, now);
     html += `<button class="v-cta" type="button" data-focus><span class="v-kico" style="--k:var(--k-appointment)">${ic('focus', 20)}</span><span><b>Start focus</b><span>Pick one thing, set 25, 50 or 90 minutes</span></span></button>`;
     if (t.coming.length) {
       html += h2('Coming up', t.coming.length) + `<div class="v-days">${t.coming.slice(0, 12).map((it) => `<button class="v-dayrow" type="button" data-open="${it.id}" style="${kvar(it)}"><span class="d">${esc(M.dayLabel(M.whenOf(it), now))}</span><span class="dot"></span><span class="tt">${esc(it.title)}</span><span class="tm">${M.timed(it) ? esc(M.hm(M.whenOf(it))) : amt(it) ? esc(amt(it)) : ''}</span></button>`).join('')}</div>`;
@@ -1016,7 +1047,7 @@
     if (suppressClick) { e.preventDefault(); e.stopPropagation(); return; }
     const t = e.target.closest('button, [data-act], [data-open], a'); if (!t) return;
     const d = t.dataset;
-    if (t.tagName === 'A') return;
+    if (t.tagName === 'A' && d.brief === undefined) return;
     if (d.tab) return setTab(d.tab);
     if (d.act) { e.stopPropagation(); const id = d.id; const it = S.byId.get(id);
       if (d.act === 'reply') { const g = it && ((it.sources || []).find((s) => s.app === 'gmail' && s.url) || relatedEmails(it).map((x) => (x.sources || []).find((s) => s.app === 'gmail' && s.url)).find(Boolean)); if (g) root.open(g.url, '_blank', 'noopener'); else openItem(id); return; }
@@ -1034,7 +1065,15 @@
     if (d.ring !== undefined) { if (!connected()) return openConnection('gmail'); return openConnection('gmail'); }
     if (d.quickadd !== undefined) return openQuickAdd();
     if (d.day) { S.todayOffset = d.day === '0' ? 0 : S.todayOffset + Number(d.day); return render(); }
-    if (d.brief) { const p = (S.briefParts || [])[Number(d.brief)]; if (p && p.ids.length === 1) return openItem(p.ids[0], t); if (p) return openList(p.text, p.ids); return; }
+    if (d.brief) {
+      e.preventDefault(); const p = (S.briefParts || [])[Number(d.brief)]; if (!p) return;
+      const go = (sel) => { const el = $(sel); if (el) el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' }); else openList(p.text, p.ids); };
+      if (p.kind === 'bills') return p.ids.length === 1 ? openItem(p.ids[0], t) : setTab('money');
+      if (p.kind === 'replies') return setTab('inbox');
+      if (p.kind === 'rest') return go('.v-h2[data-sec="needs"]');
+      if (p.kind === 'schedule') return go('.v-h2[data-sec="day"]');
+      if (p.ids.length === 1) return openItem(p.ids[0], t); return openList(p.text, p.ids);
+    }
     if (d.evening === 'tomorrow') { const t2 = M.addDays(M.startOfDay(nowMs()), 1) + rhythm().dayStart * HOURMS; const ids = M.needsYou(S.items, nowMs()).map((x) => x.item.id); const acts = []; for (const id of ids) { const r = await S.core.actions.applyAction(id, 'snooze', { until: t2 }); if (r.ok) acts.push(r.actionId); } toast(`${acts.length} moved to tomorrow`, async () => { for (const a of acts) await S.core.actions.undo(a); }); return load(); }
     if (d.evening === 'review') { const l = $('[data-list="needs"]'); if (l) l.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth' }); return; }
     if (d.focus !== undefined) return openFocusPicker();

@@ -98,6 +98,19 @@ body.dark #v2 .v-tabs{border-color:rgba(255,255,255,.1);box-shadow:0 1px 0 rgba(
 .v-iconbtn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--v-ink-2);background:var(--v-surface);box-shadow:var(--v-shadow)}
 .v-iconbtn:active{transform:scale(.94)}
 .v-brief{font-size:16.5px;line-height:1.5;color:var(--v-ink-2);margin:2px 0 4px}
+.v-brief .v-bl{display:inline;color:var(--v-ink);font-weight:560;cursor:pointer;padding:0 1px;border-radius:6px;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--v-accent) 30%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;-webkit-box-decoration-break:clone;box-decoration-break:clone;transition:background var(--v-fast)}
+.v-brief .v-bl b{font-weight:740;color:var(--v-accent);font-variant-numeric:tabular-nums}
+.v-brief .v-bl:hover,.v-brief .v-bl:focus-visible{background:var(--v-accent-soft);outline:none}
+.v-h2 .n.pill{display:inline-grid;place-items:center;min-width:24px;height:20px;padding:0 7px;border-radius:999px;font-size:11.5px;font-weight:760;letter-spacing:0;line-height:1;color:var(--v-accent);background:var(--v-accent-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--v-accent) 24%,transparent)}
+/* money cards (bill, subscription, transaction) */
+.v-mcard .v-line1{align-items:flex-start;gap:12px}
+.v-mcard .v-title{flex:1;min-width:0}
+.v-mcard .v-line1 .v-amount{flex:none;margin-left:auto;font-size:16px;line-height:1.3}
+.v-desc{margin:1px 0 0;font-size:13.5px;line-height:1.4;color:var(--v-ink-2);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:break-word;text-wrap:pretty;max-width:46ch}
+.v-desc .nw{white-space:nowrap}
+.v-mfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;min-height:34px}
+.v-mfoot .v-meta{flex:1;min-width:0}
+.v-mfoot .v-pbtn{align-self:center}
 .v-brief button{display:inline;color:var(--v-ink);font-weight:580;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--v-accent) 35%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;text-align:left}
 
 /* ---------- cards ---------- */

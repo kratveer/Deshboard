@@ -146,11 +146,16 @@
         const olds = await graph.getMany([...new Set(stale.map((x) => x.itemId))]);
         for (const o2 of olds) {
           const mids = stale.filter((x) => x.itemId === o2.id).map((x) => String(x.sourceItemId));
+          // only when the old Item goes away (every source is stale): an Item that still has another email (an order whose
+          // tax document now has its own Item) keeps the user's state, and it is not copied onto the new Item (v108)
+          if ((o2.sources || []).some((s2) => !(s2.app === 'gmail' && mids.includes(String(s2.itemId))))) continue;
           const cand = stored.filter((n) => n.type === o2.type && n.id !== o2.id && (n.sources || []).some((s2) => s2.app === 'gmail' && mids.includes(String(s2.itemId))));
           if (cand.length !== 1) continue;
           const n = cand[0]; let changed = false;
           ['status', 'snoozedUntil', 'pinned', 'userPriority', 'plannedAt', 'plannedMinutes'].forEach((k) => { if (o2[k] != null && o2[k] !== false && o2[k] !== 'open' && (n[k] == null || n[k] === 'open' || n[k] === false)) { n[k] = o2[k]; changed = true; } });
-          ['notes', 'actionHistory', 'userCorrections'].forEach((k) => { if ((o2[k] || []).length) { n[k] = [...(o2[k] || []), ...(n[k] || [])]; changed = true; } });
+          ['notes', 'actionHistory', 'userCorrections'].forEach((k) => { // idempotent: a retry after a failure part-way does not add them twice
+            const have = new Set((n[k] || []).map((x) => JSON.stringify(x))); const add = (o2[k] || []).filter((x) => !have.has(JSON.stringify(x)));
+            if (add.length) { n[k] = [...add, ...(n[k] || [])]; changed = true; } });
           if (changed) { await graph.putItem(n); carried++; }
         }
         await graph.detachSources(stale);

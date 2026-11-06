@@ -127,8 +127,11 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     const needIds = await ids(page, '[data-list=needs] [data-sw]', 'data-sw');
     const model = await page.evaluate(() => { const M = window.DaylightV2Model; const S = window.DaylightV2UI.state; const t = M.todayView(S.items, Date.now(), { actions: S.actions }); return { needs: t.needs.map((x) => x.item.id), now: t.now && t.now.item.id }; });
     check('Today: every Needs-you card is a graph Item, in model order', needIds.length > 0 && needIds.every((x) => all.has(x)) && needIds.join() === model.needs.filter((x) => x !== model.now).slice(0, 10).join(), { needIds, model });
-    const brief = await page.$$eval('.v-brief button', (b) => b.map((x) => x.textContent));
-    check('Today: the brief is built from Items (clickable parts)', brief.length >= 1, brief);
+    const brief = await page.$$eval('.v-brief [data-brief]', (b) => b.map((x) => x.textContent));
+    const briefText = await page.$eval('.v-brief', (x) => x.textContent);
+    check('Today: the brief is one sentence built from Items, each phrase a link', brief.length >= 1 && /^You have .+\.$/.test(briefText.trim()) && brief.every((t) => /\d/.test(t)), { briefText, brief });
+    const pill = await page.$eval('.v-h2[data-sec="needs"] .n.pill', (x) => x.textContent).catch(() => null);
+    check('Today: the Needs you count is shown in a pill', /^\d+$/.test(pill || ''), pill);
     // every rendered id on every tab exists in the graph
     const rendered = new Set();
     for (const t of ['today', 'inbox', 'plan', 'money', 'wallet']) { await page.click(`.v-tab[data-tab=${t}]`); await page.waitForTimeout(400); (await ids(page, `.v-screen[data-screen=${t}] [data-open]`, 'data-open')).forEach((x) => rendered.add(x)); }
