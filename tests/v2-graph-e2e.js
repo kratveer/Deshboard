@@ -147,7 +147,7 @@ const clickTab = async (page, t) => { await page.evaluate((x) => document.queryS
   const checks = [
     ['graph is stored in IndexedDB (survives reload)', f.backend === 'indexeddb'],
     ['first sync fills the graph with linked Items of several kinds', f.counts.total > 30 && f.counts.links > 10 && ['email', 'bill', 'organisation'].every((t) => f.counts.byType[t] > 0), f.counts],
-    ['only Gmail is live; other providers are listed as planned', f.connectors.filter(([, st]) => st === 'live').map(([id]) => id).join() === 'gmail' && f.connectors.length >= 10],
+    ['only Gmail and Outlook (Microsoft) are live; other providers are listed as planned', f.connectors.filter(([, st]) => st === 'live').map(([id]) => id).sort().join() === 'gmail,outlook' && f.connectors.length >= 10],
     ['second refresh is incremental and creates no duplicates', s2.ingest.incremental === true && s2.gmail === f.gmail && s2.counts.byType.email === f.counts.byType.email && s2.counts.byType.booking === f.counts.byType.booking, { first: f.counts, second: s2.counts, ingest: s2.ingest }],
     ['a refresh with no new mail re-ingests nothing', s2.ingest.emails === 0 && s2.ingest.items === 0, { first: f.ingest, second: s2.ingest }],
     ['actions work and stay local (read-only Gmail)', out.acted.done && out.acted.writeBack.every((w) => w.status === 'local-only')],

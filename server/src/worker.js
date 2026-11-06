@@ -9,6 +9,11 @@
 //   POST /auth/logout        (Authorization: Bearer <session>) → revokes and deletes
 //   POST /auth/logout?keep_grant=1                 → deletes this session record only (used when a browser signs in again)
 //   GET  /health
+// Microsoft (an extra connection next to Google; the Daylight session stays Google's):
+//   POST /api/microsoft/start  (Bearer <session>, {return}) → { url } of Microsoft's consent screen (state + PKCE kept here)
+//   GET  /auth/microsoft/callback                       → stores Microsoft's refresh token (encrypted) in that session
+//   POST /api/microsoft/token  (Bearer <session>)       → { access_token, expires_in, scope, email, name, account }
+//   POST /api/microsoft/disconnect (Bearer <session>)   → forgets the Microsoft token for this session
 
 // V2: onboarding asks for Gmail READ-ONLY and nothing else (minimum permission).
 // Other Google products are optional connectors: each is added later with its own consent screen
@@ -28,6 +33,11 @@ function scopesFor(addParam) {
   const extra = String(addParam || '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => OPTIONAL_SCOPES[x]).map((x) => OPTIONAL_SCOPES[x]);
   return [GOOGLE_SCOPES, ...new Set(extra)].join(' ');
 }
+// Microsoft Graph, read-only: mail and the user's own OneDrive files. No send, no write, no files shared by others.
+const MS_SCOPES = 'openid profile email offline_access User.Read Mail.Read Files.Read';
+const MS_AUTHORITY = 'https://login.microsoftonline.com/common/oauth2/v2.0'; // personal and work/school accounts
+const hasMsMailRead = (s) => /(?:^|\s)(?:https:\/\/graph\.microsoft\.com\/)?Mail\.Read(?:\s|$)/i.test(scopeBlob(s));
+const hasMsFilesRead = (s) => /(?:^|\s)(?:https:\/\/graph\.microsoft\.com\/)?Files\.Read(?:\s|$)/i.test(scopeBlob(s));
 const SESSION_TTL = 60 * 60 * 24 * 180; // sessions idle for 180 days are forgotten
 const enc = new TextEncoder(), dec = new TextDecoder();
 const scopeBlob = (s) => String(s || '');
@@ -87,6 +97,15 @@ function emailFromIdToken(idToken) {
   // The ID token comes straight from Google's token endpoint over TLS, so reading its claims is safe here.
   try { return JSON.parse(dec.decode(fromB64(idToken.split('.')[1]))).email?.toLowerCase() || ''; } catch { return ''; }
 }
+async function msToken(params) {
+  const r = await fetch(MS_AUTHORITY + '/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(data.error_description || data.error || 'Microsoft token request failed'); e.code = data.error; throw e; }
+  return data;
+}
+function msClaims(idToken) {
+  try { const c = JSON.parse(dec.decode(fromB64(idToken.split('.')[1]))); return { email: String(c.email || c.preferred_username || '').toLowerCase(), name: String(c.name || ''), oid: String(c.oid || c.sub || ''), tid: String(c.tid || '') }; } catch { return { email: '', name: '', oid: '', tid: '' }; }
+}
 async function sessionFrom(env, req) {
   const m = /^Bearer\s+([A-Za-z0-9_-]{20,})$/.exec(req.headers.get('Authorization') || '');
   if (!m) return null;
@@ -100,7 +119,7 @@ async function handle(req, env) {
   const redirectUri = url.origin + '/auth/google/callback';
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(env, req) });
 
-  if (url.pathname === '/health') return json(env, req, { ok: true, features: ['logout_keep_grant'] });
+  if (url.pathname === '/health') return json(env, req, { ok: true, features: ['logout_keep_grant', 'microsoft'] });
 
   if (url.pathname === '/auth/google/start' && req.method === 'GET') {
     const ret = allowedReturn(env, url.searchParams.get('return'));
@@ -216,6 +235,70 @@ async function handle(req, env) {
       try { await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: await open(env, s.rec.rt) }) }); } catch {}
       await env.SESSIONS.delete(s.key);
     }
+    return json(env, req, { ok: true });
+  }
+
+  // ---------- Microsoft ----------
+  if (url.pathname === '/api/microsoft/start' && req.method === 'POST') {
+    const s = await sessionFrom(env, req);
+    if (!s) return json(env, req, { error: 'reauth' }, 401);
+    if (!env.MS_CLIENT_ID || !env.MS_CLIENT_SECRET) return json(env, req, { error: 'microsoft_not_configured' }, 503);
+    let body = {}; try { body = await req.json(); } catch {}
+    const ret = allowedReturn(env, body.return);
+    if (!ret) return json(env, req, { error: 'bad_return' }, 400);
+    const state = randomId(24), verifier = randomId(48);
+    await env.SESSIONS.put('msstate:' + state, JSON.stringify({ ret, sess: s.key, verifier }), { expirationTtl: 600 });
+    const m = new URL(MS_AUTHORITY + '/authorize');
+    Object.entries({ client_id: env.MS_CLIENT_ID, redirect_uri: url.origin + '/auth/microsoft/callback', response_type: 'code', response_mode: 'query', scope: MS_SCOPES, prompt: 'select_account', state, code_challenge: await sha256(verifier), code_challenge_method: 'S256' }).forEach(([k, v]) => m.searchParams.set(k, v));
+    return json(env, req, { url: m.toString() });
+  }
+
+  if (url.pathname === '/auth/microsoft/callback' && req.method === 'GET') {
+    const state = url.searchParams.get('state') || '';
+    const st = state && await env.SESSIONS.get('msstate:' + state, 'json');
+    if (!st) return new Response('Microsoft sign-in link expired. Go back to Daylight and try again.', { status: 400 });
+    await env.SESSIONS.delete('msstate:' + state);
+    if (url.searchParams.get('error')) return back(st.ret, { daylight_ms_error: url.searchParams.get('error') });
+    const rec = await env.SESSIONS.get(st.sess, 'json');
+    if (!rec) return back(st.ret, { daylight_ms_error: 'daylight_session_ended' });
+    let tok;
+    try { tok = await msToken({ client_id: env.MS_CLIENT_ID, client_secret: env.MS_CLIENT_SECRET, code: url.searchParams.get('code') || '', redirect_uri: url.origin + '/auth/microsoft/callback', grant_type: 'authorization_code', code_verifier: st.verifier, scope: MS_SCOPES }); }
+    catch (e) { return back(st.ret, { daylight_ms_error: 'token_exchange_failed' }); }
+    const who = msClaims(tok.id_token || '');
+    const allowed = list(env.ALLOWED_MS_EMAILS).map((e) => e.toLowerCase());
+    if (!who.oid || (allowed.length && !allowed.includes(who.email))) return back(st.ret, { daylight_ms_error: 'account_not_allowed' });
+    if (!tok.refresh_token) return back(st.ret, { daylight_ms_error: 'no_refresh_token' });
+    if (!hasMsMailRead(tok.scope)) return back(st.ret, { daylight_ms_error: 'mail_read_required' });
+    const account = 'ms-' + (await sha256(who.tid + ':' + who.oid)).slice(0, 22); // stable, not the raw Microsoft ids
+    await env.SESSIONS.put(st.sess, JSON.stringify({ ...rec, ms: { account, email: who.email, name: who.name, rt: await seal(env, tok.refresh_token), scopes: scopeBlob(tok.scope), created: Date.now() } }), { expirationTtl: SESSION_TTL });
+    return back(st.ret, { daylight_ms: 'connected' });
+  }
+
+  if (url.pathname === '/api/microsoft/token' && req.method === 'POST') {
+    const s = await sessionFrom(env, req);
+    if (!s) return json(env, req, { error: 'reauth' }, 401);
+    const ms = s.rec.ms;
+    if (!ms || !ms.rt) return json(env, req, { error: 'ms_not_connected' }, 404);
+    const forget = async (stage, code) => { const { ms: _drop, ...rest } = s.rec; await env.SESSIONS.put(s.key, JSON.stringify(rest), { expirationTtl: SESSION_TTL }); return json(env, req, { error: 'ms_reauth', stage, microsoft_error: code }, 401); };
+    let rt; try { rt = await open(env, ms.rt); } catch { return forget('unseal'); }
+    try {
+      const tok = await msToken({ client_id: env.MS_CLIENT_ID, client_secret: env.MS_CLIENT_SECRET, refresh_token: rt, grant_type: 'refresh_token', scope: MS_SCOPES });
+      // Microsoft rotates refresh tokens on every use and does not revoke the old one: keep only the newest
+      const next = { ...ms, rt: tok.refresh_token ? await seal(env, tok.refresh_token) : ms.rt, scopes: scopeBlob(tok.scope || ms.scopes), used: Date.now() };
+      await env.SESSIONS.put(s.key, JSON.stringify({ ...s.rec, ms: next }), { expirationTtl: SESSION_TTL });
+      return json(env, req, { access_token: tok.access_token, expires_in: tok.expires_in || 3600, scope: next.scopes, email: ms.email, name: ms.name, account: ms.account, mail_read: hasMsMailRead(next.scopes), files_read: hasMsFilesRead(next.scopes) });
+    } catch (e) {
+      if (['invalid_grant', 'interaction_required', 'consent_required', 'unauthorized_client', 'invalid_client'].includes(e.code)) return forget('refresh', e.code);
+      return json(env, req, { error: 'microsoft_unavailable', stage: 'refresh', microsoft_error: e.code || 'unknown' }, 502);
+    }
+  }
+
+  if (url.pathname === '/api/microsoft/disconnect' && req.method === 'POST') {
+    const s = await sessionFrom(env, req);
+    if (!s) return json(env, req, { error: 'reauth' }, 401);
+    // Microsoft has no endpoint to revoke one app's consent for personal accounts; the stored token is deleted here and
+    // the user can remove Daylight at account.live.com/consent/Manage (personal) or myapps.microsoft.com (work/school).
+    if (s.rec.ms) { const { ms: _drop, ...rest } = s.rec; await env.SESSIONS.put(s.key, JSON.stringify(rest), { expirationTtl: SESSION_TTL }); }
     return json(env, req, { ok: true });
   }
 

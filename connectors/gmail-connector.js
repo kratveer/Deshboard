@@ -19,6 +19,8 @@
   const emailOf = (from) => { const m = /<([^>]+)>/.exec(from || '') || /([^\s<>"]+@[^\s<>"]+)/.exec(from || ''); return (m ? m[1] : '').trim().toLowerCase(); };
 
   function createGmailConnector(o) {
+    // the same connector serves Outlook (o.app = 'outlook'): the mail cache rows have the same shape
+    const APP = o.app || 'gmail', urlOf = o.urlOf || ((rec) => gmailUrl(rec.threadId || rec.messageId));
     const graph = o.graph, Cls = o.classifier || root.DaylightClassifier, Rules = o.ruleStore;
     const D = o.mailDates || root.DaylightMailDates;
     const now = o.now || (() => Date.now());
@@ -31,19 +33,19 @@
     function normalise(rec, factsRow, ctx) {
       const c = ctx || {};
       const acct = c.accountId || rec.accountId || 'default';
-      const src = (role) => ({ app: 'gmail', accountId: acct, itemId: rec.messageId, url: gmailUrl(rec.threadId || rec.messageId), role: role || 'primary' });
+      const src = (role) => ({ app: APP, accountId: acct, itemId: rec.messageId, url: urlOf(rec), role: role || 'primary' });
       const f0 = (factsRow && factsRow.fields) || {};
       // rules store dueDate as { date, raw, confidence }; schema.org / AI may give a plain string
       const dueStr = f0.dueDate && typeof f0.dueDate === 'object' ? (f0.dueDate.date || null) : (f0.dueDate || null);
       const f = Object.assign({}, f0, { dueDate: dueStr });
       const email = emailOf(rec.from), domain = (rec.fromDomain || email.split('@')[1] || '').toLowerCase();
       const cls = Cls.classify({
-        sourceApp: 'gmail', from: rec.from, fromEmail: email, fromDomain: domain, subject: rec.subject, snippet: rec.snippet, labels: rec.labels,
+        sourceApp: APP, from: rec.from, fromEmail: email, fromDomain: domain, subject: rec.subject, snippet: rec.snippet, labels: rec.labels,
         listUnsubscribe: rec.listUnsubscribe, pipelineCategory: rec.userCategory || rec.category, keyDates: rec.keyDates, isSent: (rec.labels || []).includes('SENT') && !(rec.labels || []).includes('INBOX'),
         facts: { amount: f.amount || (f.totalPaymentDue != null ? { value: f.totalPaymentDue, currency: f.priceCurrency } : null), dueDate: f.dueDate, reference: f.reference, reservationNumber: f.reservationNumber, orderNumber: f.orderNumber, schemaType: f.schemaType }
       }, { rules: c.rules || [], vipSenders: c.vipSenders || [], now: c.now || now() });
       const identity = cls.identity;
-      const emailKey = `gmail:${acct}:${rec.messageId}`;
+      const emailKey = `${APP}:${acct}:${rec.messageId}`;
       const emailId = iid(emailKey);
       const items = [], links = [];
       const amount = f.amount || (f.totalPaymentDue != null ? { value: Number(f.totalPaymentDue), currency: f.priceCurrency || null } : null);
@@ -132,11 +134,11 @@
       // a re-read email that no longer produces a derived Item (fixed extraction, reclassified, user rule) stops supporting it
       const stale = [];
       if (graph.detachSources && live.length) {
-        const produced = new Map(); out.forEach((p) => (p.sources || []).forEach((s) => { if (s.app === 'gmail') { const k = String(s.itemId); if (!produced.has(k)) produced.set(k, new Set()); produced.get(k).add(G.itemId(p.key)); } }));
+        const produced = new Map(); out.forEach((p) => (p.sources || []).forEach((s) => { if (s.app === APP) { const k = String(s.itemId); if (!produced.has(k)) produced.set(k, new Set()); produced.get(k).add(G.itemId(p.key)); } }));
         const liveIds = new Set(live.map((r) => String(r.messageId)));
         (await graph.query({ accountId: acct })).forEach((it) => {
           if (it.type === 'email') return;
-          (it.sources || []).forEach((s) => { if (s.app === 'gmail' && (s.role === 'evidence' || s.role === 'mention') && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id)) stale.push({ itemId: it.id, app: 'gmail', accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`gmail:${acct}:${s.itemId}`) }); });
+          (it.sources || []).forEach((s) => { if (s.app === APP && (s.role === 'evidence' || s.role === 'mention') && liveIds.has(String(s.itemId)) && !(produced.get(String(s.itemId)) || new Set()).has(it.id)) stale.push({ itemId: it.id, app: APP, accountId: acct, sourceItemId: s.itemId, emailItemId: iid(`${APP}:${acct}:${s.itemId}`) }); });
         });
       }
       const stored = await graph.upsertMany(out);
@@ -148,8 +150,8 @@
           const mids = stale.filter((x) => x.itemId === o2.id).map((x) => String(x.sourceItemId));
           // only when the old Item goes away (every source is stale): an Item that still has another email (an order whose
           // tax document now has its own Item) keeps the user's state, and it is not copied onto the new Item (v108)
-          if ((o2.sources || []).some((s2) => !(s2.app === 'gmail' && mids.includes(String(s2.itemId))))) continue;
-          const cand = stored.filter((n) => n.type === o2.type && n.id !== o2.id && (n.sources || []).some((s2) => s2.app === 'gmail' && mids.includes(String(s2.itemId))));
+          if ((o2.sources || []).some((s2) => !(s2.app === APP && mids.includes(String(s2.itemId))))) continue;
+          const cand = stored.filter((n) => n.type === o2.type && n.id !== o2.id && (n.sources || []).some((s2) => s2.app === APP && mids.includes(String(s2.itemId))));
           if (cand.length !== 1) continue;
           const n = cand[0]; let changed = false;
           ['status', 'snoozedUntil', 'pinned', 'userPriority', 'plannedAt', 'plannedMinutes'].forEach((k) => { if (o2[k] != null && o2[k] !== false && o2[k] !== 'open' && (n[k] == null || n[k] === 'open' || n[k] === false)) { n[k] = o2[k]; changed = true; } });
@@ -163,21 +165,21 @@
       if (graph.linkMany) await graph.linkMany(linkList, acct); else for (const [a, b, kind] of linkList) await graph.link(a, b, kind, acct);
       // Gmail deleted / trashed → drop the email Item (derived Items survive while another email still supports them)
       let removed = 0;
-      for (const r of rows.filter((x) => x.status === 'deleted' && (!since || (x.deletedAt || x.lastProcessedAt || 0) >= since))) removed += await graph.removeSourceItem('gmail', acct, r.messageId);
+      for (const r of rows.filter((x) => x.status === 'deleted' && (!since || (x.deletedAt || x.lastProcessedAt || 0) >= since))) removed += await graph.removeSourceItem(APP, acct, r.messageId);
       return { items: stored.length, emails: live.length, links: linkList.length, removed, staleDetached: stale.length, userStateCarried: carried, full: !since };
     }
 
     const status = { lastSync: null, lastError: null, lastReport: null };
     return {
-      id: 'gmail', name: 'Gmail', status: 'live', group: 'google',
-      reads: 'Bills, receipts, bookings, deadlines and messages that need you — every Gmail category, read-only',
+      id: APP, name: o.name || 'Gmail', status: 'live', group: o.group || 'google',
+      reads: o.reads || 'Bills, receipts, bookings, deadlines and messages that need you — every Gmail category, read-only',
       getCapabilities: () => ({ read: ['email', 'bill', 'transaction', 'subscription', 'booking', 'deadline', 'appointment', 'delivery', 'person', 'organisation'], write: [] }),
-      getPermissions: () => [{ scope: 'https://www.googleapis.com/auth/gmail.readonly', why: 'Read your email to find what needs you. Daylight cannot send, delete or change mail.' }],
+      getPermissions: () => o.permissions || [{ scope: 'https://www.googleapis.com/auth/gmail.readonly', why: 'Read your email to find what needs you. Daylight cannot send, delete or change mail.' }],
       async getConnectionStatus() { const s = o.getStatus ? await o.getStatus() : {}; return Object.assign({ connected: false }, s, { lastSync: status.lastSync, lastError: status.lastError }); },
       async validateConnection() { return o.validate ? o.validate() : { ok: true }; },
       connect: () => (o.connect ? o.connect() : Promise.reject(new Error('connect handled by the app'))),
-      async disconnect(opts2) { const r = o.disconnect ? await o.disconnect(opts2) : null; const deleted = await graph.deleteBySource('gmail'); return { ok: true, deleted, provider: r }; },
-      async fetchItems(q) { return graph.query(Object.assign({ sourceApp: 'gmail' }, q || {})); },
+      async disconnect(opts2) { const r = o.disconnect ? await o.disconnect(opts2) : null; const deleted = await graph.deleteBySource(APP); return { ok: true, deleted, provider: r }; },
+      async fetchItems(q) { return graph.query(Object.assign({ sourceApp: APP }, q || {})); },
       normalise,
       async sync(opts2) {
         try { const rep = o.runPipeline ? await o.runPipeline(opts2) : null; const ing = await ingest(o.getAccountId ? await o.getAccountId() : 'default', opts2); status.lastSync = now(); status.lastError = null; status.lastReport = { pipeline: rep && rep.report, ingest: ing }; return status.lastReport; }

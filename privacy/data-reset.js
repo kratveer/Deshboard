@@ -125,6 +125,30 @@
     return report;
   }
 
+  /** Delete one Microsoft account's data from this device (Outlook mail index + facts, Outlook and OneDrive Items, links,
+   *  rules and actions, sync state). Gmail data, other accounts, your own tasks and passes and your settings stay. */
+  async function deleteMicrosoftData(opts) {
+    const o = opts || {}, acct = o.accountId;
+    if (!acct) throw new Error('accountId required');
+    const ls = LS();
+    const report = { account: acct, keys: 0, graphItems: 0, mailCache: null };
+    if (ls) {
+      const keys = []; for (let i = 0; i < ls.length; i++) keys.push(ls.key(i));
+      keys.forEach((k) => { if (k && k.startsWith('daylight') && k.endsWith(':' + acct)) { ls.removeItem(k); report.keys++; } });
+    }
+    if (o.mailCache?.clearAccount) { try { await o.mailCache.clearAccount(acct); report.mailCache = 'account rows deleted'; } catch (e) { report.mailCache = 'failed: ' + e; } }
+    try {
+      if (root.DaylightGraph?.deleteBySource) {
+        report.graphItems = (await root.DaylightGraph.deleteBySource('outlook', acct)) + (await root.DaylightGraph.deleteBySource('onedrive', acct));
+        const rest = (await root.DaylightGraph.query({ accountId: acct })); // e.g. people / organisations made only from Outlook mail
+        for (const it of rest) for (const s of (it.sources || [])) report.graphItems += await root.DaylightGraph.removeSourceItem(s.app, acct, s.itemId);
+        try { const lg = await root.DaylightGraph.log.all(); const drop = lg.filter((e) => e.accountId === acct).map((e) => e.id); if (drop.length) await root.DaylightGraph.log.delMany(drop); } catch {}
+      }
+    } catch (e) { report.error = String(e && e.message || e); }
+    try { root.DaylightPrivacyLog?.add?.({ kind: 'delete', what: 'microsoft-data for one account', detail: { items: report.graphItems } }); } catch {}
+    return report;
+  }
+
   /** Delete everything Daylight stored on this device (Privacy Centre → Delete all). */
   async function deleteAll() {
     const ls = LS();
@@ -140,7 +164,7 @@
     return { keys, databases };
   }
 
-  const api = { deleteGmailData, deleteAll, GMAIL_KEYS, ACCOUNT_SUFFIX_PREFIXES };
+  const api = { deleteGmailData, deleteMicrosoftData, deleteAll, GMAIL_KEYS, ACCOUNT_SUFFIX_PREFIXES };
   root.DaylightDataReset = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

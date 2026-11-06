@@ -25,6 +25,7 @@
 
   // ---- Daylight server session (the only sign-in path) ----
   const SERVER_ERRORS={account_not_allowed:'That Google account is not allowed on your Daylight server.',access_denied:'Google sign-in was cancelled.',no_refresh_token:'Google did not grant offline access. Try signing in again.',token_exchange_failed:'Google sign-in could not be completed. Try again in a moment.',gmail_readonly_required:'Google did not grant permission to read Gmail. Sign in again and allow mail reading.'};
+  const MS_ERRORS={access_denied:'Microsoft sign-in was cancelled.',consent_required:'Your organisation must approve Daylight before you can connect this account.',account_not_allowed:'That Microsoft account is not allowed on your Daylight server.',mail_read_required:'Daylight needs permission to read your mail. Try connecting again and allow it.',no_refresh_token:'Microsoft did not allow Daylight to stay connected. Try again.',token_exchange_failed:'Microsoft sign-in could not be completed. Try again.',daylight_session_ended:'Your Daylight session ended. Sign in again, then connect Microsoft.',microsoft_not_configured:'Microsoft is not set up on your Daylight server yet.'};
   let serverUrl=(getLS('daylight-api')||(location.hostname==='kratveer.github.io'?'https://daylight-api.kratveer050.workers.dev':'')).replace(/\/+$/,''),serverSession=getLS('daylight-session'),serverEmail='',serverRenew=null,serverTokenPromise=null;
   let lastSyncOk=0,lastSyncErr='',syncBusy=false,lastRefreshStart=0;
   function readProfile(){try{return JSON.parse(localStorage.getItem('daylight-profile')||'{}')||{}}catch{return{}}}
@@ -41,6 +42,8 @@
       if(prevSession&&prevSession!==serverSession&&serverUrl)fetch(serverUrl+'/health').then(r=>r.json()).then(hh=>{if((hh.features||[]).includes('logout_keep_grant'))return fetch(serverUrl+'/auth/logout?keep_grant=1',{method:'POST',headers:{Authorization:'Bearer '+prevSession}})}).catch(()=>{});
       setTimeout(()=>toast('Signed in · Daylight will keep you connected'),600);
     }
+    if(h.get('daylight_ms')==='connected'){setLS('daylight-ms-pending','1');setTimeout(()=>toast('Microsoft connected · reading Outlook and OneDrive'),600)}
+    if(h.get('daylight_ms_error')){setLS('daylight-ms-pending','');const e=h.get('daylight_ms_error');const msg=MS_ERRORS[e]||'Microsoft sign-in failed: '+e;setTimeout(()=>toast(msg),600)}
     if(h.get('daylight_error')){const msg=SERVER_ERRORS[h.get('daylight_error')]||'Sign-in failed: '+h.get('daylight_error');lastSyncErr=msg;setTimeout(()=>toast(msg),600)}
     history.replaceState(null,'',location.pathname+location.search)})();
   /* ---- Account identity gate: account data is shown only once THIS credential's owner is confirmed. ----
@@ -135,10 +138,16 @@
     const gmail=W.DaylightGmailConnector.createGmailConnector({graph,ruleStore,classifier:W.DaylightClassifier,get mailCache(){return getMailV2().cache},getAccountId:()=>v2AccountKey(),
       getStatus:async()=>({connected:Boolean(token||serverSession),account:readProfile().email||null,scopes:googleScopeBlob().split(/\s+/).filter(Boolean)})});
     registry.register(gmail);
+    // Outlook: the same connector over the same mail cache, keyed by the linked Microsoft account
+    const outlook=W.DaylightOutlookPipeline?W.DaylightGmailConnector.createGmailConnector({app:'outlook',name:'Outlook',group:'microsoft',urlOf:W.DaylightOutlookPipeline.outlookUrl,graph,ruleStore,classifier:W.DaylightClassifier,get mailCache(){return getMailV2().cache},getAccountId:()=>(msLink()||{}).account||null,
+      reads:'Outlook mail (read-only) and your OneDrive file list; bills, receipts and tickets among your files are read on this device',
+      permissions:[{scope:'Mail.Read',why:'Read your Outlook mail. Daylight cannot send, delete or change mail.'},{scope:'Files.Read',why:'List your OneDrive files and read the ones that look like bills or tickets, on this device.'}],
+      getStatus:async()=>({connected:!!msLink(),account:(msLink()||{}).email||null})}):null;
+    if(outlook)registry.register(outlook);
     const actions=W.DaylightActions.createActions({graph,registry,ruleStore,classifier:W.DaylightClassifier});
     const log=W.DaylightProcessingLog.createLog({graph});
     const local=W.DaylightLocalConnector?W.DaylightLocalConnector.createLocalConnector({graph,mailKey:mid=>'gmail:'+v2AccountKey()+':'+mid}):null;
-    v2Core.o={graph,registry,gmail,ruleStore,actions,log,local};
+    v2Core.o={graph,registry,gmail,outlook,ruleStore,actions,log,local};
     W.DaylightV2=v2Core.o; W.DaylightGraph=graph; W.DaylightPrivacyLog=log;
     return v2Core.o;
   }
@@ -240,6 +249,74 @@
       }
     }catch(e){console.warn('profile',e)}
   }
+  // ---- Microsoft: an extra connection of this Daylight session (Outlook mail + OneDrive files), read-only ----
+  const msKey=()=>'daylight-ms-link:'+v2AccountKey();
+  function msLink(){try{return identityVerified?JSON.parse(localStorage.getItem(msKey())||'null'):null}catch{return null}}
+  let msTok=null,msTokExp=0,msBusy=false,msLast=null,msErr='',msV2=null;
+  /** A short-lived Microsoft access token from the Daylight server (memory only). Also records which Microsoft account is linked. */
+  async function msToken(force){
+    if(!force&&msTok&&Date.now()<msTokExp-60000)return msTok;
+    if(!serverUrl||!serverSession)throw new Error('not signed in');
+    const r=await fetch(serverUrl+'/api/microsoft/token',{method:'POST',headers:{Authorization:'Bearer '+serverSession}});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===404){msTok=null;setLS(msKey(),'');throw new Error('Microsoft is not connected')}
+    if(r.status===401){msTok=null;if(d.error==='ms_reauth'){const l=msLink();if(l){l.needsReconnect=true;setLS(msKey(),JSON.stringify(l))}}throw new Error(d.error==='ms_reauth'?'Microsoft sign-in expired · connect again':'Daylight sign-in expired')}
+    if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
+    msTok=d.access_token;msTokExp=Date.now()+(Number(d.expires_in)||3600)*1000;
+    const prev=msLink()||{};
+    setLS(msKey(),JSON.stringify({...prev,account:d.account,email:d.email,name:d.name,mailRead:!!d.mail_read,filesRead:!!d.files_read,needsReconnect:false,connectedAt:prev.connectedAt||Date.now()}));
+    return msTok;
+  }
+  function getMsV2(){
+    if(msV2)return msV2;
+    const v=getMailV2(),R=W.DaylightGmailRules;
+    const pipe=W.DaylightOutlookPipeline.createOutlookPipeline({getToken:f=>msToken(!!f),cache:v.cache,rules:R,config:v.config,derive:v2Derive});
+    const helper=W.DaylightMailPipeline.createMailPipeline({engine:null,cache:v.cache,rules:R,config:v.config,derive:v2Derive});
+    msV2={pipe,helper,cache:v.cache,config:v.config};
+    return msV2;
+  }
+  const msReadFiles=()=>getLS('daylight-ms-read-files')!=='0';
+  /** Outlook (same 15-minute rhythm as Gmail, every refresh when asked), then the Item Graph, then OneDrive (hourly). */
+  async function v2MicrosoftSync(force){
+    if(!serverSession||!identityVerified||!W.DaylightOutlookPipeline||!v2Enabled())return null;
+    let link=msLink();const pending=getLS('daylight-ms-pending')==='1';
+    if(!link&&!pending)return null;
+    if(link&&link.needsReconnect&&!pending)return null;
+    try{await msToken(pending)}catch(e){msErr=String(e.message||e);setLS('daylight-ms-pending','');return null}
+    setLS('daylight-ms-pending','');link=msLink();const acct=link&&link.account;if(!acct)return null;
+    const last=Number(getLS('daylight-ms-last-sync:'+acct))||0;
+    if(!force&&!pending&&Date.now()-last<15*60000)return null;
+    const c=v2Core(),v=getMsV2();
+    const lock=W.DaylightSyncScheduler.createLock({name:'daylight-ms-sync:'+acct,leaseMs:v.config.schedule.lockLeaseMs});
+    msBusy=true;
+    try{
+      const lk=await lock.withLock(async()=>{
+        const mail=(await v.pipe.run({accountId:acct})).report;
+        const key='daylight-graph-ingest:ms1:'+acct,since=Number(getLS(key))||0,t0=Date.now();
+        const ingest=await c.outlook.ingest(acct,{since});setLS(key,String(t0));
+        let files=null;const fl=Number(getLS('daylight-onedrive-last:'+acct))||0;
+        if(link.filesRead!==false&&W.DaylightOneDrive&&(force||pending||Date.now()-fl>60*60000)){
+          const od=W.DaylightOneDrive.createOneDrive({getToken:f=>msToken(!!f),graph:c.graph,store:{get:getLS,set:setLS},rules:W.DaylightGmailRules,mailHelper:v.helper,pipelineConfig:v.config.pipeline,config:{readContents:msReadFiles()}});
+          files=await od.sync(acct);if(files.ok)setLS('daylight-onedrive-last:'+acct,String(Date.now()));
+        }
+        return {mail,ingest,files};
+      });
+      if(lk.ran){msLast={...lk.result,at:Date.now()};msErr=lk.result.mail.fatal?lk.result.mail.summary:(lk.result.files&&!lk.result.files.ok?'OneDrive could not be read':'');if(!lk.result.mail.fatal)setLS('daylight-ms-last-sync:'+acct,String(Date.now()))}
+      return lk.ran?lk.result:null;
+    }catch(e){console.warn('microsoft sync',e);msErr=String(e&&e.message||e);return null}
+    finally{msBusy=false}
+  }
+  /** Disconnect Microsoft: the server forgets its token; this device deletes the Microsoft account's data. */
+  async function disconnectMicrosoft(){
+    const link=msLink();
+    if(serverSession){try{await fetch(serverUrl+'/api/microsoft/disconnect',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}}
+    msTok=null;msTokExp=0;msLast=null;msErr='';setLS('daylight-ms-pending','');
+    let report=null;
+    if(link&&link.account){let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{};try{report=await W.DaylightDataReset.deleteMicrosoftData({accountId:link.account,mailCache:mc})}catch(e){console.warn('delete microsoft data',e)}}
+    setLS(msKey(),'');
+    return report;
+  }
+
   // ---- One refresh: confirm the account, run the Gmail V2 engine, then bring the Item Graph up to date ----
 
   async function refreshAll(){
@@ -258,6 +335,7 @@
         out.report.at=Date.now();lastGmailReport=out.report;
         try{localStorage.removeItem('daylight-v2-engine-error:'+v2AccountKey())}catch{}
         await v2IngestGmail();
+        await v2MicrosoftSync(trigger==='manual');
         if(out.report.partial&&out.report.summary)lastSyncErr=out.report.summary;
       }catch(e){
         console.warn('gmail v2',e);
@@ -275,6 +353,7 @@
 
   /** Disconnect: end the server session (revoking Daylight's Google access) and delete this account's Gmail data from this device. */
   async function disconnectGoogle(){
+    try{if(msLink())await disconnectMicrosoft()}catch(e){console.warn('microsoft disconnect',e)}
     if(serverSession){try{await fetch(serverUrl+'/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}serverSession='';setLS('daylight-session','');clearTimeout(serverRenew)}
     const discAcct=v2AccountKey();
     token=null;rememberGoogleScopes('');resetGmailEngine();lastGmailReport=null;
@@ -321,6 +400,17 @@
       async disconnect(){await disconnectGoogle();return disconnectGoogle.lastReport||null},
       async syncNow(){refreshAll.force=true;await refreshAll()},
       syncState:()=>({busy:syncBusy,lastAt:lastSyncOk||0,error:lastSyncErr||'',runs:refreshAll.runs||0}),
+      linkedAccounts:()=>{const l=msLink();return l&&l.account?[l.account]:[]},
+      microsoft:()=>{const l=msLink();return {available:Boolean(serverUrl&&serverSession&&identityVerified),link:l,busy:msBusy,error:msErr,last:msLast,lastAt:l&&l.account?Number(getLS('daylight-ms-last-sync:'+l.account))||0:0,readFiles:msReadFiles()}},
+      async connectMicrosoft(){
+        if(!serverUrl||!serverSession)throw new Error('Sign in with Google first');
+        const r=await fetch(serverUrl+'/api/microsoft/start',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+serverSession},body:JSON.stringify({return:location.origin+location.pathname})});
+        const d=await r.json().catch(()=>({}));if(!r.ok||!d.url)throw new Error(MS_ERRORS[d.error]||d.error||('HTTP '+r.status));
+        setLS('daylight-ms-pending','1');location.assign(d.url);
+      },
+      async disconnectMicrosoft(){return disconnectMicrosoft()},
+      setReadFiles(on){setLS('daylight-ms-read-files',on?'':'0')},
+      async syncMicrosoft(){return v2MicrosoftSync(true)},
       theme:{get:themePref,set:m=>applyThemePref(m)},
       openScanner:()=>{
         if(!W.DaylightV2Scan){toast('The scanner did not load · reload Daylight');return}

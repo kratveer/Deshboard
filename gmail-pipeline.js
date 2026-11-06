@@ -169,6 +169,51 @@
       return base;
     }
 
+    /** Stage C for one message: rules + structured data + Daylight's classifiers → category; key dates. Mutates rec (shared by Gmail and Outlook). */
+    function bodyDecide(rec, full) {
+      const c = R.stageC(full, { category: rec.category, confidence: rec.confidence, reason: rec.ruleReason, escalated: rec.escalated }, cfg);
+      let derived = null;
+      if (derive) { try { derived = derive(full); } catch { derived = null; } }
+      const d = mapDerived(derived);
+      let category = c.category, confidence = c.confidence, reason = c.reason;
+      const structuredWins = c.source !== 'rules' && c.complete;
+      // Combine with Daylight's existing classifiers. finance-intel (Phase 2) decides between the money categories;
+      // neither classifier knows food / refund-vs-receipt / travel as well as the rules, so a confident rule result stands.
+      const MONEY = ['bill', 'payment', 'subscription', 'receipt', 'refund'];
+      const ruleSpecific = ['refund', 'food', 'travel', 'document'].includes(category) && confidence >= 0.75;
+      const clsAgrees = derived?.cls && PL_CLS[derived.cls.category] === category;
+      const finDecides = d && d.source === 'fin' && (MONEY.includes(d.category) || (d.category === 'document' && ['bill', 'payment'].includes(category))) && MONEY.includes(category) && !clsAgrees && !(category === 'refund' && confidence >= 0.75 && d.category !== 'refund');
+      const promoByFin = derived?.fin?.category === 'promotional_offer' && (derived.fin.confidence || 0) >= 0.85 && !structuredWins && !c.facts.reference && ['travel', 'food', 'receipt', 'subscription', 'payment'].includes(category);
+      if (promoByFin) { category = 'promotion'; confidence = Math.min(0.92, derived.fin.confidence); reason = 'finance-intel: promotional offer'; }
+      else if (d && !structuredWins && (finDecides || (!ruleSpecific && (confidence < 0.75 || !R.HIGH_VALUE.has(category))))) { category = d.category; confidence = Math.max(d.confidence, Math.min(confidence, 0.9)); reason = d.reason; }
+      else if (derived?.fin?.category === 'not_financial' && ['bill', 'payment'].includes(category) && !structuredWins && confidence < 0.75 && !(derived?.cls && PL_CLS[derived.cls.category] === category)) {
+        // finance-intel (Phase 2) found no money evidence in the body → do not call it financial
+        category = c.facts.reference ? 'receipt' : 'other'; confidence = 0.6; reason = 'body checked: no financial evidence';
+      }
+      {
+        const lab = rec.labels || [];
+        if ((category === 'social' || category === 'newsletter') && (lab.includes('CATEGORY_SOCIAL') || lab.includes('CATEGORY_FORUMS')) && REQUEST_RX.test(`${rec.subject || ''}\n${c.cleanText || ''}`)) {
+          category = 'personal'; confidence = 0.78; reason = 'request / deadline / invitation inside a Social or Forums email';
+        }
+      }
+      rec.category = category; rec.confidence = +confidence.toFixed(3); rec.ruleReason = reason; rec.ruleStage = rec.ruleStage + '+body';
+      rec.bodyFetched = true; rec.bodyHash = c.bodyHash; rec.lastProcessedAt = now();
+      // key dates from the full text + structured booking data (schema.org)
+      {
+        const kd = keyDatesFor(c.cleanText || '', rec.subject, rec.internalDate, category, rec.listUnsubscribe);
+        const f = c.facts || {}, st = f.departureTime || f.checkinTime || f.startTime || f.startDate || f.pickupTime;
+        if (st && !isNaN(Date.parse(st))) {
+          const d = new Date(st), pad = (n) => String(n).padStart(2, '0');
+          const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, tm = /T\d\d:\d\d/.test(st) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : null;
+          const k = f.schemaType === 'FoodEstablishmentReservation' ? 'reminder' : 'travel';
+          const rest = kd.filter((x) => x.date !== iso);
+          kd.length = 0; kd.push({ kind: k, date: iso, time: tm, quote: [f.schemaType, f.reservationNumber || f.orderNumber, f.from && f.to ? f.from + ' → ' + f.to : f.place].filter(Boolean).join(' · '), source: 'schema.org', yearWritten: true }, ...rest);
+        }
+        rec.keyDates = kd.length ? kd : (rec.keyDates || []);
+      }
+      return { c, derived, category, confidence };
+    }
+
     async function buildPools(acct) {
       const live = (await cache.all(acct)).filter((r) => r.status !== 'deleted' && r.status !== 'meta-pending' && r.status !== 'skipped' && !isExcluded(r.labels)).sort((a, b) => b.internalDate - a.internalDate);
       const facts = await cache.getFacts(acct, live.map((r) => r.messageId));
@@ -398,46 +443,7 @@
         bodyFetched++;
         const full = r.data;
         session.set(rec.messageId, full);
-        const c = R.stageC(full, { category: rec.category, confidence: rec.confidence, reason: rec.ruleReason, escalated: rec.escalated }, cfg);
-        let derived = null;
-        if (derive) { try { derived = derive(full); } catch { derived = null; } }
-        const d = mapDerived(derived);
-        let category = c.category, confidence = c.confidence, reason = c.reason;
-        const structuredWins = c.source !== 'rules' && c.complete;
-        // Combine with Daylight's existing classifiers. finance-intel (Phase 2) decides between the money categories;
-        // neither classifier knows food / refund-vs-receipt / travel as well as the rules, so a confident rule result stands.
-        const MONEY = ['bill', 'payment', 'subscription', 'receipt', 'refund'];
-        const ruleSpecific = ['refund', 'food', 'travel', 'document'].includes(category) && confidence >= 0.75;
-        const clsAgrees = derived?.cls && PL_CLS[derived.cls.category] === category;
-        const finDecides = d && d.source === 'fin' && (MONEY.includes(d.category) || (d.category === 'document' && ['bill', 'payment'].includes(category))) && MONEY.includes(category) && !clsAgrees && !(category === 'refund' && confidence >= 0.75 && d.category !== 'refund');
-        const promoByFin = derived?.fin?.category === 'promotional_offer' && (derived.fin.confidence || 0) >= 0.85 && !structuredWins && !c.facts.reference && ['travel', 'food', 'receipt', 'subscription', 'payment'].includes(category);
-        if (promoByFin) { category = 'promotion'; confidence = Math.min(0.92, derived.fin.confidence); reason = 'finance-intel: promotional offer'; }
-        else if (d && !structuredWins && (finDecides || (!ruleSpecific && (confidence < 0.75 || !R.HIGH_VALUE.has(category))))) { category = d.category; confidence = Math.max(d.confidence, Math.min(confidence, 0.9)); reason = d.reason; }
-        else if (derived?.fin?.category === 'not_financial' && ['bill', 'payment'].includes(category) && !structuredWins && confidence < 0.75 && !(derived?.cls && PL_CLS[derived.cls.category] === category)) {
-          // finance-intel (Phase 2) found no money evidence in the body → do not call it financial
-          category = c.facts.reference ? 'receipt' : 'other'; confidence = 0.6; reason = 'body checked: no financial evidence';
-        }
-        {
-          const lab = rec.labels || [];
-          if ((category === 'social' || category === 'newsletter') && (lab.includes('CATEGORY_SOCIAL') || lab.includes('CATEGORY_FORUMS')) && REQUEST_RX.test(`${rec.subject || ''}\n${c.cleanText || ''}`)) {
-            category = 'personal'; confidence = 0.78; reason = 'request / deadline / invitation inside a Social or Forums email';
-          }
-        }
-        rec.category = category; rec.confidence = +confidence.toFixed(3); rec.ruleReason = reason; rec.ruleStage = rec.ruleStage + '+body';
-        rec.bodyFetched = true; rec.bodyHash = c.bodyHash; rec.lastProcessedAt = now();
-        // key dates from the full text + structured booking data (schema.org)
-        {
-          const kd = keyDatesFor(c.cleanText || '', rec.subject, rec.internalDate, category, rec.listUnsubscribe);
-          const f = c.facts || {}, st = f.departureTime || f.checkinTime || f.startTime || f.startDate || f.pickupTime;
-          if (st && !isNaN(Date.parse(st))) {
-            const d = new Date(st), pad = (n) => String(n).padStart(2, '0');
-            const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, tm = /T\d\d:\d\d/.test(st) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : null;
-            const k = f.schemaType === 'FoodEstablishmentReservation' ? 'reminder' : 'travel';
-            const rest = kd.filter((x) => x.date !== iso);
-            kd.length = 0; kd.push({ kind: k, date: iso, time: tm, quote: [f.schemaType, f.reservationNumber || f.orderNumber, f.from && f.to ? f.from + ' → ' + f.to : f.place].filter(Boolean).join(' · '), source: 'schema.org', yearWritten: true }, ...rest);
-          }
-          rec.keyDates = kd.length ? kd : (rec.keyDates || []);
-        }
+        const d0 = bodyDecide(rec, full); const c = d0.c, derived = d0.derived; let category = d0.category, confidence = d0.confidence;
         const [lo, hi] = cfg.reviewBand;
         if (rec.userCategory) { category = rec.userCategory; confidence = 0.99; rec.category = category; rec.confidence = 0.99; rec.ruleReason = 'your choice'; }
         rec.status = rec.userCategory ? 'done' : (confidence >= lo && confidence < hi && R.HIGH_VALUE.has(category) ? 'review' : 'done');
@@ -556,7 +562,7 @@
       return rec;
     }
 
-    return { run, runAi, resolveReview, fromCache, buildPools, setBatchSender: (fn) => { batchSend = fn; }, batchDisabled: () => batchFailures >= cfg.batchFallbackAfterFailures, session };
+    return { run, runAi, resolveReview, fromCache, buildPools, recordFromMeta, bodyDecide, setBatchSender: (fn) => { batchSend = fn; }, batchDisabled: () => batchFailures >= cfg.batchFallbackAfterFailures, session };
   }
 
   const api = { createMailPipeline, mapDerived, excludeQuery, FIN_MAP, CLS_MAP };

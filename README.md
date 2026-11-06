@@ -1,6 +1,6 @@
 # Daylight
 
-Daylight reads your Gmail **read-only** and turns it into one picture of your day: bills and payments, bookings and passes, deadlines and appointments, and people waiting for a reply. Everything Daylight works out stays in your browser on your device.
+Daylight reads your Gmail **read-only** — and, optionally, your Microsoft Outlook mail and OneDrive files — and turns it into one picture of your day: bills and payments, bookings and passes, deadlines and appointments, and people waiting for a reply. Everything Daylight works out stays in your browser on your device.
 
 The app has five tabs — **Today · Inbox · Plan · Money · Wallet** — plus **Ask**, **Settings** (Connections, rules, appearance) and the **Privacy Centre**. On phones and tablets the tabs sit in a floating pill-shaped bar at the bottom; on wide screens they become a sidebar.
 
@@ -8,6 +8,7 @@ The app has five tabs — **Today · Inbox · Plan · Money · Wallet** — plus
 
 - **Sign-in** goes through the small Cloudflare Worker in [`server/`](server/README.md). The only Google permission Daylight asks for is reading Gmail (`gmail.readonly`), plus your basic profile. The Worker keeps Google's long-term token encrypted and gives the app short-lived tokens; the app then talks to Gmail directly.
 - **Gmail engine** (`gmail-sync.js`, `gmail-pipeline.js`, `gmail-cache.js`, `gmail-rules.js`, `gmail-batch.js`, `sync-scheduler.js`): history-driven discovery, metadata first, bodies only when needed, HTTP batch, a per-account cache in IndexedDB (`daylight-mail`) and a quota ceiling.
+- **Microsoft (optional extra connection)** (`outlook-sync.js`, `onedrive-sync.js`, `file-text.js`): connected in Settings → Connections → Microsoft through the Worker (`Mail.Read`, `Files.Read`, read-only). Outlook mail runs through the same rules, classifiers and Item Graph connector as Gmail (per-folder delta queries, immutable IDs, bodies by `$batch`). OneDrive files are listed; files that look like bills, receipts or tickets are downloaded into memory and read on the device (PDF with pdf.js, self-hosted in `ui/vendor/pdfjs`, Apache-2.0; Word/Excel/PowerPoint via the browser's zip support). Needs an Azure app registration: set `MS_CLIENT_ID` in `server/wrangler.toml` and `npx wrangler secret put MS_CLIENT_SECRET`; redirect URI `<worker>/auth/microsoft/callback` (platform Web).
 - **Item Graph** (`graph/`, `connectors/`, `classification/`, `actions/`): one model of Items (emails, bills, transactions, subscriptions, bookings, deadlines, people, organisations, passes, tasks) in IndexedDB (`daylight-graph`). Your actions (done, snooze, paid) and corrections are kept across syncs.
 - **Interface** (`ui/`): `v2-app.js` (the app), `v2-model.js` (what each screen shows), `v2-scan.js` (Wallet scanner), `codes.js` (QR / Code 128 drawn locally — no code value is sent to any service), `code-reader.js` (local QR / Code 128 reader for browsers without BarcodeDetector), `v2-diagnostics.js` (developer diagnostics), `v2.css`.
 - **Core** (`app.js`): sign-in, account confirmation, the sync loop and the bridge between the engine and the interface.
@@ -24,7 +25,7 @@ Serve this folder over HTTP, for example `python -m http.server 8000`, and open 
 
 ## Tests
 
-Browser tests use Playwright with Google mocked (`tests/mock-gmail.js`), for example `node tests/v2-ui-e2e.js`, `node tests/v2-isolation-e2e.js`, `node tests/gmail-v2-browser-e2e.js`, `node tests/v2-nav-scan-e2e.js`, `node tests/sw-upgrade-e2e.js`. `node tests/privacy-audit-e2e.js` checks privacy.html against real requests and storage; `node tests/site-build-check.js` checks a clean checkout builds and serves the published site. `python3 tests/codes-decode-check.py` and `python3 tests/crosscheck/crosscheck.py` verify drawing and reading of codes against independent libraries (OpenCV, ZXing, ZBar, libqrencode). Unit tests run in Node, for example `node tests/v2-model-unit.js`.
+Browser tests use Playwright with Google mocked (`tests/mock-gmail.js`), for example `node tests/v2-ui-e2e.js`, `node tests/v2-isolation-e2e.js`, `node tests/gmail-v2-browser-e2e.js`, `node tests/v2-nav-scan-e2e.js`, `node tests/sw-upgrade-e2e.js`, `node tests/microsoft-e2e.js` (Google, Worker and Microsoft Graph mocked by `tests/mock-graph.js`), `node tests/outlook-sync-unit.js`, `node tests/onedrive-sync-unit.js`, `node tests/worker-microsoft.mjs`. `node tests/privacy-audit-e2e.js` checks privacy.html against real requests and storage; `node tests/site-build-check.js` checks a clean checkout builds and serves the published site. `python3 tests/codes-decode-check.py` and `python3 tests/crosscheck/crosscheck.py` verify drawing and reading of codes against independent libraries (OpenCV, ZXing, ZBar, libqrencode). Unit tests run in Node, for example `node tests/v2-model-unit.js`.
 
 ## Deploying
 

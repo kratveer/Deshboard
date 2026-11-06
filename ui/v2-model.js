@@ -17,7 +17,7 @@
     deadline: 'Deadline', follow_up: 'Sent', newsletter: 'Newsletter', social_notification: 'Social', marketing: 'Promotion', automated: 'Notification'
   };
   const KIND_LABEL = { bill: 'Bill', transaction: 'Payment', subscription: 'Subscription', booking: 'Booking', trip: 'Trip', ticket: 'Ticket', delivery: 'Delivery',
-    deadline: 'Deadline', appointment: 'Appointment', task: 'Task', event: 'Event', document: 'Document', warranty: 'Warranty', email: 'Email', person: 'Person', organisation: 'Organisation', project: 'Project' };
+    deadline: 'Deadline', appointment: 'Appointment', task: 'Task', event: 'Event', document: 'Document', warranty: 'Warranty', email: 'Email', person: 'Person', organisation: 'Organisation', project: 'Project', file: 'File' };
 
   // ---------- small helpers ----------
   const startOfDay = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };

@@ -23,16 +23,17 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <a class="back" href="./">← Back to Daylight</a>
 <div class="card">
 <h1>Privacy policy</h1>
-<p class="muted">Daylight · version v109 · last updated 6 November 2026</p>
+<p class="muted">Daylight · version v110 · last updated 6 November 2026</p>
 
-<p>Daylight is a personal app run by its owner. It reads your Gmail <b>read-only</b> and turns it into one view of your day: bills and payments, bookings and passes, deadlines and appointments, and people waiting for a reply. This page describes what Daylight actually does in this version: what it reads, where that information is kept, what leaves your device, and how to remove it.</p>
+<p>Daylight is a personal app run by its owner. It reads your Gmail <b>read-only</b> — and, if you connect it, your Microsoft Outlook mail and OneDrive files, also read-only — and turns them into one view of your day: bills and payments, bookings and passes, deadlines and appointments, and people waiting for a reply. This page describes what Daylight actually does in this version: what it reads, where that information is kept, what leaves your device, and how to remove it.</p>
 
 <h2>In short</h2>
 <ul>
 <li>Daylight asks Google for one data permission: <b>read your Gmail</b> (<code>gmail.readonly</code>). It cannot send, delete, label or change mail.</li>
-<li>Your browser reads Gmail <b>directly from Google</b>. Mail does not pass through any Daylight server.</li>
+<li>Microsoft is optional. If you connect it, Daylight asks Microsoft to <b>read your Outlook mail</b> (<code>Mail.Read</code>) and <b>read your OneDrive files</b> (<code>Files.Read</code>). It cannot send, delete or change mail or files.</li>
+<li>Your browser reads Gmail <b>directly from Google</b> and Outlook and OneDrive <b>directly from Microsoft</b>. Mail and files do not pass through any Daylight server.</li>
 <li>What Daylight works out from your mail is stored <b>on your device</b> (in your browser), not on a server.</li>
-<li>A small server (a Cloudflare Worker run by the owner) only keeps you signed in, and, if you switch it on, relays <b>Ask AI</b> questions to Google Gemini.</li>
+<li>A small server (a Cloudflare Worker run by the owner) only keeps you signed in to Google (and Microsoft, if connected), and, if you switch it on, relays <b>Ask AI</b> questions to Google Gemini.</li>
 <li>No ads, no analytics, no tracking, no selling of data.</li>
 </ul>
 
@@ -43,6 +44,23 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <li><code>https://www.googleapis.com/auth/gmail.readonly</code> — to read messages and labels in your Gmail.</li>
 </ul>
 <p>Daylight does not ask for permission to send, compose, modify or delete mail, or for Google Drive, Fit, Calendar, Tasks or Contacts. If a future version offers Calendar, Tasks or Contacts, it will ask for each one separately, only when you turn it on. An older, broader permission you may have given an earlier version is not used.</p>
+
+<h2>Microsoft permissions (optional)</h2>
+<p>Microsoft is an extra connection you can add in <b>Settings → Connections → Microsoft</b>, next to Gmail. Personal accounts (Outlook.com, Hotmail, Live) and work or school accounts (Microsoft 365) can be connected. Microsoft's own consent screen asks you to allow:</p>
+<ul>
+<li><code>openid</code>, <code>profile</code>, <code>email</code>, <code>User.Read</code> — to know which Microsoft account is connected (name and email address);</li>
+<li><code>offline_access</code> — so you stay connected without signing in to Microsoft every hour;</li>
+<li><code>Mail.Read</code> — to read messages in your Outlook mailbox;</li>
+<li><code>Files.Read</code> — to read the files in your own OneDrive.</li>
+</ul>
+<p>Daylight does not ask Microsoft for permission to send, change or delete mail or files, for files other people shared with you, or for Calendar, Contacts or Teams. A work or school account may need your organisation's approval.</p>
+
+<h2>What Daylight reads from Outlook and OneDrive</h2>
+<ul>
+<li><b>Outlook mail</b> (Inbox, Sent Items and Archive, the last 30 days, then only changes) is handled exactly like Gmail: sender, recipients, subject, date, read state, Focused/Other and Microsoft's short preview; for messages that look like they matter, the message text is read in your browser to find amounts, due dates and references, and then discarded.</li>
+<li><b>OneDrive files</b>: Daylight lists your files (name, type, folder, size, last change and a link to open them in OneDrive). Folders are not listed.</li>
+<li><b>File contents</b>: only recent PDF, Word, Excel and text files whose name or folder looks like a bill, receipt, ticket or booking are opened — never files that look like identity, medical or payslip documents. The file is downloaded into your browser's memory directly from Microsoft, its text is read on your device to find amounts, due dates and references, and the file and its text are then discarded. You can turn this off in Settings → Microsoft; files are then only listed.</li>
+</ul>
 
 <h2>What Daylight reads from Gmail</h2>
 <ul>
@@ -55,28 +73,29 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <p>Everything below lives in your browser's storage for this site (IndexedDB and local storage) on the device you use. It is not synchronised to a server and other devices cannot see it.</p>
 <table>
 <tr><th>What</th><th>Details</th></tr>
-<tr><td>Mail index <span class="muted">(IndexedDB <code>daylight-mail</code>)</span></td><td>Per Google account: message and thread IDs, labels, sender, subject, Google's preview, dates, what Daylight concluded (for example "bill, 450 CZK, due 20 Nov") and why, a fingerprint (hash) of the text instead of the text itself, sync checkpoints and quota counters. Full message text is not stored.</td></tr>
-<tr><td>Your items <span class="muted">(IndexedDB <code>daylight-graph</code>)</span></td><td>The cards you see: emails, bills, payments, subscriptions, bookings, deadlines, appointments, people and organisations, Wallet passes and tasks, the links between them, your actions (done, snoozed, paid), your corrections and rules, and a log of anything that left your device.</td></tr>
-<tr><td>Session and settings <span class="muted">(local storage)</span></td><td>Your Daylight sign-in session ID, your Google name, email and picture address, the permissions Google granted, which account is confirmed, theme and other preferences.</td></tr>
+<tr><td>Mail index <span class="muted">(IndexedDB <code>daylight-mail</code>)</span></td><td>Per Google or Microsoft account: message and thread IDs, labels, sender, subject, Google's preview, dates, what Daylight concluded (for example "bill, 450 CZK, due 20 Nov") and why, a fingerprint (hash) of the text instead of the text itself, sync checkpoints and quota counters. Full message text is not stored.</td></tr>
+<tr><td>Your items <span class="muted">(IndexedDB <code>daylight-graph</code>)</span></td><td>The cards you see: emails, OneDrive files (name, folder, size, date, link and any amount, due date or reference found in them — not their text), bills, payments, subscriptions, bookings, deadlines, appointments, people and organisations, Wallet passes and tasks, the links between them, your actions (done, snoozed, paid), your corrections and rules, and a log of anything that left your device.</td></tr>
+<tr><td>Session and settings <span class="muted">(local storage)</span></td><td>Your Daylight sign-in session ID, your Google name, email and picture address, the connected Microsoft account's name and email, sync checkpoints for Outlook and OneDrive, the permissions Google granted, which account is confirmed, theme and other preferences.</td></tr>
 <tr><td>Wallet and tasks <span class="muted">(local storage)</span></td><td>Passes you add with the scanner (including the photo you took or chose, the text you confirmed and any code value), and tasks you create.</td></tr>
 </table>
-<p>The Google access token Daylight uses to read Gmail is kept in memory only and expires within an hour.</p>
+<p>The Google and Microsoft access tokens Daylight uses to read your mail and files are kept in memory only and expire within an hour.</p>
 <p>If several Google accounts are used in the same browser, only the signed-in account's items are shown; the others stay hidden and can be deleted from Settings. Tasks and Wallet passes you add yourself belong to the device and are visible to anyone using it.</p>
 
 <h2>The Daylight server (Cloudflare Worker)</h2>
 <p>Signing in goes through a small server run by the owner on Cloudflare Workers. It is used to:</p>
 <ul>
 <li><b>Sign you in and keep you signed in.</b> After you approve on Google's screen, the server receives Google's long-term (refresh) token, encrypts it (AES-GCM) and stores it with your email address, the granted permissions and timestamps. Your session is stored under a SHA-256 fingerprint of its ID, not the ID itself. The server uses the stored token only to give your browser short-lived access tokens. Sessions unused for 180 days are deleted automatically; temporary sign-in state is deleted after 10 minutes.</li>
+<li><b>Keep you connected to Microsoft</b>, if you connect it. Microsoft's long-term (refresh) token is encrypted (AES-GCM) and stored in your Daylight session together with the Microsoft account's email address, name, granted permissions and an anonymous account fingerprint. Microsoft replaces this token each time it is used; Daylight keeps only the newest. It is deleted when you disconnect Microsoft or sign out of Daylight.</li>
 <li><b>Check the account is allowed.</b> While Daylight is in testing, only Google accounts on the owner's allow-list can sign in.</li>
 <li><b>Relay Ask AI questions</b>, only if you turn this on (see below). The server holds the Gemini API key and keeps an hourly request counter for your session (deleted after 2 hours).</li>
 </ul>
-<p>The server does not read, receive or store your mail. Cloudflare, as the host, may keep standard technical request logs (such as IP address and time) under its own policy.</p>
+<p>The server does not read, receive or store your mail or files. Cloudflare, as the host, may keep standard technical request logs (such as IP address and time) under its own policy.</p>
 
 <h2>Ask and AI</h2>
 <ul>
 <li><b>Ask</b> answers from the items already on your device, with sources. Nothing is sent anywhere.</li>
 <li><b>Ask AI</b> is <b>off by default</b>. If you switch it on in the Privacy Centre and then tap <i>Ask AI instead</i>, Daylight sends your question and up to 60 of your items (title, sender, date, status and amount) through the Daylight server to Google's Gemini API, and shows only answer sentences that cite your items.</li>
-<li>Email bodies are never sent to AI. Identity documents, people and organisations are never sent. Daylight does not use AI to sort your incoming mail in this version.</li>
+<li>Email bodies and file contents are never sent to AI. OneDrive files, identity documents, people and organisations are never sent. Daylight does not use AI to sort your incoming mail in this version.</li>
 <li>Every AI request is listed in <b>Privacy Centre → What left your device</b>.</li>
 <li>How Google handles Gemini requests is set by the Gemini API terms for the key the server uses. On Google's unpaid Gemini tier, Google may use prompts to improve its products.</li>
 </ul>
@@ -94,6 +113,9 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <tr><td>GitHub Pages</td><td>Hosts the app's files</td><td>Standard web requests (IP address, browser)</td></tr>
 <tr><td>Google sign-in and Gmail API</td><td>Signing in and reading your mail</td><td>Your access token and Gmail requests, sent by your browser directly to Google</td></tr>
 <tr><td>Google user content</td><td>Your profile picture</td><td>A request for the picture</td></tr>
+<tr><td>Microsoft sign-in (if you connect Microsoft)</td><td>Connecting your Microsoft account</td><td>Your Microsoft sign-in, on Microsoft's own pages</td></tr>
+<tr><td>Microsoft Graph (if connected)</td><td>Reading Outlook mail and your OneDrive file list</td><td>Your Microsoft access token and read requests, sent by your browser directly to Microsoft</td></tr>
+<tr><td>OneDrive / SharePoint download servers (if connected and file reading is on)</td><td>Downloading a file that looks like a bill, receipt or ticket</td><td>A request for that file through a short-lived link from Microsoft (no Daylight token is sent)</td></tr>
 <tr><td>Cloudflare (Daylight server)</td><td>Sign-in, and Ask AI if enabled</td><td>See above</td></tr>
 <tr><td>Google Gemini API (via the server)</td><td>Ask AI, only if enabled and used</td><td>Your question and the item details listed above</td></tr>
 </table>
@@ -102,6 +124,7 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <h2>Disconnecting and deleting</h2>
 <ul>
 <li><b>Settings → Connections → Gmail → Disconnect and delete</b>: ends your session, asks Google to revoke Daylight's access, deletes the server's stored token, and deletes that Google account's Gmail data from this device (mail index, items, links, rules, actions and log entries, and passes or tasks created from that mail). Your own tasks, passes and settings stay.</li>
+<li><b>Settings → Connections → Microsoft → Disconnect and delete</b>: Daylight's server deletes its Microsoft token, and this device deletes that Microsoft account's data (Outlook mail index, Outlook and OneDrive items and links, sync state). Gmail, your own tasks and passes and your settings stay. Microsoft has no way for an app to remove its own permission for personal accounts: remove Daylight at <a href="https://account.live.com/consent/Manage">account.live.com/consent/Manage</a> (personal) or <a href="https://myapps.microsoft.com">myapps.microsoft.com</a> (work or school). Disconnecting Gmail also disconnects Microsoft.</li>
 <li><b>Settings → Gmail accounts on this device → Delete</b>: deletes the data of an account that is not signed in.</li>
 <li><b>Privacy Centre → Delete all Daylight data on this device</b>: removes everything Daylight stored in this browser, including your own tasks and passes, ends your server session and asks Google to revoke Daylight's access.</li>
 <li><b>Privacy Centre → Export</b>: downloads your items as a JSON file.</li>
@@ -111,8 +134,11 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <h2>Google user data</h2>
 <p>Daylight's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Gmail data is used only to show you your own day in Daylight. It is not used for advertising, not sold, not used to train AI models, and not read by people, except when you ask for help and share it yourself. It leaves your device only as described above (Ask AI, when you choose it).</p>
 
+<h2>Microsoft user data</h2>
+<p>Data received from Microsoft (Outlook mail, OneDrive files) is used only to show you your own day in Daylight, on your device. It is not used for advertising, not sold, not used to train AI models, not read by people, and never sent to AI (Ask AI receives only the item details listed above for Outlook emails, never file contents).</p>
+
 <h2>Changes</h2>
-<p>This page describes version v109. It will be updated before a new version reads or sends anything new.</p>
+<p>This page describes version v110. It will be updated before a new version reads or sends anything new.</p>
 
 <h2>Contact</h2>
 <p>Questions: <a href="mailto:kratveer050@gmail.com">kratveer050@gmail.com</a></p>

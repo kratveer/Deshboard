@@ -47,13 +47,17 @@
     shield: '<path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6z"/><path d="m9 12 2 2 4-4"/>', copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
     trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>', urgent: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     sort: '<path d="M3 6h13M3 12h9M3 18h5M17 8V20M14 17l3 3 3-3"/>', lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>', down: '<path d="m6 9 6 6 6-6"/>',
-    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', note: '<path d="M4 20h16M15 4l5 5L9 20H4v-5z"/>'
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', note: '<path d="M4 20h16M15 4l5 5L9 20H4v-5z"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'
   };
   const ic = (name, size) => `<svg viewBox="0 0 24 24" width="${size || 20}" height="${size || 20}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || P.task}</svg>`;
-  const KCOL = { bill: '--k-bill', deadline: '--k-deadline', appointment: '--k-appointment', booking: '--k-booking', ticket: '--k-ticket', task: '--k-task', delivery: '--k-delivery', email: '--k-email', subscription: '--k-subscription', document: '--k-document', transaction: '--k-transaction', event: '--k-event', person: '--k-email', organisation: '--k-email', warranty: '--k-document' };
+  const KCOL = { bill: '--k-bill', deadline: '--k-deadline', appointment: '--k-appointment', booking: '--k-booking', ticket: '--k-ticket', task: '--k-task', delivery: '--k-delivery', email: '--k-email', subscription: '--k-subscription', document: '--k-document', transaction: '--k-transaction', event: '--k-event', person: '--k-email', organisation: '--k-email', warranty: '--k-document', file: '--k-document' };
   const kvar = (it) => `--k:var(${KCOL[it.type] || '--k-email'})`;
   const kicon = (it) => (it.type === 'email' && M.ctype(it) === 'urgent_action' ? 'urgent' : P[it.type] ? it.type : 'task');
-  const SRC = { gmail: ['M', 'Gmail'], daylight: ['D', 'Daylight'], wallet: ['W', 'Wallet'] };
+  const SRC = { gmail: ['M', 'Gmail'], outlook: ['O', 'Outlook'], onedrive: ['D', 'OneDrive'], daylight: ['D', 'Daylight'], wallet: ['W', 'Wallet'] };
+  const MAILAPPS = ['gmail', 'outlook'], APPNAME = { gmail: 'Gmail', outlook: 'Outlook', onedrive: 'OneDrive' };
+  /** The link to the Item's own app (Gmail, Outlook, OneDrive), or its first related email's. */
+  const appLink = (it) => (it.sources || []).find((s) => APPNAME[s.app] && s.url) || relatedEmails(it).map((e) => (e.sources || []).find((s) => MAILAPPS.includes(s.app) && s.url)).find(Boolean) || null;
   const src = (it) => { const a = (it.sources && it.sources[0] && it.sources[0].app) || 'daylight'; const s = SRC[a] || [a[0].toUpperCase(), a]; return `<span class="v-src ${a}" title="${esc(s[1])}">${s[0]}</span>`; };
   const PICCOL = ['#2563EB', '#7C3AED', '#DB2777', '#EA580C', '#0D9488', '#16A34A', '#9333EA', '#0891B2', '#D97706', '#DC2626'];
   const initials = (n) => String(n || '?').replace(/[<"].*$/, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
@@ -132,9 +136,10 @@
     // multi-account isolation: only the signed-in account's Items (plus this device's own tasks and passes) are ever shown
     const acct = S.sample ? 'sample' : ((S.host.accountId && S.host.accountId()) || null);
     S.account = acct;
-    const items = all.filter((x) => x.accountId === 'local' || (acct && x.accountId === acct));
+    const linked = S.sample ? [] : ((S.host.linkedAccounts && S.host.linkedAccounts()) || []); // a Microsoft account connected to this Daylight session
+    const items = all.filter((x) => x.accountId === 'local' || (acct && x.accountId === acct) || (acct && linked.includes(x.accountId)));
     S.hiddenOtherAccounts = all.length - items.length;
-    S.accountCounts = {}; all.forEach((x) => { if (x.accountId && x.accountId !== 'local' && x.accountId !== 'sample') S.accountCounts[x.accountId] = (S.accountCounts[x.accountId] || 0) + 1; });
+    S.accountCounts = {}; all.forEach((x) => { if (x.accountId && x.accountId !== 'local' && x.accountId !== 'sample' && !linked.includes(x.accountId)) S.accountCounts[x.accountId] = (S.accountCounts[x.accountId] || 0) + 1; });
     S.items = M.applySettlements ? M.applySettlements(items) : items; S.byId = M.index(S.items); const vis = new Set(S.items.map((x) => x.id)); S.actions = actions.filter((a) => vis.has(a.itemId)); S.rules = rules.filter((r) => !r.accountId || r.accountId === acct || r.accountId === 'local'); S.loadedAt = nowMs();
     render();
     refreshOpenSheet();
@@ -586,12 +591,12 @@
   }
   function itemHtml(id) {
     const it = S.byId.get(id); if (!it) return '<p class="v-muted">This item no longer exists.</p>';
+    if (it.type === 'file') return fileHtml(it);
     const now = nowMs();
     const ty = M.ctype(it);
     const pa = M.primaryAction(it);
     const isDone = it.status === 'done' || it.status === 'dismissed';
-    const gmail = (it.sources || []).find((s) => s.app === 'gmail' && s.url);
-    const anyGmail = gmail || relatedEmails(it).map((e) => (e.sources || []).find((s) => s.app === 'gmail' && s.url)).find(Boolean);
+    const anyGmail = appLink(it), appName = anyGmail ? APPNAME[anyGmail.app] : 'Gmail';
     let h = `<span class="v-kind" style="${kvar(it)}">${ic(kicon(it), 14)} ${esc(it.type === 'email' && ty ? M.TYPE_LABEL[ty] : M.KIND_LABEL[it.type])}</span>${it.pinned ? ` <span class="v-kind" style="--k:var(--v-ink-3)">${ic('pin', 13)} Pinned</span>` : ''}${isDone ? ` <span class="v-kind" style="--k:var(--v-good)">${ic('check', 13)} ${it.status === 'done' ? 'Done' : 'Dismissed'}</span>` : ''}${M.isSnoozed(it, now) ? ` <span class="v-kind" style="--k:var(--k-appointment)">${ic('moon', 13)} Until ${esc(M.dayLabel(it.snoozedUntil, now))} ${esc(M.hm(it.snoozedUntil))}</span>` : ''}`;
     h += `<div class="v-dtitle">${esc(it.title)}</div>`;
     if (it.type === 'email') h += `<div class="v-meta" style="font-size:14px">${src(it)}<span>${esc(M.sender(it))}</span><span class="sep">·</span><span>${esc(new Date(it.createdAt).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></div>`;
@@ -615,7 +620,7 @@
     const acts = [];
     if (isDone) acts.push(`<button class="v-pbtn" type="button" data-act="reopen" data-id="${it.id}">${ic('undo', 16)} Reopen</button>`);
     else {
-      if (pa.kind === 'reply' && anyGmail) acts.push(`<a class="v-pbtn solid" href="${esc(anyGmail.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">${ic('reply', 16)} Reply in Gmail</a>`);
+      if (pa.kind === 'reply' && anyGmail) acts.push(`<a class="v-pbtn solid" href="${esc(anyGmail.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">${ic('reply', 16)} Reply in ${esc(appName)}</a>`);
       if (pa.kind === 'done' || pa.kind === 'reply') acts.push(`<button class="v-pbtn${pa.kind === 'done' ? ' solid' : ''}" type="button" data-act="done" data-id="${it.id}">${ic('check', 16)} ${esc(pa.kind === 'done' ? pa.label : 'Done')}</button>`);
       acts.push(`<button class="v-pbtn" type="button" data-snooze="${it.id}">${ic('moon', 16)} Snooze</button>`);
       if (it.type === 'task' || it.type === 'deadline') acts.push(`<button class="v-pbtn" type="button" data-place="${it.id}">${ic('clock', 16)} ${Number.isFinite(it.plannedAt) ? 'Move' : 'Place in Plan'}</button>`);
@@ -623,10 +628,10 @@
       if (it.type === 'email' && !['urgent_action'].includes(ty)) acts.push(`<button class="v-pbtn" type="button" data-act="dismiss" data-id="${it.id}">Not needed</button>`);
     }
     acts.push(`<button class="v-pbtn" type="button" data-act="${it.pinned ? 'unpin' : 'pin'}" data-id="${it.id}">${ic('pin', 16)} ${it.pinned ? 'Unpin' : 'Pin'}</button>`);
-    if (anyGmail && pa.kind !== 'reply') acts.push(`<a class="v-pbtn" href="${esc(anyGmail.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">${ic('ext', 16)} Open in Gmail</a>`);
+    if (anyGmail && pa.kind !== 'reply') acts.push(`<a class="v-pbtn" href="${esc(anyGmail.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">${ic('ext', 16)} Open in ${esc(appName)}</a>`);
     if (Number.isFinite(it.plannedAt)) acts.push(`<button class="v-pbtn" type="button" data-act="unschedule" data-id="${it.id}">Unschedule</button>`);
     h += `<div class="v-actions">${acts.join('')}</div>`;
-    if (it.type === 'email' && it.description) h += `<div class="v-section"><h4>Preview</h4><div class="v-snip">${esc(it.description)}</div><p class="v-muted" style="font-size:12.5px;margin:6px 2px 0">The full message stays in Gmail. Daylight keeps only this preview.</p></div>`;
+    if (it.type === 'email' && it.description) h += `<div class="v-section"><h4>Preview</h4><div class="v-snip">${esc(it.description)}</div><p class="v-muted" style="font-size:12.5px;margin:6px 2px 0">The full message stays in ${esc(appName)}. Daylight keeps only this preview.</p></div>`;
     else if (it.description && it.type !== 'email') h += `<div class="v-section"><div class="v-snip">${esc(it.description)}</div></div>`;
     // related
     const rel = (it.relatedItemIds || []).map((x) => S.byId.get(x)).filter(Boolean);
@@ -765,7 +770,7 @@
     ['google-calendar', 'Calendar', '#4285F4', '31', 'Events and free time on Today and Plan'],
     ['google-tasks', 'Google Tasks', '#1A73E8', '✓', 'Tasks and due dates in Plan'],
     ['google-contacts', 'Contacts', '#34A853', '@', 'Names, photos and birthdays in People'],
-    ['outlook', 'Outlook', '#0078D4', 'O', 'Outlook mail and calendar'], ['notion', 'Notion', '#111111', 'N', 'Tasks and pages with dates'],
+    ['outlook', 'Microsoft', '#0078D4', 'O', 'Outlook mail and your OneDrive files'], ['notion', 'Notion', '#111111', 'N', 'Tasks and pages with dates'],
     ['todoist', 'Todoist', '#E44332', 'T', 'Tasks, projects and priorities'], ['github', 'GitHub', '#24292F', 'G', 'Review requests, assigned issues, failed checks'],
     ['slack', 'Slack', '#4A154B', '#', 'Mentions, DMs and promises'], ['spotify', 'Spotify', '#1DB954', '♪', 'Focus playlists and subscription use']
   ];
@@ -779,7 +784,7 @@
     const motion = LS.get('daylight-v2-motion', 'full');
     const on = connected();
     let h = `<div style="display:flex;gap:12px;align-items:center;margin:4px 0 6px"><span class="v-avatar" style="width:48px;height:48px;font-size:18px">${S.sample ? 'S' : p.picture ? `<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">` : esc(initials(p.name || p.email || 'You'))}</span><div><b style="font-size:17px">${esc(S.sample ? 'Sample account' : p.name || 'Not signed in')}</b><div class="v-muted" style="font-size:13.5px">${esc(S.sample ? 'Nothing here is real' : p.email || 'Connect Gmail to start')}</div></div></div>`;
-    h += `<div class="v-section"><h4>Connections</h4><div class="v-conns">${CONNS.map(([id, name, col, glyph]) => { const live = id === 'gmail'; const st = live ? (on ? 'Connected' : 'Not connected') : 'Planned'; return `<button class="v-conn${live ? '' : ' planned'}" type="button" data-conn="${id}"><span class="lg" style="background:${col}">${esc(glyph)}</span>${esc(name)}<span class="st">${st}</span>${live && on ? '<i class="gd"></i>' : ''}</button>`; }).join('')}</div><p class="v-muted" style="font-size:12.5px">Each app is read-only by default and launches only after its platform review.</p></div>`;
+    h += `<div class="v-section"><h4>Connections</h4><div class="v-conns">${CONNS.map(([id, name, col, glyph]) => { const ms = id === 'outlook' && !S.sample && S.host.microsoft ? S.host.microsoft() : null; const live = id === 'gmail' || !!(ms && ms.available); const mon = id === 'gmail' ? on : !!(ms && ms.link); const st = live ? (ms && ms.link && ms.link.needsReconnect ? 'Reconnect' : mon ? 'Connected' : 'Not connected') : 'Planned'; return `<button class="v-conn${live ? '' : ' planned'}" type="button" data-conn="${id}"><span class="lg" style="background:${col}">${esc(glyph)}</span>${esc(name)}<span class="st">${st}</span>${live && mon ? '<i class="gd"></i>' : ''}</button>`; }).join('')}</div><p class="v-muted" style="font-size:12.5px">Each app is read-only by default and launches only after its platform review.</p></div>`;
     const accts = Object.entries(S.accountCounts || {});
     if (!S.sample && accts.length) { const names = (S.host.accountNames && S.host.accountNames()) || {}; h += `<div class="v-section"><h4>Gmail accounts on this device</h4><div class="v-mini">${accts.map(([k, n]) => `<div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--v-line)"><span style="flex:1;min-width:0"><b style="font-weight:600;font-size:14px">${esc(names[k] || 'Account ' + String(k).slice(0, 6))}</b><br><span class="v-muted" style="font-size:12.5px">${n} items${k === S.account ? ' · signed in' : ' · hidden while another account is signed in'}</span></span>${k === S.account ? '' : `<button class="v-pbtn danger" type="button" data-delacct="${esc(k)}">Delete</button>`}</div>`).join('')}</div><div data-confirm></div></div>`; }
     h += `<div class="v-section"><h4>Daily rhythm</h4>
@@ -797,6 +802,7 @@
   }
   async function openConnection(id) {
     const c = CONNS.find((x) => x[0] === id); if (!c) return;
+    if (id === 'outlook' && !S.sample && S.host.microsoft && S.host.microsoft().available) return openMicrosoft();
     if (id !== 'gmail') {
       openSheet({ title: c[1], back: true, html: `<div style="display:flex;gap:12px;align-items:center"><span class="lg" style="width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;font-weight:800;background:${c[2]}">${esc(c[3])}</span><div><b style="font-size:17px">${esc(c[1])}</b><div class="v-muted">Planned connector</div></div></div>
         <div class="v-section"><h4>What it will add</h4><p>${esc(c[4])}.</p></div><div class="v-section"><p class="v-muted">Not available in this release. Daylight never shows sample data as if it came from an app you haven't connected.</p></div>`, onClose: null });
@@ -826,6 +832,68 @@
     };
     openSheet({ title: 'Gmail', back: true, html: html(), refresh: html });
   }
+  // ---------- Microsoft (Outlook + OneDrive) ----------
+  const fsize = (n) => !n ? '' : n < 1024 ? n + ' B' : n < 1048576 ? Math.round(n / 1024) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+  const DOCKIND = { bill: 'Bill', payment: 'Payment', receipt: 'Receipt', refund: 'Refund', subscription: 'Subscription', travel: 'Ticket or booking', food: 'Order', document: 'Document' };
+  function fileFacts(it) { const k = it.meta && it.meta.docKind; const a = amt(it); const due = M.fact(it, 'dueDate'); const ref = M.fact(it, 'reference'); return [DOCKIND[k], a, due ? 'due ' + new Date(due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '', ref ? '#' + ref : ''].filter(Boolean).join(' · '); }
+  function fileHtml(it) {
+    const now = nowMs(), m = it.meta || {}, link = (it.sources || []).find((s) => s.app === 'onedrive' && s.url);
+    let h = `<span class="v-kind" style="${kvar(it)}">${ic('file', 14)} ${esc(m.app || 'File')}</span>${it.pinned ? ` <span class="v-kind" style="--k:var(--v-ink-3)">${ic('pin', 13)} Pinned</span>` : ''}`;
+    h += `<div class="v-dtitle">${esc(it.title)}</div><div class="v-meta" style="font-size:14px">${src(it)}<span>${esc(it.description || '/')}</span>${m.size ? `<span class="sep">·</span><span>${esc(fsize(m.size))}</span>` : ''}<span class="sep">·</span><span>changed ${esc(M.ago(it.createdAt || now, now))} ago</span></div>`;
+    const ff = fileFacts(it);
+    if (ff) h += `<dl class="v-summary"><dt>Found</dt><dd>${esc(ff)}</dd></dl>`;
+    const acts = [];
+    if (link) acts.push(`<a class="v-pbtn solid" href="${esc(link.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none">${ic('ext', 16)} Open in OneDrive</a>`);
+    acts.push(`<button class="v-pbtn" type="button" data-act="${it.pinned ? 'unpin' : 'pin'}" data-id="${it.id}">${ic('pin', 16)} ${it.pinned ? 'Unpin' : 'Pin'}</button>`);
+    h += `<div class="v-actions">${acts.join('')}</div>`;
+    h += `<p class="v-muted" style="font-size:12.5px;margin:10px 2px 0">${m.readAt ? 'Daylight read this file on your device and kept only the details above. The file and its text were not stored or sent anywhere.' : m.readError ? 'Daylight could not read this file.' : 'Daylight lists this file. It only reads files that look like bills, receipts or tickets.'}</p>`;
+    const rel = (it.relatedItemIds || []).map((x) => S.byId.get(x)).filter(Boolean);
+    const made = S.items.filter((x) => x.type !== 'file' && (x.sources || []).some((s) => s.app === 'onedrive' && link && s.itemId === link.itemId));
+    if (made.length || rel.length) h += `<div class="v-section"><h4>From this file</h4><div class="v-list">${[...made, ...rel].map((x) => card(x, now, { short: true })).join('')}</div></div>`;
+    return h;
+  }
+  function openMicrosoft() {
+    const html = () => {
+      const ms = S.host.microsoft(), l = ms.link, now = nowMs();
+      let h = `<div style="display:flex;gap:12px;align-items:center"><span style="width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;font-weight:800;background:#0078D4">O</span><div><b style="font-size:17px">Microsoft</b><div class="v-muted">${l ? esc(l.email || 'Connected') : 'Not connected'}</div></div></div>`;
+      if (!l) return h + `<div class="v-section"><p>Connect a Microsoft account (Outlook.com, Hotmail, Live or Microsoft 365 for work or school) next to Gmail. Daylight reads your Outlook mail the same way as Gmail and lists your OneDrive files. Files that look like bills, receipts or tickets are read on this device to find amounts and dates.</p>
+        <ul class="v-reasons"><li>Read-only: Daylight cannot send, delete or change mail or files.</li><li>Files shared with you by other people are not included.</li><li>Your mail and files are read by your browser; they do not pass through a Daylight server.</li></ul>
+        <button class="v-bigbtn" type="button" data-ms-connect style="width:100%;min-width:0">Connect Microsoft</button><p class="v-muted" style="font-size:12.5px;margin:8px 2px 0">A work or school account may need your organisation's approval.</p></div>`;
+      if (l.needsReconnect) h += `<div class="v-banner" style="background:var(--v-warn-soft);flex-wrap:wrap">${ic('shield', 18)}<span style="flex:1;min-width:200px">Microsoft sign-in expired or was removed. Connect again to keep Outlook and OneDrive up to date.</span><button class="v-pbtn" type="button" data-ms-connect>Connect again</button></div>`;
+      const mine = S.items.filter((x) => x.accountId === l.account);
+      const mail = mine.filter((x) => x.type === 'email').length, files = mine.filter((x) => x.type === 'file').length, other = mine.length - mail - files;
+      const last = ms.last;
+      h += `<div class="v-section"><h4>Status</h4><div class="v-mini"><button type="button"><span style="flex:1">Last sync</span><span class="r">${ms.busy ? 'Syncing now…' : ms.lastAt ? esc(M.ago(ms.lastAt, now)) + ' ago' : '—'}</span></button><button type="button"><span style="flex:1">Outlook emails</span><span class="r">${mail}</span></button><button type="button" data-ms-files><span style="flex:1">OneDrive files</span><span class="r">${files} ${ic('right', 16)}</span></button><button type="button"><span style="flex:1">Bills, bookings and other items</span><span class="r">${other}</span></button></div>
+        ${ms.error ? `<p class="v-muted" style="font-size:13px;color:var(--v-bad)">${esc(ms.error)}</p>` : ''}${last && last.files ? `<p class="v-muted" style="font-size:12.5px">Last file check: ${last.files.listed} files listed, ${last.files.read} read on this device${last.files.readFailed ? `, ${last.files.readFailed} could not be read` : ''}.</p>` : ''}
+        <button class="v-pbtn" type="button" data-ms-sync style="margin-top:6px">${ic('undo', 16)} Sync now</button></div>`;
+      h += `<div class="v-section"><h4>What Daylight reads</h4><p style="font-size:14.5px;margin:0">Outlook Inbox, Sent Items and Archive, read-only (Mail.Read). Your OneDrive file list, read-only (Files.Read).</p>
+        <label class="v-setrow">Read bills, receipts and tickets in my files<span class="r"><input type="checkbox" data-ms-readfiles${ms.readFiles ? ' checked' : ''}></span></label>
+        <p class="v-muted" style="font-size:12.5px;margin:0">Only recent PDF, Word, Excel and text files whose name or folder looks like a bill, receipt, ticket or booking — never identity documents. They are opened in this browser; the text is used to find amounts and dates and then discarded.</p></div>`;
+      h += `<div class="v-section"><h4>Disconnect Microsoft</h4><p style="font-size:14px;margin:0 0 6px">Daylight forgets its Microsoft sign-in and deletes from this device: ${mine.length} items from this account (Outlook emails, files, bills, bookings…), its cached mail index and sync state. Gmail and your own tasks and passes stay.</p>
+        <p class="v-muted" style="font-size:13px;margin:0 0 10px">To remove Daylight's permission at Microsoft too: account.live.com/consent/Manage (personal) or myapps.microsoft.com (work or school).</p>
+        <button class="v-pbtn danger" type="button" data-ms-disconnect="${mine.length}">${ic('trash', 16)} Disconnect and delete</button></div>`;
+      return h;
+    };
+    openSheet({ title: 'Microsoft', back: true, html: html(), refresh: html });
+  }
+  function openFiles() {
+    const st = { q: '', app: 'all' };
+    const APPS = ['all', 'PDF', 'Word', 'Excel', 'PowerPoint', 'Other'];
+    const html = () => {
+      const l = S.host.microsoft && S.host.microsoft().link; const now = nowMs();
+      let files = S.items.filter((x) => x.type === 'file' && (!l || x.accountId === l.account)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const q = st.q.trim().toLowerCase();
+      if (st.app !== 'all') files = files.filter((x) => st.app === 'Other' ? !['PDF', 'Word', 'Excel', 'PowerPoint'].includes(x.meta && x.meta.app) : (x.meta && x.meta.app) === st.app);
+      if (q) files = files.filter((x) => `${x.title} ${x.description} ${fileFacts(x)}`.toLowerCase().includes(q));
+      const shown = files.slice(0, 200);
+      return `<input class="v-input" type="search" placeholder="Search files" value="${esc(st.q)}" data-files-q style="width:100%;margin-bottom:8px">
+        <div class="v-chips" style="margin-bottom:10px">${APPS.map((a) => `<button class="v-chip${st.app === a ? ' on' : ''}" type="button" data-files-app="${a}">${a === 'all' ? 'All' : a}</button>`).join('')}</div>
+        ${shown.length ? `<div class="v-group">${shown.map((x) => { const ff = fileFacts(x); return `<button class="v-row" type="button" data-open="${x.id}"><span class="v-kico" style="--k:var(--k-document)">${ic('file', 18)}</span><span class="v-main"><span class="v-line1"><span class="who">${esc(x.title)}</span><span class="t">${esc(M.ago(x.createdAt || now, now))}</span></span><span class="v-meta"><span>${esc((x.meta && x.meta.app) || 'File')}</span><span class="sep">·</span><span>${esc(x.description || '/')}</span>${x.meta && x.meta.size ? `<span class="sep">·</span><span>${esc(fsize(x.meta.size))}</span>` : ''}</span>${ff ? `<span class="p">${esc(ff)}</span>` : ''}</span></button>`; }).join('')}</div>${files.length > shown.length ? `<p class="v-muted" style="font-size:13px;text-align:center">${files.length - shown.length} more · search to narrow down</p>` : ''}` : `<p class="v-muted">${q || st.app !== 'all' ? 'No files match.' : 'No files yet. They appear after the next Microsoft sync.'}</p>`}`;
+    };
+    openSheet({ title: 'OneDrive files', back: true, html: html(), refresh: html });
+    S.filesState = { st };
+  }
+
   async function openPrivacy() {
     const logs = await S.core.log.list().catch(() => []);
     const counts = await S.core.graph.counts();
@@ -1050,7 +1118,7 @@
     if (t.tagName === 'A' && d.brief === undefined) return;
     if (d.tab) return setTab(d.tab);
     if (d.act) { e.stopPropagation(); const id = d.id; const it = S.byId.get(id);
-      if (d.act === 'reply') { const g = it && ((it.sources || []).find((s) => s.app === 'gmail' && s.url) || relatedEmails(it).map((x) => (x.sources || []).find((s) => s.app === 'gmail' && s.url)).find(Boolean)); if (g) root.open(g.url, '_blank', 'noopener'); else openItem(id); return; }
+      if (d.act === 'reply') { const g = it && appLink(it); if (g) root.open(g.url, '_blank', 'noopener'); else openItem(id); return; }
       if (d.act === 'open') return openItem(id, t.closest('.v-card,.v-now'));
       if (['done', 'dismiss'].includes(d.act) && !S.sheets.length) await animateOut(id, 90);
       return act(id, d.act); }
@@ -1123,6 +1191,11 @@
     if (d.exitSample !== undefined) { try { sessionStorage.removeItem('daylight-v2-sample'); } catch {} location.reload(); return; }
     if (d.skipWelcome !== undefined) { S.welcomeSkipped = true; LS.set('daylight-v2-welcome-skipped', true); return render(); }
     if (d.conn) return openConnection(d.conn);
+    if (d.msConnect !== undefined) { try { await S.host.connectMicrosoft(); } catch (e) { toast(String(e && e.message || e)); } return; }
+    if (d.msSync !== undefined) { toast('Syncing Outlook and OneDrive…'); try { await S.host.syncMicrosoft(); } catch {} await load(); const ms = S.host.microsoft(); toast(ms.error ? ms.error : 'Microsoft synced'); return; }
+    if (d.msFiles !== undefined) return openFiles();
+    if (d.filesApp) { if (S.filesState) { S.filesState.st.app = d.filesApp; refreshOpenSheet(); } return; }
+    if (d.msDisconnect) return confirmIn(t, `Disconnect Microsoft and delete its ${d.msDisconnect} items, cached mail index and file list from this device? Gmail and your own tasks and passes stay.`, 'Disconnect and delete', async () => { closeSheet(); const r = await S.host.disconnectMicrosoft(); toast(`Microsoft disconnected${r ? ` · ${r.graphItems} items deleted` : ''}`); await load(); });
     if (d.switchacct !== undefined) return S.host.switchAccount();
     if (d.syncnow !== undefined) { toast('Syncing…'); try { await S.host.syncNow(); toast('Synced'); } catch (er) { toast('Sync failed'); } return; }
     if (d.disconnect) return confirmIn(t, `Disconnect this account and delete its ${d.disconnect} items, rules, history and cached mail from this device? Other accounts and your own tasks and passes stay.`, 'Disconnect and delete', async () => { closeSheet(); const r = await S.host.disconnect(); toast(r ? `Disconnected · ${r.graphItems} items deleted${r.keptOtherAccounts && r.keptOtherAccounts.length ? ` · ${r.keptOtherAccounts.length} other account kept` : ''}` : 'Gmail disconnected'); await load(); });
@@ -1186,9 +1259,11 @@
     return it;
   }
   function onInput(e) {
+    if (e.target.matches('[data-files-q]') && S.filesState) { S.filesState.st.q = e.target.value; clearTimeout(S.fqt); S.fqt = setTimeout(() => { refreshOpenSheet(); const i = $('[data-files-q]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 160); return; }
     if (e.target.matches('[data-inbox-q]')) { S.inbox.query = e.target.value; S.focusSearch = true; clearTimeout(S.qt); S.qt = setTimeout(() => { render(); S.focusSearch = false; }, 160); }
   }
   async function onChange(e) {
+    if (e.target.matches('[data-ms-readfiles]')) { S.host.setReadFiles(e.target.checked); toast(e.target.checked ? 'Daylight will read bills, receipts and tickets among your files' : 'Files are listed only; none will be read'); return; }
     const r = e.target.dataset.rhythm;
     if (r) { const cur = rhythm(); cur[r] = Number(e.target.value); if (r === 'focusStart') cur.focusEnd = cur.focusStart + 3; LS.set('daylight-v2-rhythm', cur); toast('Saved'); render(); }
   }

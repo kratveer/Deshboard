@@ -10,6 +10,7 @@ connectors/gmail-connector.js
 connectors/local-connector.js
 daylight-ai.js
 email-classify.js
+file-text.js
 finance-intel.js
 gmail-batch.js
 gmail-cache.js
@@ -24,6 +25,8 @@ icon-maskable-512.png
 index.html
 mail-dates.js
 manifest.json
+onedrive-sync.js
+outlook-sync.js
 privacy.html
 privacy/data-reset.js
 privacy/processing-log.js
@@ -45,3 +48,6 @@ ui/v2-model.js
 ui/v2-sample.js
 ui/v2-scan.js
 ui/v2.css
+ui/vendor/pdfjs/LICENSE
+ui/vendor/pdfjs/pdf.min.mjs
+ui/vendor/pdfjs/pdf.worker.min.mjs

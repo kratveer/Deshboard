@@ -16,7 +16,7 @@
   const STORES = { items: 'id', links: 'id', rules: 'id', actions: 'id', log: 'id' };
   const IDX = { items: { byAccount: 'accountId', byType: 'type', bySourceApp: 'sourceApp' }, links: { byAccount: 'accountId' }, rules: { byAccount: 'accountId' }, actions: { byAccount: 'accountId' }, log: { byAccount: 'accountId' } };
   const TYPES = Object.freeze(['email', 'person', 'organisation', 'bill', 'transaction', 'subscription', 'booking', 'trip', 'ticket',
-    'delivery', 'deadline', 'appointment', 'task', 'event', 'project', 'document', 'warranty']);
+    'delivery', 'deadline', 'appointment', 'task', 'event', 'project', 'document', 'warranty', 'file']);
   const USER_OWNED = ['status', 'snoozedUntil', 'pinned', 'userCorrections', 'actionHistory', 'userPriority', 'notes', 'plannedAt', 'plannedMinutes'];
 
   /** Small stable hash for ids (FNV-1a, base36). */

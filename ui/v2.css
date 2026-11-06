@@ -142,7 +142,7 @@ body.dark #v2 .v-tabs{border-color:rgba(255,255,255,.1);box-shadow:0 1px 0 rgba(
 .v-pbtn.solid{background:var(--v-accent);color:var(--v-accent-ink)}
 .v-stackn{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:650;color:var(--v-ink-3);background:var(--v-surface-2);border-radius:999px;padding:2px 8px}
 .v-src{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:5px;font-size:9.5px;font-weight:800;color:#fff;background:#EA4335;flex:none}
-.v-src.daylight{background:var(--v-accent)}.v-src.wallet{background:#0D9488}
+.v-src.daylight{background:var(--v-accent)}.v-src.outlook{background:#0078D4}.v-src.onedrive{background:#0364B8}.v-src.wallet{background:#0D9488}
 .v-more{display:block;width:100%;text-align:center;padding:12px;color:var(--v-accent);font-weight:650;font-size:14px}
 
 /* rows (inbox) */

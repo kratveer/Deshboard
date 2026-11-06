@@ -176,7 +176,8 @@ const ids = (page, sel, attr) => page.$$eval(sel, (els, a) => els.map((e) => e.g
     const ruleRows = await page.$$eval('.v-sheet [data-ruledel]', (x) => x.length);
     check('Not right? → type changed, rule listed in Settings', corr.type === 'newsletter' && corr.userSet && ruleRows === 1, { corr: corr.type, ruleRows });
     const conns = await page.$$eval('.v-conn', (x) => x.map((c) => [c.dataset.conn, c.classList.contains('planned')]));
-    check('Connections: Gmail live, every other app planned (none faked)', conns.length === 10 && conns.filter(([, p]) => !p).map(([id]) => id).join() === 'gmail', conns);
+    const msTile = await page.$eval('.v-conn[data-conn="outlook"]', (x) => x.textContent).catch(() => '');
+    check('Connections: Gmail and Microsoft live (Microsoft not connected), every other app planned (none faked)', conns.length === 10 && conns.filter(([, p]) => !p).map(([id]) => id).join() === 'gmail,outlook' && /Not connected/.test(msTile), { conns, msTile });
     await page.click('.v-sheet [data-privacy]'); await page.waitForTimeout(700);
     const priv = await page.evaluate(() => ({ text: document.querySelector('.v-sheet .bd').textContent, hasExport: !!document.querySelector('.v-sheet [data-export]'), hasDelete: !!document.querySelector('.v-sheet [data-deleteall]') }));
     check('Privacy Centre: what is stored, what left the device, export, delete everything', /What is stored here/.test(priv.text) && /What left your device/.test(priv.text) && priv.hasExport && priv.hasDelete);
