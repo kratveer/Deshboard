@@ -285,6 +285,8 @@
     r.classList.toggle('warn', !!bad.length && !st.busy && !st.error);
     r.title = !on ? 'Not connected' : st.busy ? 'Syncing…' : st.error ? 'Last sync had a problem' : (st.lastAt ? 'Synced ' + M.ago(st.lastAt, nowMs()) + ' ago' : 'Connected') + (bad.length ? ' · ' + bad.map((a) => a.label + (a.status === 'needs_reconnect' ? ' needs reconnect' : ' had a problem')).join(', ') : '');
     r.dataset.warn = bad.map((a) => a.key).join(',');
+    const top = S.sheets[S.sheets.length - 1];
+    if (top && top.o.syncSheet) { const sig = syncSig(); if (sig !== S.syncSig) { S.syncSig = sig; refreshOpenSheet(); } }
   }
   function renderBadges(now) {
     const b = M.badges(S.allItems || S.items, now);
@@ -924,6 +926,40 @@
     h += `<p class="v-muted" style="font-size:12px;text-align:center;margin-top:22px">Daylight v113 · read-only</p>`;
     return h;
   }
+  /** The sync ring: every account, grouped by provider, problems first; tap a row for that account's page. */
+  function syncSig() { return JSON.stringify([((S.host.syncState && S.host.syncState()) || {}).busy, buildAccounts().map((a) => [a.key, a.status, a.sync.running, a.sync.lastOk, a.sync.lastError])]); }
+  function openSync() {
+    const html = () => {
+      S.accts = buildAccounts(); S.acctBy = new Map(S.accts.map((a) => [a.key, a]));
+      const now = nowMs(), st = (S.host.syncState && S.host.syncState()) || {};
+      const accts = S.accts, all = S.allItems || S.items;
+      const count = (k) => all.filter((x) => x.accountId === k).length;
+      const bad = accts.filter(needsAttention), busy = st.busy || accts.some((a) => a.sync && a.sync.running);
+      const last = Math.max(0, ...accts.map((a) => (a.sync && a.sync.lastOk) || 0));
+      const state = busy ? 'busy' : bad.length ? 'warn' : 'ok';
+      const title = busy ? 'Syncing…' : bad.length ? `${bad.length} ${bad.length === 1 ? 'account needs' : 'accounts need'} attention` : accts.length > 1 ? 'All accounts synced' : 'Synced';
+      let h = `<div class="v-synchead ${state}" data-sync-state="${state}"><span class="big">${ic(bad.length && !busy ? 'urgent' : 'sync', 26)}</span><div class="tx"><b>${esc(title)}</b><span class="v-muted">${last ? 'Last sync ' + esc(M.ago(last, now)) + ' ago' : 'Not synced yet'} · ${accts.length} ${accts.length === 1 ? 'account' : 'accounts'}</span></div></div>
+        <button class="v-pbtn solid v-syncall" type="button" data-sync-all${busy ? ' disabled' : ''}>${ic('sync', 16)} ${busy ? 'Syncing…' : 'Sync all now'}</button>`;
+      const row = (a) => {
+        const cs = connStatus(a, now), n = count(a.key);
+        const open = a.isLogin ? 'data-conn="gmail"' : a.legacy ? 'data-conn="outlook"' : `data-acct-open="${esc(a.key)}"`;
+        const fix = a.status === 'needs_reconnect' ? (a.connId ? `<button class="v-pbtn solid" type="button" data-acct-reconnect="${esc(a.connId)}">Reconnect</button>` : `<button class="v-pbtn solid" type="button" data-acct-manage="outlook">Reconnect</button>`) : '';
+        return `<div class="v-gr v-syncrow${needsAttention(a) ? ' bad' : ''}" data-sync-row="${esc(a.key)}">${plogo(a.provider, a.color)}<button type="button" class="tx" ${open}><b>${esc(a.email || a.label)}</b><small><span class="v-cst ${cs.cls}" data-acct-state>${esc(cs.label)}</span> · ${n} ${n === 1 ? 'item' : 'items'}${a.isLogin ? ' · this device' : ''}</small></button>${fix || `<span class="chev">${ic('right', 16)}</span>`}</div>`;
+      };
+      const group = (label, list) => list.length ? `<div class="v-section"><h4>${label}</h4><div class="v-grp">${list.map(row).join('')}</div></div>` : '';
+      if (bad.length) h += group('Needs attention', bad);
+      const ok = accts.filter((a) => !needsAttention(a));
+      h += group('Google', ok.filter((a) => a.provider === 'google'));
+      h += group('Microsoft', ok.filter((a) => a.provider === 'microsoft'));
+      const local = count('local');
+      h += `<div class="v-section"><h4>This device</h4><div class="v-grp">${grow({ tag: 'div', icon: ic('wallet', 17), color: 'var(--v-ink-3)', title: 'Added by you', sub: `${local} ${local === 1 ? 'item' : 'items'} · passes and tasks · never synced anywhere` })}</div></div>`;
+      if (S.host.connections && S.host.connections().length) h += `<div class="v-section"><div class="v-grp">${grow({ attrs: 'data-acct-addopen', icon: ic('plus', 18), cls: 'add', title: 'Add account', chev: true })}</div></div>`;
+      h += `<p class="v-grcap" style="text-align:center">Each account syncs on its own. One with a problem never stops the others.</p>`;
+      return h;
+    };
+    S.syncSig = syncSig();
+    openSheet({ title: 'Sync', html: html(), refresh: html, reopen: openSync, syncSheet: true });
+  }
   /** One added account: status, what it reads, Ask AI, reconnect, disconnect. */
   function openAccount(key) {
     const html = () => {
@@ -1321,7 +1357,7 @@
     if (d.asksug) { const i = $('[data-askform] input'); if (i) i.value = d.asksug; return runAsk(d.asksug); }
     if (d.askai) return runAsk(d.askai, true);
     if (d.openSettings !== undefined) return openSettings();
-    if (d.ring !== undefined) { if (!connected()) return openConnection('gmail'); return openConnection('gmail'); }
+    if (d.ring !== undefined) { if (!connected() || S.sample) return openConnection('gmail'); return openSync(); }
     if (d.quickadd !== undefined) return openQuickAdd();
     if (d.day) { S.todayOffset = d.day === '0' ? 0 : S.todayOffset + Number(d.day); return render(); }
     if (d.brief) {

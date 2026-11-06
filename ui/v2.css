@@ -515,3 +515,15 @@ button.v-gr:disabled{opacity:.5;cursor:not-allowed;background:none}
 .v-sethead .gi.big{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;flex:none;font-weight:800;font-size:18px;color:#fff;background:var(--gc)}
 .v-cst::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px;opacity:.9}
 .v-cst:not(.ok):not(.warn):not(.bad):not(.busy){color:var(--v-ink-3)}
+/* v113 Sync sheet (the ring): accounts grouped by provider, problems first */
+.v-synchead{display:flex;gap:14px;align-items:center;padding:14px;border-radius:18px;background:var(--v-surface);border:1px solid var(--v-line);box-shadow:var(--v-shadow)}
+.v-synchead .big{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--v-good);background:var(--v-good-soft)}
+.v-synchead.warn .big{color:var(--v-warn);background:var(--v-warn-soft)}
+.v-synchead.busy .big{color:var(--v-accent);background:var(--v-accent-soft)}
+.v-synchead.busy .big svg{animation:v-spin 1.1s linear infinite}
+.v-synchead .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.v-synchead .tx b{font-size:17px}.v-synchead .tx .v-muted{font-size:13px}
+.v-syncall{width:100%;display:flex;align-items:center;gap:6px;justify-content:center;margin-top:10px;height:42px}
+.v-syncrow .tx{background:none;text-align:left;padding:0;color:inherit;cursor:pointer}
+.v-syncrow.bad{background:color-mix(in srgb,var(--v-warn) 7%,transparent)}
+.v-syncrow .v-pbtn{height:32px;font-size:13px;flex:none}

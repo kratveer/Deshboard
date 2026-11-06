@@ -207,6 +207,18 @@ function secondGmail() {
     await tab.waitForTimeout(1500);
     const D1 = await tab.evaluate(() => { const r = document.querySelector('[data-ring]'); return { cls: r.className, title: r.title, warn: r.dataset.warn, n: window.DaylightV2UI.state.items.length }; });
     check('D: one account failing → ring amber (not "Not connected"), names that account; the app keeps all data', !/\boff\b/.test(D1.cls) && /\bwarn\b/.test(D1.cls) && D1.warn === 'ms-aaa' && /a had a problem/.test(D1.title) && !/Not connected/.test(D1.title), D1);
+    // the ring opens the Sync sheet: accounts grouped by provider, the failing one first
+    await tab.click('[data-ring]'); await tab.waitForTimeout(400);
+    const RS = await tab.evaluate(() => { const sh = [...document.querySelectorAll('.v-sheet')].pop(); const groups = [...sh.querySelectorAll('.v-section')].map((g) => [(g.querySelector('h4') || {}).textContent || '', [...g.querySelectorAll('[data-sync-row]')].map((r) => r.dataset.syncRow)]); return { title: sh.getAttribute('aria-label'), state: (sh.querySelector('[data-sync-state]') || {}).dataset, head: (sh.querySelector('.v-synchead b') || {}).textContent, groups, syncAll: !!sh.querySelector('[data-sync-all]'), device: /Added by you/.test(sh.textContent) }; });
+    if (process.env.SHOT) await tab.screenshot({ path: process.env.SHOT + '/sync-warn.png' });
+    const gmap = Object.fromEntries(RS.groups.filter(([h]) => h));
+    check('Sync sheet: the failing account first under "Needs attention", the rest grouped Google / Microsoft, plus This device and Sync all', RS.title === 'Sync' && RS.state && RS.state.syncState === 'warn' && /1 account needs attention/.test(RS.head) && JSON.stringify(gmap['Needs attention']) === '["ms-aaa"]' && JSON.stringify(gmap.Google) === '["42","S-77"]' && JSON.stringify(gmap.Microsoft) === '["ms-bbb"]' && RS.syncAll && RS.device, RS);
+    await tab.click('.v-sheet [data-sync-row="ms-bbb"] [data-acct-open]'); await tab.waitForTimeout(300);
+    const rsOpen = await tab.evaluate(() => [...document.querySelectorAll('.v-sheet')].pop().getAttribute('aria-label'));
+    await tab.click('.v-sheet [data-sheet-back]'); await tab.waitForTimeout(300);
+    const rsBack = await tab.evaluate(() => [...document.querySelectorAll('.v-sheet')].pop().getAttribute('aria-label'));
+    check('Sync sheet: a row opens that account; Back returns to Sync', rsOpen === 'Account' && rsBack === 'Sync', { rsOpen, rsBack });
+    await tab.keyboard.press('Escape'); await tab.waitForTimeout(300);
     await tab.evaluate(() => window.DaylightV2UI.openSettings()); await tab.waitForTimeout(400);
     const D2 = await tab.evaluate(() => Object.fromEntries([...document.querySelectorAll('.v-sheet [data-acct-row]')].map((r) => [r.dataset.acctRow, r.querySelector('[data-acct-state]').className + '|' + r.querySelector('[data-acct-state]').textContent])));
     check('D: the failing account\'s row shows a temporary problem with its retry time; the others stay "Synced"', /warn\|Temporary problem · retry \d\d:\d\d/.test(D2['ms-aaa']) && ['42', 'S-77', 'ms-bbb'].every((k) => /ok\|Synced/.test(D2[k])), D2);
@@ -218,6 +230,10 @@ function secondGmail() {
     if (process.env.SHOT) await tab.screenshot({ path: process.env.SHOT + '/reconnect.png' });
     const D3 = await tab.evaluate(() => { const b = document.querySelector('[data-reconnect-banner]'); return { banner: b && b.textContent, btn: b && b.querySelector('[data-acct-reconnect]') && b.querySelector('[data-acct-reconnect]').dataset.acctReconnect, bbb: window.DaylightV2UI.state.allItems.filter((x) => x.accountId === 'ms-bbb').length }; });
     check('D: needs reconnect → a banner names that account with a Reconnect button; its data stays', D3.btn === 'c4' && /b@work\.example|b\b/.test(D3.banner || '') && D3.bbb > 0, D3);
+    await tab.click('[data-ring]'); await tab.waitForTimeout(400);
+    const RS2 = await tab.evaluate(() => { const r = document.querySelector('.v-sheet [data-sync-row="ms-bbb"]'); return { bad: r && r.classList.contains('bad'), btn: !!(r && r.querySelector('[data-acct-reconnect="c4"]')), first: (document.querySelector('.v-sheet [data-sync-row]') || {}).dataset.syncRow }; });
+    check('Sync sheet: an account that needs reconnecting is listed first with its own Reconnect button', RS2.bad && RS2.btn && RS2.first === 'ms-bbb', RS2);
+    await tab.keyboard.press('Escape'); await tab.waitForTimeout(300);
     await tab.evaluate(() => window.DaylightV2UI.openSettings()); await tab.waitForTimeout(400);
     const D4 = await tab.evaluate(() => { const r = document.querySelector('.v-sheet [data-acct-row="ms-bbb"]'); return { st: r.querySelector('[data-acct-state]').textContent, summary: document.querySelector('.v-sheet [data-set-summary]').textContent }; });
     await tab.click('.v-sheet [data-acct-open="ms-bbb"]'); await tab.waitForTimeout(300);
