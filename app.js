@@ -253,18 +253,55 @@
   const msKey=()=>'daylight-ms-link:'+v2AccountKey();
   function msLink(){try{return identityVerified?JSON.parse(localStorage.getItem(msKey())||'null'):null}catch{return null}}
   let msTok=null,msTokExp=0,msBusy=false,msLast=null,msErr='',msV2=null;
+  // ---- Account inventory (Phase 0): data of accounts no longer linked is hidden at once, listed in Settings, kept 30 days with a warning ----
+  let invObj=null;
+  function inventory(){if(invObj)return invObj;if(!W.DaylightAccountInventory)return null;let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{};invObj=W.DaylightAccountInventory.createInventory({graph:v2Core()?.graph,mailCache:mc});return invObj}
+  const replacedKey=()=>'daylight-ms-replaced:'+v2AccountKey();
+  /** Delete one account's data from this device safely: never the signed-in account; the Microsoft link goes first (no new
+   *  syncs), deletion runs under that account's sync lock (a sync in another tab finishes first), then a local tombstone. */
+  async function deleteDeviceAccount(key){
+    const inv=inventory();if(!inv||!key)throw new Error('nothing to delete');
+    const rows=await inv.scan(identityVerified?v2AccountKey():null);const row=rows.find(r=>r.key===key);
+    if(!row)return {graphItems:0,deleted:false};
+    if(row.status==='active')throw new Error('This account is connected · use Disconnect');
+    let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{}
+    let report=null;
+    if(row.provider==='microsoft'){
+      Object.keys(inv.links()).forEach(owner=>{const v=inv.links()[owner];if(v&&v.account===key)setLS('daylight-ms-link:'+owner,'')});
+      const lock=W.DaylightSyncScheduler.createLock({name:'daylight-ms-sync:'+key,leaseMs:120000});
+      for(let i=0;i<40;i++){const r=await lock.withLock(()=>W.DaylightDataReset.deleteMicrosoftData({accountId:key,mailCache:mc}));if(r.ran){report=r.result;break}await new Promise(res=>setTimeout(res,750))}
+      if(!report)throw new Error('Another tab is syncing this account · try again in a minute');
+    }else report=await W.DaylightDataReset.deleteGmailData({accountId:key,active:false,mailCache:mc});
+    inv.markDeleted(key);
+    try{const p=JSON.parse(getLS(replacedKey())||'null');if(p&&p.old){p.old=p.old.filter(x=>x.key!==key);setLS(replacedKey(),p.old.length?JSON.stringify(p):'')}}catch{}
+    return Object.assign({deleted:true,provider:row.provider},report||{});
+  }
+  /** Delete orphans whose retention ended (only after a warning was shown for at least 7 days). */
+  async function accountHousekeeping(){
+    const inv=inventory();if(!inv||!identityVerified)return [];
+    const rows=await inv.scan(v2AccountKey());const done=[];
+    for(const r of rows.filter(x=>x.status==='orphan'&&x.deletable)){try{await deleteDeviceAccount(r.key);done.push(r.key)}catch(e){console.warn('retention delete',e)}}
+    return done;
+  }
   /** A short-lived Microsoft access token from the Daylight server (memory only). Also records which Microsoft account is linked. */
   async function msToken(force){
     if(!force&&msTok&&Date.now()<msTokExp-60000)return msTok;
     if(!serverUrl||!serverSession)throw new Error('not signed in');
     const r=await fetch(serverUrl+'/api/microsoft/token',{method:'POST',headers:{Authorization:'Bearer '+serverSession}});
     const d=await r.json().catch(()=>({}));
-    if(r.status===404){msTok=null;setLS(msKey(),'');throw new Error('Microsoft is not connected')}
+    if(r.status===404){msTok=null;const was=msLink();setLS(msKey(),'');if(was&&was.account)inventory()?.markOrphan(was.account,'connection lost',{owner:v2AccountKey(),email:was.email||'',provider:'microsoft'});throw new Error('Microsoft is not connected')}
     if(r.status===401){msTok=null;if(d.error==='ms_reauth'){const l=msLink();if(l){l.needsReconnect=true;setLS(msKey(),JSON.stringify(l))}}throw new Error(d.error==='ms_reauth'?'Microsoft sign-in expired · connect again':'Daylight sign-in expired')}
     if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
     msTok=d.access_token;msTokExp=Date.now()+(Number(d.expires_in)||3600)*1000;
     const prev=msLink()||{};
-    setLS(msKey(),JSON.stringify({...prev,account:d.account,email:d.email,name:d.name,mailRead:!!d.mail_read,filesRead:!!d.files_read,needsReconnect:false,connectedAt:prev.connectedAt||Date.now()}));
+    const inv=inventory();
+    if(inv){
+      if(prev.account&&prev.account!==d.account)inv.markOrphan(prev.account,'replaced',{owner:v2AccountKey(),email:prev.email||'',provider:'microsoft'});
+      inv.connected(d.account,{provider:'microsoft',email:d.email||'',owner:v2AccountKey()});
+      const olds=inv.orphansOf(v2AccountKey(),d.account);
+      if(olds.length)setLS(replacedKey(),JSON.stringify({old:olds,now:{key:d.account,email:d.email||''},at:Date.now()}));
+    }
+    setLS(msKey(),JSON.stringify({...(prev.account===d.account?prev:{}),account:d.account,email:d.email,name:d.name,mailRead:!!d.mail_read,filesRead:!!d.files_read,needsReconnect:false,connectedAt:(prev.account===d.account&&prev.connectedAt)||Date.now()}));
     return msTok;
   }
   function getMsV2(){
@@ -290,17 +327,22 @@
     const lock=W.DaylightSyncScheduler.createLock({name:'daylight-ms-sync:'+acct,leaseMs:v.config.schedule.lockLeaseMs});
     msBusy=true;
     try{
+      const mine=()=>{const l=msLink();return !!(l&&l.account===acct)&&!(inventory()&&inventory().isDeleted(acct))};
       const lk=await lock.withLock(async()=>{
+        if(!mine())return {aborted:true};
         const mail=(await v.pipe.run({accountId:acct})).report;
+        if(!mine()){try{await v.cache.clearAccount(acct)}catch{};return {aborted:true}} // deleted or replaced while syncing: discard
         const key='daylight-graph-ingest:ms1:'+acct,since=Number(getLS(key))||0,t0=Date.now();
         const ingest=await c.outlook.ingest(acct,{since});setLS(key,String(t0));
         let files=null;const fl=Number(getLS('daylight-onedrive-last:'+acct))||0;
+        if(!mine())return {aborted:true};
         if(link.filesRead!==false&&W.DaylightOneDrive&&(force||pending||Date.now()-fl>60*60000)){
           const od=W.DaylightOneDrive.createOneDrive({getToken:f=>msToken(!!f),graph:c.graph,store:{get:getLS,set:setLS},rules:W.DaylightGmailRules,mailHelper:v.helper,pipelineConfig:v.config.pipeline,config:{readContents:msReadFiles()}});
           files=await od.sync(acct);if(files.ok)setLS('daylight-onedrive-last:'+acct,String(Date.now()));
         }
         return {mail,ingest,files};
       });
+      if(lk.ran&&lk.result&&lk.result.aborted)return null;
       if(lk.ran){msLast={...lk.result,at:Date.now()};msErr=lk.result.mail.fatal?lk.result.mail.summary:(lk.result.files&&!lk.result.files.ok?'OneDrive could not be read':'');if(!lk.result.mail.fatal)setLS('daylight-ms-last-sync:'+acct,String(Date.now()))}
       return lk.ran?lk.result:null;
     }catch(e){console.warn('microsoft sync',e);msErr=String(e&&e.message||e);return null}
@@ -312,8 +354,8 @@
     if(serverSession){try{await fetch(serverUrl+'/api/microsoft/disconnect',{method:'POST',headers:{Authorization:'Bearer '+serverSession}})}catch{}}
     msTok=null;msTokExp=0;msLast=null;msErr='';setLS('daylight-ms-pending','');
     let report=null;
-    if(link&&link.account){let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{};try{report=await W.DaylightDataReset.deleteMicrosoftData({accountId:link.account,mailCache:mc})}catch(e){console.warn('delete microsoft data',e)}}
-    setLS(msKey(),'');
+    setLS(msKey(),''); // no new syncs for it from here on
+    if(link&&link.account){inventory()?.markOrphan(link.account,'disconnected',{owner:v2AccountKey(),email:link.email||'',provider:'microsoft'});try{report=await deleteDeviceAccount(link.account)}catch(e){console.warn('delete microsoft data',e)}}
     return report;
   }
 
@@ -336,6 +378,7 @@
         try{localStorage.removeItem('daylight-v2-engine-error:'+v2AccountKey())}catch{}
         await v2IngestGmail();
         await v2MicrosoftSync(trigger==='manual');
+        try{await accountHousekeeping()}catch(e){console.warn('account housekeeping',e)}
         if(out.report.partial&&out.report.summary)lastSyncErr=out.report.summary;
       }catch(e){
         console.warn('gmail v2',e);
@@ -400,7 +443,13 @@
       async disconnect(){await disconnectGoogle();return disconnectGoogle.lastReport||null},
       async syncNow(){refreshAll.force=true;await refreshAll()},
       syncState:()=>({busy:syncBusy,lastAt:lastSyncOk||0,error:lastSyncErr||'',runs:refreshAll.runs||0}),
-      linkedAccounts:()=>{const l=msLink();return l&&l.account?[l.account]:[]},
+      linkedAccounts:()=>{const l=msLink();return l&&l.account&&!(inventory()&&inventory().isDeleted(l.account))?[l.account]:[]},
+      /** Accounts with data on this device. shown=true: the user is looking at warnings now (starts the 7-day notice). */
+      async accountInventory(opts){const inv=inventory();if(!inv)return [];const rows=await inv.scan(identityVerified?v2AccountKey():null);if(opts&&opts.shown){const w=rows.filter(r=>r.status==='orphan'&&r.warn&&!r.warnedAt).map(r=>r.key);if(w.length&&inv.markWarned(w))return inv.scan(identityVerified?v2AccountKey():null)}return rows},
+      replacedPrompt:()=>{try{return identityVerified?JSON.parse(getLS(replacedKey())||'null'):null}catch{return null}},
+      dismissReplaced(){setLS(replacedKey(),'')},
+      async deleteDeviceAccount(key){return deleteDeviceAccount(key)},
+      keepAccountData(key){inventory()?.keep(key)},
       microsoft:()=>{const l=msLink();return {available:Boolean(serverUrl&&serverSession&&identityVerified),link:l,busy:msBusy,error:msErr,last:msLast,lastAt:l&&l.account?Number(getLS('daylight-ms-last-sync:'+l.account))||0:0,readFiles:msReadFiles()}},
       async connectMicrosoft(){
         if(!serverUrl||!serverSession)throw new Error('Sign in with Google first');

@@ -28,6 +28,7 @@ manifest.json
 onedrive-sync.js
 outlook-sync.js
 privacy.html
+privacy/account-inventory.js
 privacy/data-reset.js
 privacy/processing-log.js
 scan-pipeline.js

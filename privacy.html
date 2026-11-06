@@ -23,7 +23,7 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <a class="back" href="./">← Back to Daylight</a>
 <div class="card">
 <h1>Privacy policy</h1>
-<p class="muted">Daylight · version v111 · last updated 6 November 2026</p>
+<p class="muted">Daylight · version v112 · last updated 6 November 2026</p>
 
 <p>Daylight is a personal app run by its owner. It reads your Gmail <b>read-only</b> — and, if you connect it, your Microsoft Outlook mail and OneDrive files, also read-only — and turns them into one view of your day: bills and payments, bookings and passes, deadlines and appointments, and people waiting for a reply. This page describes what Daylight actually does in this version: what it reads, where that information is kept, what leaves your device, and how to remove it.</p>
 
@@ -125,7 +125,8 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <ul>
 <li><b>Settings → Connections → Gmail → Disconnect and delete</b>: ends your session, asks Google to revoke Daylight's access, deletes the server's stored token, and deletes that Google account's Gmail data from this device (mail index, items, links, rules, actions and log entries, and passes or tasks created from that mail). Your own tasks, passes and settings stay.</li>
 <li><b>Settings → Connections → Microsoft → Disconnect and delete</b>: Daylight's server deletes its Microsoft token, and this device deletes that Microsoft account's data (Outlook mail index, Outlook and OneDrive items and links, sync state). Gmail, your own tasks and passes and your settings stay. Microsoft has no way for an app to remove its own permission for personal accounts: remove Daylight at <a href="https://account.live.com/consent/Manage">account.live.com/consent/Manage</a> (personal) or <a href="https://myapps.microsoft.com">myapps.microsoft.com</a> (work or school). Disconnecting Gmail also disconnects Microsoft.</li>
-<li><b>Settings → Gmail accounts on this device → Delete</b>: deletes the data of an account that is not signed in.</li>
+<li><b>Accounts no longer connected</b>: if a Microsoft account is replaced or its connection ends, its data on this device is hidden at once and listed in <b>Settings → Accounts on this device</b>, where you can delete it. If you do nothing, it is deleted after 30 days; Daylight warns you at least 7 days before. Reconnecting the same account restores it.</li>
+<li><b>Settings → Accounts on this device → Delete</b> (another Gmail login on this device): deletes the data of an account that is not signed in.</li>
 <li><b>Privacy Centre → Delete all Daylight data on this device</b>: removes everything Daylight stored in this browser, including your own tasks and passes, ends your server session and asks Google to revoke Daylight's access.</li>
 <li><b>Privacy Centre → Export</b>: downloads your items as a JSON file.</li>
 <li>You can also remove Daylight's access at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>, or clear this site's data in your browser settings.</li>
@@ -138,7 +139,7 @@ table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}th,td{text
 <p>Data received from Microsoft (Outlook mail, OneDrive files) is used only to show you your own day in Daylight, on your device. It is not used for advertising, not sold, not used to train AI models, not read by people, and never sent to AI (Ask AI receives only the item details listed above for Outlook emails, never file contents).</p>
 
 <h2>Changes</h2>
-<p>This page describes version v111. It will be updated before a new version reads or sends anything new.</p>
+<p>This page describes version v112. It will be updated before a new version reads or sends anything new.</p>
 
 <h2>Contact</h2>
 <p>Questions: <a href="mailto:kratveer050@gmail.com">kratveer050@gmail.com</a></p>

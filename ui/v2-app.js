@@ -140,6 +140,7 @@
     const items = all.filter((x) => x.accountId === 'local' || (acct && x.accountId === acct) || (acct && linked.includes(x.accountId)));
     S.hiddenOtherAccounts = all.length - items.length;
     S.accountCounts = {}; all.forEach((x) => { if (x.accountId && x.accountId !== 'local' && x.accountId !== 'sample' && !linked.includes(x.accountId)) S.accountCounts[x.accountId] = (S.accountCounts[x.accountId] || 0) + 1; });
+    try { S.inventory = !S.sample && S.host.accountInventory ? await S.host.accountInventory() : []; S.replaced = !S.sample && S.host.replacedPrompt ? S.host.replacedPrompt() : null; } catch { S.inventory = []; S.replaced = null; }
     S.items = M.applySettlements ? M.applySettlements(items) : items; S.byId = M.index(S.items); const vis = new Set(S.items.map((x) => x.id)); S.actions = actions.filter((a) => vis.has(a.itemId)); S.rules = rules.filter((r) => !r.accountId || r.accountId === acct || r.accountId === 'local'); S.loadedAt = nowMs();
     render();
     refreshOpenSheet();
@@ -312,6 +313,34 @@
   const h2 = (t, n, act, o) => `<h2 class="v-h2"${o && o.sec ? ` data-sec="${o.sec}"` : ''}>${esc(t)}${n != null ? ` <span class="n${o && o.pill ? ' pill' : ''}"${o && o.pill ? ` aria-label="${n} items"` : ''}>${n}</span>` : ''}${act || ''}</h2>`;
   const empty = (title, text, btn) => `<div class="v-empty"><svg class="art" viewBox="0 0 150 96" aria-hidden="true"><defs><linearGradient id="vsg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#FDBA74"/><stop offset="1" stop-color="#F472B6"/></linearGradient></defs><circle cx="75" cy="70" r="30" fill="url(#vsg)" opacity=".9"/><rect x="0" y="70" width="150" height="26" fill="var(--v-bg)"/><path d="M10 70h130" stroke="var(--v-line-2)" stroke-width="2" stroke-linecap="round"/><path d="M30 80h30M80 80h40M50 88h50" stroke="var(--v-line)" stroke-width="2" stroke-linecap="round"/></svg><h3>${esc(title)}</h3><p>${esc(text)}</p>${btn || ''}</div>`;
 
+  // ---------- accounts on this device (Phase 0: orphan protection) ----------
+  const fdate = (t) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const acctName = (r) => r.email || (r.provider === 'microsoft' ? 'Microsoft account' : 'Gmail account');
+  /** Today: a replaced Microsoft account (delete its data?) and data about to be deleted. */
+  function accountBanners(now) {
+    let h = '';
+    const rp = S.replaced;
+    if (rp && rp.old && rp.old.length) rp.old.forEach((o) => { const r = (S.inventory || []).find((x) => x.key === o.key); if (!r) return; h += `<div class="v-banner" data-acct-banner style="flex-wrap:wrap">${ic('shield', 18)}<span style="flex:1;min-width:200px">You connected <b>${esc(rp.now.email || 'a new Microsoft account')}</b>. Delete the data of <b>${esc(o.email || 'the previous account')}</b> (${r.items} items) from this device? It is already hidden.</span><button class="v-pbtn danger" type="button" data-inv-del="${esc(o.key)}">Delete</button><button class="v-pbtn" type="button" data-replaced-keep>Keep for now</button></div>`; });
+    const warn = (S.inventory || []).filter((r) => r.status === 'orphan' && r.warn);
+    if (warn.length) {
+      h += warn.map((r) => `<div class="v-banner" data-acct-banner style="flex-wrap:wrap">${ic('trash', 18)}<span style="flex:1;min-width:200px">Data from <b>${esc(acctName(r))}</b> (no longer connected, ${r.items} items) will be deleted from this device on <b>${esc(fdate(r.deleteAt))}</b>.</span><button class="v-pbtn" type="button" data-open-accounts>Review</button></div>`).join('');
+      if (warn.some((r) => !r.warnedAt) && S.host.accountInventory) S.host.accountInventory({ shown: true }).then((rows) => { S.inventory = rows; }).catch(() => {});
+    }
+    return h;
+  }
+  /** Settings: every account with data on this device except the ones in use. */
+  function accountsSection() {
+    const rows = (S.inventory || []).filter((r) => r.status !== 'active');
+    if (!rows.length) return '';
+    if (rows.some((r) => r.status === 'orphan' && r.warn && !r.warnedAt) && S.host.accountInventory) S.host.accountInventory({ shown: true }).then((x) => { S.inventory = x; }).catch(() => {});
+    return `<div class="v-section" data-accounts-section><h4>Accounts on this device</h4><p class="v-muted" style="font-size:12.5px;margin:0 0 6px">Data from these accounts is stored here but hidden.</p><div class="v-mini">${rows.map((r) => {
+      const what = `${r.items} items${r.emails ? ` · ${r.emails} emails` : ''}${r.files ? ` · ${r.files} files` : ''}`;
+      const st = r.status === 'orphan' ? `No longer connected${r.reason ? ' (' + esc(r.reason) + ')' : ''} · deleted on ${esc(fdate(r.deleteAt))} unless you reconnect it` : 'Another Daylight login on this device · kept until you delete it';
+      const del = r.provider === 'google' ? `data-delacct="${esc(r.key)}"` : `data-inv-del="${esc(r.key)}"`;
+      return `<div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--v-line);flex-wrap:wrap"><span class="v-src ${r.provider === 'microsoft' ? 'outlook' : 'gmail'}">${r.provider === 'microsoft' ? 'O' : 'M'}</span><span style="flex:1;min-width:160px"><b style="font-weight:600;font-size:14px">${esc(acctName(r))}</b><br><span class="v-muted" style="font-size:12.5px">${what} · ${st}</span></span>${r.status === 'orphan' ? `<button class="v-pbtn" type="button" data-inv-keep="${esc(r.key)}">Keep 30 more days</button>` : ''}<button class="v-pbtn danger" type="button" ${del}>Delete</button></div>`;
+    }).join('')}</div><div data-confirm></div></div>`;
+  }
+
   // ---------- TODAY ----------
   /** The Brief as one sentence: "You have 1 bill of 10 USD to pay, 27 messages waiting for you and 8 other things that need you."
    *  Each phrase is a link to where those Items are (the bill, Inbox, Needs you, Your day). The counts come from M.brief(). */
@@ -344,6 +373,7 @@
     const br = briefSentence(t.brief.parts);
     S.briefParts = t.brief.parts;
     let html = `<div class="v-col">${head}<p class="v-brief">${t.brief.clear ? esc(t.brief.parts[0].text) : br}</p>`;
+    html += accountBanners(now);
     if (t.evening && (t.evening.open.length || t.evening.done.length)) {
       html += `<div class="v-evening"><h3>Wrapping up the day</h3><p>${t.evening.done.length} done today · ${t.evening.open.length} still open${t.evening.firstTomorrow ? ` · tomorrow starts with ${esc(t.evening.firstTomorrow.title)}${M.timed(t.evening.firstTomorrow) ? ' at ' + M.hm(M.whenOf(t.evening.firstTomorrow)) : ''}` : ''}</p>
         <div class="acts">${t.evening.open.length ? `<button class="pri" type="button" data-evening="tomorrow">Move all to tomorrow</button><button type="button" data-evening="review">Review one by one</button>` : ''}</div></div>`;
@@ -786,7 +816,7 @@
     let h = `<div style="display:flex;gap:12px;align-items:center;margin:4px 0 6px"><span class="v-avatar" style="width:48px;height:48px;font-size:18px">${S.sample ? 'S' : p.picture ? `<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">` : esc(initials(p.name || p.email || 'You'))}</span><div><b style="font-size:17px">${esc(S.sample ? 'Sample account' : p.name || 'Not signed in')}</b><div class="v-muted" style="font-size:13.5px">${esc(S.sample ? 'Nothing here is real' : p.email || 'Connect Gmail to start')}</div></div></div>`;
     h += `<div class="v-section"><h4>Connections</h4><div class="v-conns">${CONNS.map(([id, name, col, glyph]) => { const ms = id === 'outlook' && !S.sample && S.host.microsoft ? S.host.microsoft() : null; const live = id === 'gmail' || !!(ms && ms.available); const mon = id === 'gmail' ? on : !!(ms && ms.link); const st = live ? (ms && ms.link && ms.link.needsReconnect ? 'Reconnect' : mon ? 'Connected' : 'Not connected') : 'Planned'; return `<button class="v-conn${live ? '' : ' planned'}" type="button" data-conn="${id}"><span class="lg" style="background:${col}">${esc(glyph)}</span>${esc(name)}<span class="st">${st}</span>${live && mon ? '<i class="gd"></i>' : ''}</button>`; }).join('')}</div><p class="v-muted" style="font-size:12.5px">Each app is read-only by default and launches only after its platform review.</p></div>`;
     const accts = Object.entries(S.accountCounts || {});
-    if (!S.sample && accts.length) { const names = (S.host.accountNames && S.host.accountNames()) || {}; h += `<div class="v-section"><h4>Gmail accounts on this device</h4><div class="v-mini">${accts.map(([k, n]) => `<div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--v-line)"><span style="flex:1;min-width:0"><b style="font-weight:600;font-size:14px">${esc(names[k] || 'Account ' + String(k).slice(0, 6))}</b><br><span class="v-muted" style="font-size:12.5px">${n} items${k === S.account ? ' · signed in' : ' · hidden while another account is signed in'}</span></span>${k === S.account ? '' : `<button class="v-pbtn danger" type="button" data-delacct="${esc(k)}">Delete</button>`}</div>`).join('')}</div><div data-confirm></div></div>`; }
+    if (!S.sample) h += accountsSection();
     h += `<div class="v-section"><h4>Daily rhythm</h4>
       <label class="v-setrow">Day starts<span class="r"><select class="v-input" style="height:36px;width:auto" data-rhythm="dayStart">${[6, 7, 8, 9, 10].map((x) => `<option value="${x}"${r.dayStart === x ? ' selected' : ''}>${x}:00</option>`).join('')}</select></span></label>
       <label class="v-setrow">Focus hours<span class="r"><select class="v-input" style="height:36px;width:auto" data-rhythm="focusStart">${[7, 8, 9, 10, 13, 14].map((x) => `<option value="${x}"${r.focusStart === x ? ' selected' : ''}>${x}:00–${x + 3}:00</option>`).join('')}</select></span></label>
@@ -1194,6 +1224,10 @@
     if (d.msConnect !== undefined) { try { await S.host.connectMicrosoft(); } catch (e) { toast(String(e && e.message || e)); } return; }
     if (d.msSync !== undefined) { toast('Syncing Outlook and OneDrive…'); try { await S.host.syncMicrosoft(); } catch {} await load(); const ms = S.host.microsoft(); toast(ms.error ? ms.error : 'Microsoft synced'); return; }
     if (d.msFiles !== undefined) return openFiles();
+    if (d.invDel) { const r = (S.inventory || []).find((x) => x.key === d.invDel) || {}; return confirmIn(t, `Delete everything Daylight stored on this device for ${r.email || 'this account'} (${r.items || 0} items, its mail index, file list and sync state)? Other accounts and your own tasks and passes stay.`, 'Delete', async () => { try { const rep = await S.host.deleteDeviceAccount(d.invDel); toast(`Deleted · ${rep.graphItems || 0} items`); } catch (e) { toast(String(e && e.message || e)); } await load(); refreshOpenSheet(); }); }
+    if (d.invKeep) { S.host.keepAccountData(d.invKeep); toast('Kept for 30 more days'); await load(); refreshOpenSheet(); return; }
+    if (d.replacedKeep !== undefined) { S.host.dismissReplaced(); toast('Kept for now · it stays hidden and is listed in Settings'); await load(); return; }
+    if (d.openAccounts !== undefined) { openSettings(); setTimeout(() => { const el = $('[data-accounts-section]'); if (el) el.scrollIntoView({ block: 'start' }); }, 300); return; }
     if (d.filesApp) { if (S.filesState) { S.filesState.st.app = d.filesApp; refreshOpenSheet(); } return; }
     if (d.msDisconnect) return confirmIn(t, `Disconnect Microsoft and delete its ${d.msDisconnect} items, cached mail index and file list from this device? Gmail and your own tasks and passes stay.`, 'Disconnect and delete', async () => { closeSheet(); const r = await S.host.disconnectMicrosoft(); toast(`Microsoft disconnected${r ? ` · ${r.graphItems} items deleted` : ''}`); await load(); });
     if (d.switchacct !== undefined) return S.host.switchAccount();

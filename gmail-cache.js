@@ -35,6 +35,7 @@
       async del(store, key) { data[store].delete(kstr(key)); },
       async allFor(store, accountId) { const out = []; data[store].forEach((v) => { if (v.accountId === accountId) out.push(clone(v)); }); return out; },
       async clearFor(store, accountId) { [...data[store].entries()].forEach(([k, v]) => { if (v.accountId === accountId) data[store].delete(k); }); },
+      async accountIds() { const out = new Set(); STORES.forEach((st) => data[st].forEach((v) => { if (v && v.accountId != null) out.add(v.accountId); })); return [...out]; },
       _data: data
     };
   }
@@ -78,6 +79,11 @@
         const os = (await tx(store, 'readonly')).objectStore(store);
         if (store === 'checkpoint') { const v = await p(os.get(accountId)); return v ? [v] : []; }
         return p(os.index('byAccount').getAll(accountId));
+      },
+      async accountIds() { // every account that has rows in any store (inventory of data on this device)
+        const out = new Set();
+        for (const st of STORES) { const os = (await tx(st, 'readonly')).objectStore(st); (await p(os.getAllKeys())).forEach((k) => out.add(Array.isArray(k) ? k[0] : k)); }
+        return [...out];
       },
       async clearFor(store, accountId) {
         const t = await tx(store, 'readwrite'); const os = t.objectStore(store);
@@ -168,7 +174,9 @@
       },
       metrics: (acct) => b.allFor('syncMetrics', acct),
       // user-initiated reset of this cache only (finance ledger, tasks and daylight-db are untouched)
-      async clearAccount(acct) { for (const s of STORES) await b.clearFor(s, acct); }
+      async clearAccount(acct) { for (const s of STORES) await b.clearFor(s, acct); },
+      /** Accounts with data in the mail cache (account inventory). */
+      accountIds: () => (b.accountIds ? b.accountIds() : Promise.resolve([]))
     };
     return api;
   }
