@@ -366,7 +366,9 @@
     // spending by category from payments/receipts this month
     const CAT = { food: 'Food & delivery', receipt: 'Shopping', payment: 'Payments', refund: 'Refunds', subscription: 'Subscriptions', bill: 'Bills' };
     const tx = items.filter((it) => it.type === 'transaction' && inMonth(it.createdAt) && it.status !== 'dismissed');
-    const spendTx = tx.filter((it) => !(it.meta && (it.meta.ownTransfer || it.meta.category === 'transfer'))); // moving money between your own accounts is not spending
+    const refs = new Set(); tx.forEach((it) => { if (!(it.meta && it.meta.taxDocFor)) facts(it, 'reference').forEach((f) => refs.add(String(f.value).toLowerCase())); });
+    const spendTx = tx.filter((it) => !(it.meta && (it.meta.ownTransfer || it.meta.category === 'transfer')) // moving money between your own accounts is not spending
+      && !(it.meta && it.meta.taxDocFor && refs.has(String(it.meta.taxDocFor).toLowerCase()))); // a tax document for an order already counted
     const cats = {};
     spendTx.forEach((it) => { const am = amountOf(it); if (!am || (am.currency || '') !== main) return; const k = CAT[(it.meta && it.meta.category) || 'receipt'] || 'Other'; if (!cats[k]) cats[k] = { name: k, total: 0, items: [] }; cats[k].total += (it.meta && it.meta.category === 'refund' ? -1 : 1) * am.value; cats[k].items.push(it); });
     const spending = Object.values(cats).sort((p, q) => q.total - p.total);

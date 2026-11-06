@@ -77,13 +77,14 @@
       const ev = rec.userCategory ? { ok: true, kind: null } : (Cls.moneyEvidence ? Cls.moneyEvidence({ subject: rec.subject, snippet: rec.snippet, labels: rec.labels, facts: f }) : { ok: true, kind: null });
       const money = MONEY_CATS.has(rec.userCategory || rec.category) && amount && amount.value != null && cls.type !== 'personal' && ev.ok; // a person writing about money is a message, not a transaction
       if (money) {
-        const cat = ev.kind === 'self-transfer' || ev.kind === 'transfer' ? 'transfer' : ev.kind === 'paid' ? 'payment' : (rec.userCategory || rec.category);
+        const base = rec.userCategory || rec.category;
+        const cat = ev.kind === 'self-transfer' || ev.kind === 'transfer' ? 'transfer' : ev.kind === 'paid' ? 'payment' : (ev.kind === 'receipt' && base === 'bill') ? 'receipt' : base;
         const type = cat === 'bill' ? 'bill' : cat === 'subscription' ? 'subscription' : 'transaction';
-        const k = type === 'subscription' ? `sub:${acct}:${domain}` : `money:${acct}:${domain}:${ref || f.dueDate || (amount.value + ':' + (rec.internalDate ? new Date(rec.internalDate).toISOString().slice(0, 10) : ''))}`;
+        const k = type === 'subscription' ? `sub:${acct}:${domain}` : ev.kind === 'tax-document' ? `money:${acct}:${domain}:taxdoc:${rec.messageId}` : `money:${acct}:${domain}:${ref || f.dueDate || (amount.value + ':' + (rec.internalDate ? new Date(rec.internalDate).toISOString().slice(0, 10) : ''))}`;
         const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f.dueDate || ''));
         const dueMs = dm ? new Date(+dm[1], +dm[2] - 1, +dm[3], 23, 59).getTime() : (f.dueDate && !isNaN(Date.parse(f.dueDate)) ? Date.parse(f.dueDate) : null); // a due date means the end of that day, local time
         items.push({ key: k, accountId: acct, type, title: `${f.merchant || nameOf(rec.from)} · ${amount.value}${amount.currency ? ' ' + amount.currency : ''}`, description: rec.subject || '', dueAt: dueMs, priority: cls.importance, sources: [src('evidence')], createdAt: rec.internalDate || undefined, datedBySource: true,
-          extractedFacts: factList([['amount', amount.value], ['currency', amount.currency], ['dueDate', f.dueDate], ['reference', ref], ['merchant', f.merchant || nameOf(rec.from)], ['kind', cat]], emailId), meta: { category: cat, confirmsPayment: ev.kind === 'paid' || undefined, ownTransfer: ev.kind === 'self-transfer' || undefined } });
+          extractedFacts: factList([['amount', amount.value], ['currency', amount.currency], ['dueDate', f.dueDate], ['reference', ref], ['merchant', f.merchant || nameOf(rec.from)], ['kind', cat]], emailId), meta: { category: cat, confirmsPayment: ev.kind === 'paid' || undefined, ownTransfer: ev.kind === 'self-transfer' || undefined, taxDocFor: ev.kind === 'tax-document' ? (ref || true) : undefined } });
         links.push([emailId, iid(k), 'evidence']);
         if (domain && !FREEMAIL.test(domain + '.')) links.push([iid(k), iid(`org:${acct}:${domain}`), 'merchant']);
       }

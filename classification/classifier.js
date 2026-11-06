@@ -42,12 +42,15 @@
     // a real receipt or renewal that Gmail filed under Promotions shows proof: an order/invoice number, "paid with",
     // "confirmed … total", or "renews on <date> for <amount>"; offers ("under 46 Kč", "gifts with your purchase") do not
     receiptProof: /((order|objednávk\w*|invoice|faktur\w*|receipt|účtenk\w*)\s*(č\.?|#|no\.?|nr\.?|number|id)?\s*:?\s*[A-Z]{0,4}-?\d[\w-]{3,}|paid (with|by)|zaplaceno|charged to|payment (received|successful)|(confirmed|potvrzen\w*|přijat\w*)[^.]{0,60}(total|celkem)\s*[€$£]?\s*\d|renews? (on|automatically)[^.]{0,40}\b(for|za)\s*[€$£]?\s*\d|obnoví se[^.]{0,40}\d)/i,
+    taxDoc: /(daňový doklad|danovy doklad|tax (invoice|document)|vat invoice|steuerbeleg)/i,
+    receiptSubject: /(\breceipt\b|účtenk|uctenk|payment received|zaplaceno|quittung)/i,
+    stillDue: /(amount due|balance due|k úhradě|splatnost|due (date|on|by)|please pay|zaplaťte do)/i,
     points: /(points? worth|reward ?points|loyalty points|bonusov\w* bod|\bbody v hodnotě)/i,
     ownMove: /(money added to your account|added to your (balance|account)|top.?up (successful|complete)|your withdrawal|withdrawal request|vklad na (váš |)účet|dobití (účtu|kreditu) proběhlo)/i,
     transfer: /^(transfer (sent|completed|cancelled|canceled)|transfer #?\d+ (sent|cancelled|canceled|completed)|převod (odeslán|proveden|zrušen))/i,
     strongTxn: /(\border\b|receipt|účtenk|invoice|faktur|objednávk|payment (received|successful)|zaplaceno|rechnung|bestellung)/i
   };
-  /** moneyEvidence({subject, snippet, labels, facts}) → { ok, reason, kind: 'paid' | 'self-transfer' | null } */
+  /** moneyEvidence({subject, snippet, labels, facts}) → { ok, reason, kind: 'paid' | 'self-transfer' | 'transfer' | 'tax-document' | 'receipt' | null } */
   function moneyEvidence(input) {
     const subject = String(input.subject || ''), text = `${subject}\n${input.snippet || ''}`;
     const labels = input.labels || [];
@@ -59,7 +62,11 @@
     if (MONEY_RX.ownMove.test(text)) return { ok: true, reason: 'money moved into or out of your own account', kind: 'self-transfer' };
     if (MONEY_RX.transfer.test(subject)) return { ok: true, reason: 'bank transfer', kind: 'transfer' };
     if (!MONEY_RX.txn.test(text)) return { ok: false, reason: 'no transaction wording', kind: null };
+    // a tax document for an order ("Daňový doklad", "VAT invoice") documents a purchase already recorded by its order email
+    if (MONEY_RX.taxDoc.test(subject)) return { ok: true, reason: 'tax document for an order', kind: 'tax-document' };
     if (MONEY_RX.paid.test(text)) return { ok: true, reason: 'payment confirmation', kind: 'paid' };
+    // "Your receipt from …" is money already paid, never a bill to pay (unless it states an amount still due)
+    if (MONEY_RX.receiptSubject.test(subject) && !MONEY_RX.stillDue.test(text)) return { ok: true, reason: 'receipt for a payment already made', kind: 'receipt' };
     // "Hi Jana, … You sent CZK 1,986 to JANA NOVÁKOVÁ" or "Note to self": money moved between the user's own accounts
     const greet = /\b(?:hi|hello|dear|ahoj|dobrý den,?)\s+([A-Za-zÀ-ž]+)/i.exec(text), sentTo = /you sent [^\n]{1,30}? to ([A-Za-zÀ-ž]+)/i.exec(text);
     if (/note to self|own account|vlastní účet|mezi (svými|vlastními) účty/i.test(text) || (greet && sentTo && greet[1].toLowerCase() === sentTo[1].toLowerCase())) return { ok: true, reason: 'transfer between your own accounts', kind: 'self-transfer' };

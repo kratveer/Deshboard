@@ -42,6 +42,10 @@ const CASES = [
   mail('voda', 'Vodafone CZ <ebill@vodafone.cz>', 'Nová faktura 2026115566', 'Faktura č. 2026115566. Celkem k úhradě 712 Kč, splatnost 3. 12. 2026.', U, '2026-11-03T08:00:00Z', 'bill', { amount: { value: 712, currency: 'CZK' }, dueDate: '2026-12-03', merchant: 'Vodafone' }),
   mail('wolt', 'Wolt <info@wolt.com>', 'Your order from Burger Bar', 'Thanks for your order! Total 299 Kč. Order #A77', P, '2026-11-02T19:00:00Z', 'food', { amount: { value: 299, currency: 'CZK' }, orderNumber: 'A77', merchant: 'Wolt' }),
   mail('spot', 'Spotify <no-reply@spotify.com>', 'Your Spotify Premium receipt', 'Thanks for your payment of 199 Kč for Spotify Premium. Your subscription renews on 2 Dec.', U, '2026-11-02T06:00:00Z', 'subscription', { amount: { value: 199, currency: 'CZK' }, merchant: 'Spotify' }),
+  // v108: a receipt is never a bill; tax documents for a food order do not replace the order total
+  mail('anth', 'Anthropic, PBC <invoice+statements@mail.anthropic.com>', 'Your receipt from Anthropic, PBC #2615-9581-3414', 'Your receipt from Anthropic, PBC #2615-9581-3414', U, '2026-11-02T09:00:00Z', 'bill', { amount: { value: 10, currency: 'USD' }, merchant: 'Anthropic, PBC' }),
+  mail('food-order', 'foodora <info@mail.foodora.cz>', 'Děkujeme za objednávku', 'Právě u nás přistála vaše objednávka! Podrobnosti k objednávce Partner: Pizza Pollo Číslo objednávky: R34P-2642-Q2YD Způsob platby: Online Payment Celkem 470 Kč', PERS, '2026-10-12T14:13:00Z', 'food', { amount: { value: 470, currency: 'CZK' }, orderNumber: 'R34P-2642-Q2YD', merchant: 'foodora' }),
+  mail('food-tax', 'foodora <info@mail.foodora.cz>', 'Daňový doklad číslo: CZ/7/26/81/cjM0cA/000005', 'Jak vám chutnalo? Ohodnotit Vaše účtenka Daňový doklad číslo: CZ/7/26/81/cjM0cA/000005 Delivery Hero Czech Republic sro', U, '2026-10-12T15:00:00Z', 'food', { amount: { value: 4.17, currency: 'CZK' }, orderNumber: 'r34p-2642-q2yd', merchant: 'foodora' }),
   mail('pp', 'PayPal <service@paypal.cz>', 'Receipt for your payment to Alza.cz', 'You paid 1 490,00 Kč to Alza.cz. Transaction ID 9XK2', U, '2026-11-01T10:00:00Z', 'payment', { amount: { value: 1490, currency: 'CZK' }, merchant: 'Alza.cz' })
 ];
 (async () => {
@@ -71,6 +75,8 @@ const CASES = [
   ok('promotion emails are typed as marketing, not receipts', ['temu1', 'temu3', 'lek1'].every((id) => emails[id].classification.type === 'marketing'), ['temu1', 'temu3', 'lek1'].map((id) => emails[id].classification.type));
   ok('genuine money mail still produces Items: bill, food order (even in Promotions with an order number), subscription, PayPal payment',
     derived.voda[0]?.type === 'bill' && derived.wolt[0]?.type === 'transaction' && derived.spot[0]?.type === 'subscription' && derived.pp[0]?.type === 'transaction', { voda: money('voda'), wolt: money('wolt'), spot: money('spot'), pp: money('pp') });
+  ok('v108: "Your receipt from …" is a receipt (transaction), never an unpaid bill', derived.anth.length === 1 && derived.anth[0].type === 'transaction' && derived.anth[0].meta.category === 'receipt', money('anth'));
+  ok('v108: a tax document gets its own Item and never shares its order\'s key', derived['food-tax'].length === 1 && derived['food-order'].length === 1 && derived['food-tax'][0].key !== derived['food-order'][0].key && derived['food-tax'][0].meta.taxDocFor, { o: derived['food-order'][0]?.key, t: derived['food-tax'][0]?.key });
   ok('derived Items are dated by their email, not by ingest time', derived['tm-bill'][0].createdAt === at('2026-10-15T10:45:00Z') && derived['rev-self1'][0].createdAt === at('2026-10-30T08:30:00Z'));
 
   // store in the graph, link like the connector does, then read the way the app does
@@ -85,6 +91,10 @@ const CASES = [
   const m = M.money(view, at('2026-11-01T00:00:00Z'), NOW);
   const spentNames = m.spending.flatMap((c) => c.items ? c.items.map((x) => x.title) : []);
   ok('November spending excludes own-account transfers and promotions', !m.spending.some((c) => /Temu|Revolut · 1986/.test(JSON.stringify(c))) && m.spending.length > 0, m.spending.map((c) => [c.name, c.total]));
+  const oct = M.money(view, at('2026-10-01T00:00:00Z'), at('2026-10-31T23:00:00Z'));
+  const octJson = JSON.stringify(oct.spending);
+  ok('v108: October food counts the 470 CZK order once; the tax document is not added on top', /470/.test(octJson) && !/4\.17/.test(octJson), oct.spending.map((c) => [c.name, c.total]));
+  ok('v108: the Anthropic receipt is not an unpaid bill in Ask', !M.askLocal(view, 'What bills do I have to pay?', NOW).items.some((x) => /Anthropic/.test(x.title)));
   // a bill the user reopened is not auto-settled
   const reopened = items.map((x) => x.id === bill.id ? Object.assign({}, x, { actionHistory: [{ kind: 'reopen', at: NOW }] }) : x);
   ok('a bill you reopened yourself is never auto-settled', M.applySettlements(reopened).find((x) => x.id === bill.id).status === 'open');
