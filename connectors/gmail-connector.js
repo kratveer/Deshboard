@@ -71,15 +71,19 @@
       }
 
       // money
-      const money = MONEY_CATS.has(rec.userCategory || rec.category) && amount && amount.value != null && cls.type !== 'personal'; // a person writing about money is a message, not a transaction
+      // v107: the email itself must read like a transaction (not a promotion, a bank notice quoting a figure, or a colleague's email);
+      // a payment confirmation is a payment (never a second bill); a transfer between the user's own accounts is not spending.
+      // A category the user chose by hand (userCategory) is trusted as-is.
+      const ev = rec.userCategory ? { ok: true, kind: null } : (Cls.moneyEvidence ? Cls.moneyEvidence({ subject: rec.subject, snippet: rec.snippet, labels: rec.labels, facts: f }) : { ok: true, kind: null });
+      const money = MONEY_CATS.has(rec.userCategory || rec.category) && amount && amount.value != null && cls.type !== 'personal' && ev.ok; // a person writing about money is a message, not a transaction
       if (money) {
-        const cat = rec.userCategory || rec.category;
+        const cat = ev.kind === 'self-transfer' || ev.kind === 'transfer' ? 'transfer' : ev.kind === 'paid' ? 'payment' : (rec.userCategory || rec.category);
         const type = cat === 'bill' ? 'bill' : cat === 'subscription' ? 'subscription' : 'transaction';
         const k = type === 'subscription' ? `sub:${acct}:${domain}` : `money:${acct}:${domain}:${ref || f.dueDate || (amount.value + ':' + (rec.internalDate ? new Date(rec.internalDate).toISOString().slice(0, 10) : ''))}`;
         const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f.dueDate || ''));
         const dueMs = dm ? new Date(+dm[1], +dm[2] - 1, +dm[3], 23, 59).getTime() : (f.dueDate && !isNaN(Date.parse(f.dueDate)) ? Date.parse(f.dueDate) : null); // a due date means the end of that day, local time
-        items.push({ key: k, accountId: acct, type, title: `${f.merchant || nameOf(rec.from)} · ${amount.value}${amount.currency ? ' ' + amount.currency : ''}`, description: rec.subject || '', dueAt: dueMs, priority: cls.importance, sources: [src('evidence')],
-          extractedFacts: factList([['amount', amount.value], ['currency', amount.currency], ['dueDate', f.dueDate], ['reference', ref], ['merchant', f.merchant || nameOf(rec.from)], ['kind', cat]], emailId), meta: { category: cat } });
+        items.push({ key: k, accountId: acct, type, title: `${f.merchant || nameOf(rec.from)} · ${amount.value}${amount.currency ? ' ' + amount.currency : ''}`, description: rec.subject || '', dueAt: dueMs, priority: cls.importance, sources: [src('evidence')], createdAt: rec.internalDate || undefined, datedBySource: true,
+          extractedFacts: factList([['amount', amount.value], ['currency', amount.currency], ['dueDate', f.dueDate], ['reference', ref], ['merchant', f.merchant || nameOf(rec.from)], ['kind', cat]], emailId), meta: { category: cat, confirmsPayment: ev.kind === 'paid' || undefined, ownTransfer: ev.kind === 'self-transfer' || undefined } });
         links.push([emailId, iid(k), 'evidence']);
         if (domain && !FREEMAIL.test(domain + '.')) links.push([iid(k), iid(`org:${acct}:${domain}`), 'merchant']);
       }
@@ -89,7 +93,7 @@
         const k = `booking:${acct}:${String(ref || rec.threadId).toUpperCase()}`;
         const start = travelDate;
         const startMs = start && D ? D.toMs(start) : null;
-        items.push({ key: k, accountId: acct, type: 'booking', title: rec.subject || 'Booking', description: start?.quote || '', dueAt: startMs, priority: cls.importance, sources: [src('evidence')],
+        items.push({ key: k, accountId: acct, type: 'booking', title: rec.subject || 'Booking', description: start?.quote || '', dueAt: startMs, priority: cls.importance, sources: [src('evidence')], createdAt: rec.internalDate || undefined, datedBySource: true,
           extractedFacts: factList([['reference', ref], ['start', start ? start.date + (start.time ? ' ' + start.time : '') : null], ['schemaType', f.schemaType]], emailId, f.schemaType ? 'schema' : 'rule') });
         links.push([emailId, iid(k), 'evidence']);
       }
@@ -99,13 +103,13 @@
         const type = kd.kind === 'reminder' || kd.kind === 'event' ? 'appointment' : 'deadline';
         const k = `date:${acct}:${rec.threadId || rec.messageId}:${type}`;
         const ms = D ? D.toMs(kd) : Date.parse(kd.date);
-        items.push({ key: k, accountId: acct, type, title: rec.subject || (type === 'deadline' ? 'Deadline' : 'Appointment'), description: kd.quote || '', dueAt: ms, priority: cls.importance, sources: [src('evidence')],
+        items.push({ key: k, accountId: acct, type, title: rec.subject || (type === 'deadline' ? 'Deadline' : 'Appointment'), description: kd.quote || '', dueAt: ms, priority: cls.importance, sources: [src('evidence')], createdAt: rec.internalDate || undefined, datedBySource: true,
           extractedFacts: factList([['date', kd.date + (kd.time ? ' ' + kd.time : '')], ['quote', kd.quote]], emailId, kd.source === 'schema.org' ? 'schema' : 'rule') });
         links.push([emailId, iid(k), 'evidence']);
       });
       if (cls.type === 'delivery') {
         const k = `delivery:${acct}:${ref || rec.threadId}`;
-        items.push({ key: k, accountId: acct, type: 'delivery', title: rec.subject || 'Delivery', description: rec.snippet || '', priority: cls.importance, sources: [src('evidence')], extractedFacts: factList([['reference', ref]], emailId) });
+        items.push({ key: k, accountId: acct, type: 'delivery', title: rec.subject || 'Delivery', description: rec.snippet || '', priority: cls.importance, sources: [src('evidence')], createdAt: rec.internalDate || undefined, datedBySource: true, extractedFacts: factList([['reference', ref]], emailId) });
         links.push([emailId, iid(k), 'evidence']);
       }
       return { items, links, classification: cls };

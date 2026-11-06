@@ -146,7 +146,7 @@
   async function v2IngestGmail(){
     const c=v2Core();if(!c||!v2Enabled())return null;
     if(!identityVerified){v2IngestGmail.last={skipped:'account not confirmed yet',at:Date.now()};return null}
-    const key='daylight-graph-ingest:x3:'+v2AccountKey(); /* x3: extraction fixes + per-account people/organisations (Phase E) → one full re-ingest */let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}
+    const key='daylight-graph-ingest:x4:'+v2AccountKey(); /* x4 (v107): money evidence, payment confirmations, own-account transfers, Items dated by their email → one full re-ingest */let since=0;try{since=Number(localStorage.getItem(key))||0}catch{}
     const t0=Date.now();
     try{const r=await c.gmail.ingest(v2AccountKey(),{since});try{localStorage.setItem(key,String(t0))}catch{};try{await c.local?.importLocal()}catch(e){console.warn('local import',e)};v2IngestGmail.last=c.lastIngest={...r,at:Date.now(),ms:Date.now()-t0,incremental:!!since};try{const lk='daylight-v2-ingest-log:'+v2AccountKey();const l=JSON.parse(localStorage.getItem(lk)||'[]');l.push(c.lastIngest);localStorage.setItem(lk,JSON.stringify(l.slice(-20)))}catch{};return r}catch(e){console.warn('graph ingest',e);try{localStorage.setItem('daylight-v2-engine-error:'+v2AccountKey(),JSON.stringify({at:Date.now(),stage:'graph ingest',message:String(e&&e.message||e).slice(0,300)}))}catch{};v2IngestGmail.last={error:String(e?.message||e),at:Date.now()};return null}
   }

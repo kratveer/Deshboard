@@ -315,6 +315,32 @@
   }
 
   // ---------- Money ----------
+  /**
+   * Read-time settlement (v107): a bill counts as paid when a payment confirmation from the same sender (same organisation
+   * or the same e-mail domain) for the same amount arrived after it (within 120 days). Nothing is written: the bill shows
+   * as paid with the confirming email as its source, and a bill the user reopened is left alone.
+   */
+  function applySettlements(items) {
+    const byId = index(items);
+    const domainOf = (it) => { for (const id of it.relatedItemIds || []) { const e = byId.get(id); if (e && e.type === 'email' && e.extractedEntities && e.extractedEntities.senderDomain) return String(e.extractedEntities.senderDomain).toLowerCase().split('.').slice(-2).join('.'); } return null; };
+    const orgsOf = (it) => (it.relatedItemIds || []).filter((id) => (byId.get(id) || {}).type === 'organisation');
+    const confirms = items.filter((it) => it.type === 'transaction' && it.meta && it.meta.confirmsPayment && amountOf(it));
+    if (!confirms.length) return items;
+    const settled = new Map();
+    items.forEach((b) => {
+      if (b.type !== 'bill' || b.status === 'done' || b.status === 'dismissed') return;
+      if ((b.actionHistory || []).some((h) => h.kind === 'reopen')) return;
+      const a = amountOf(b); if (!a) return;
+      const bo = orgsOf(b), bd = domainOf(b);
+      const tx = confirms.find((t) => { const ta = amountOf(t); if (!ta || Math.abs(ta.value - a.value) > 0.01 || (ta.currency || '') !== (a.currency || '')) return false;
+        const same = orgsOf(t).some((o) => bo.includes(o)) || (bd && domainOf(t) === bd); if (!same) return false;
+        const dt = (t.createdAt || 0) - (b.createdAt || 0); return dt >= -DAY && dt <= 120 * DAY; });
+      if (tx) settled.set(b.id, tx);
+    });
+    if (!settled.size) return items;
+    return items.map((it) => settled.has(it.id) ? Object.assign({}, it, { status: 'done', meta: Object.assign({}, it.meta, { settledBy: settled.get(it.id).id, settledAt: settled.get(it.id).createdAt }) }) : it);
+  }
+
   function money(items, monthStart, now) {
     const m0 = new Date(monthStart); m0.setDate(1); m0.setHours(0, 0, 0, 0);
     const a = m0.getTime(), b = new Date(m0.getFullYear(), m0.getMonth() + 1, 1).getTime();
@@ -324,7 +350,8 @@
     const sumBy = (list) => { const o = {}; list.forEach((it) => { const am = amountOf(it); if (am) o[am.currency || ''] = (o[am.currency || ''] || 0) + am.value; }); return o; };
     const due = sumBy(monthBills), paid = sumBy(monthBills.filter((x) => x.status === 'done'));
     const curs = Object.keys(due).sort((x, y) => due[y] - due[x]);
-    const main = curs[0] || '';
+    const txCur = {}; items.forEach((it) => { if (it.type === 'transaction' && inMonth(it.createdAt)) { const am = amountOf(it); if (am && am.currency) txCur[am.currency] = (txCur[am.currency] || 0) + 1; } });
+    const main = curs[0] || Object.keys(txCur).sort((x, y) => txCur[y] - txCur[x])[0] || ''; // a month without bills still shows its spending
     const dueSoon = bills.filter((it) => isOpen(it, now)).sort((x, y) => (x.dueAt || Infinity) - (y.dueAt || Infinity));
     // subscriptions with price history from their source emails' amount facts
     const subs = items.filter((it) => it.type === 'subscription' && it.status !== 'dismissed').map((it) => {
@@ -339,8 +366,9 @@
     // spending by category from payments/receipts this month
     const CAT = { food: 'Food & delivery', receipt: 'Shopping', payment: 'Payments', refund: 'Refunds', subscription: 'Subscriptions', bill: 'Bills' };
     const tx = items.filter((it) => it.type === 'transaction' && inMonth(it.createdAt) && it.status !== 'dismissed');
+    const spendTx = tx.filter((it) => !(it.meta && (it.meta.ownTransfer || it.meta.category === 'transfer'))); // moving money between your own accounts is not spending
     const cats = {};
-    tx.forEach((it) => { const am = amountOf(it); if (!am || (am.currency || '') !== main) return; const k = CAT[(it.meta && it.meta.category) || 'receipt'] || 'Other'; if (!cats[k]) cats[k] = { name: k, total: 0, items: [] }; cats[k].total += (it.meta && it.meta.category === 'refund' ? -1 : 1) * am.value; cats[k].items.push(it); });
+    spendTx.forEach((it) => { const am = amountOf(it); if (!am || (am.currency || '') !== main) return; const k = CAT[(it.meta && it.meta.category) || 'receipt'] || 'Other'; if (!cats[k]) cats[k] = { name: k, total: 0, items: [] }; cats[k].total += (it.meta && it.meta.category === 'refund' ? -1 : 1) * am.value; cats[k].items.push(it); });
     const spending = Object.values(cats).sort((p, q) => q.total - p.total);
     const other = curs.slice(1).map((c) => ({ currency: c, due: due[c], paid: paid[c] || 0 }));
     return { month: a, currency: main, due: due[main] || 0, paid: paid[main] || 0, otherCurrencies: other, dueSoon, monthBills, subscriptions: subs, spending, transactions: tx.sort((p, q) => (q.createdAt || 0) - (p.createdAt || 0)) };
@@ -442,7 +470,7 @@
     startOfDay, addDays, fact, ctype, importance, isOpen, isSnoozed, whenOf, timed, amountOf, sender, fmtMoney, dayLabel, hm, whenText, ago, index,
     emailGroup, waitingOn, primaryAction, needsYou, nowCard, dayItems, comingUp, eveningWrap, brief, todayView,
     inboxView, peopleView, personPage, planView, conflicts, freeGaps, suggestPlan, durationOf, money, billHistory, wallet, badges,
-    search, askLocal, aiContext, verifyCited
+    search, askLocal, aiContext, verifyCited, applySettlements
   };
   root.DaylightV2Model = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

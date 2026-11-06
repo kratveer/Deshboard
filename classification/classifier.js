@@ -30,6 +30,43 @@
   };
   const AUTO_SENDER = /(^|[._-])(no-?reply|noreply|do-?not-?reply|notifications?|mailer|bounce|alerts?|info|news|newsletter|updates?)([._-]|@)/i;
 
+  /*
+   * Money evidence (v107). A pipeline category of bill / payment / receipt / subscription is only trusted when the
+   * email itself reads like a transaction. Seen on a real mailbox: promotions with a price in the subject ("UNDER 46 Kč"),
+   * bank notices quoting a figure (deposit-guarantee limit, a trading fee, a delisted coin), a colleague's research email
+   * typed as a bill, and a payment confirmation shown as a second bill to pay.
+   */
+  const MONEY_RX = {
+    txn: /(you sent|sent you|you paid|you received|has been paid|paid\b|payment|platb|úhrad|uhrad|zaplac|zaplat|charged|debited|credited|receipt|účtenk|uctenk|order|objednávk|objednavk|invoice|faktur|vyúčtován|vyuctovan|\bbill\b|statement|výpis|refund|vrácen|vratk|purchase|nákup|transfer|převod|subscription|předplatn|renew|obnoven|total|celkem|amount due|k úhradě|splatn|due date|rechnung|zahlung|bestellung|beleg)/i,
+    paid: /(potvrzení (úhrady|platby|o platbě)|poděkovat za platbu|děkujeme za (vaši |va[sš]i |)platbu|platba (byla |)(přijata|připsána|proběhla|zaplacena)|payment (received|confirmation|confirmed|successful|complete)|thank you for your payment|we(?:'ve| have) received your payment|your payment (has been|was) (received|processed|successful)|zahlung (erhalten|eingegangen))/i,
+    // a real receipt or renewal that Gmail filed under Promotions shows proof: an order/invoice number, "paid with",
+    // "confirmed … total", or "renews on <date> for <amount>"; offers ("under 46 Kč", "gifts with your purchase") do not
+    receiptProof: /((order|objednávk\w*|invoice|faktur\w*|receipt|účtenk\w*)\s*(č\.?|#|no\.?|nr\.?|number|id)?\s*:?\s*[A-Z]{0,4}-?\d[\w-]{3,}|paid (with|by)|zaplaceno|charged to|payment (received|successful)|(confirmed|potvrzen\w*|přijat\w*)[^.]{0,60}(total|celkem)\s*[€$£]?\s*\d|renews? (on|automatically)[^.]{0,40}\b(for|za)\s*[€$£]?\s*\d|obnoví se[^.]{0,40}\d)/i,
+    points: /(points? worth|reward ?points|loyalty points|bonusov\w* bod|\bbody v hodnotě)/i,
+    ownMove: /(money added to your account|added to your (balance|account)|top.?up (successful|complete)|your withdrawal|withdrawal request|vklad na (váš |)účet|dobití (účtu|kreditu) proběhlo)/i,
+    transfer: /^(transfer (sent|completed|cancelled|canceled)|transfer #?\d+ (sent|cancelled|canceled|completed)|převod (odeslán|proveden|zrušen))/i,
+    strongTxn: /(\border\b|receipt|účtenk|invoice|faktur|objednávk|payment (received|successful)|zaplaceno|rechnung|bestellung)/i
+  };
+  /** moneyEvidence({subject, snippet, labels, facts}) → { ok, reason, kind: 'paid' | 'self-transfer' | null } */
+  function moneyEvidence(input) {
+    const subject = String(input.subject || ''), text = `${subject}\n${input.snippet || ''}`;
+    const labels = input.labels || [];
+    const promo = labels.includes('CATEGORY_PROMOTIONS');
+    const strongRef = !!(input.facts && (input.facts.orderNumber || input.facts.reference || input.facts.reservationNumber));
+    if (promo && !(strongRef && MONEY_RX.strongTxn.test(subject)) && !MONEY_RX.receiptProof.test(text)) return { ok: false, reason: 'promotional email', kind: null };
+    if (MONEY_RX.points.test(text)) return { ok: false, reason: 'loyalty points, not money', kind: null };
+    // money moved between accounts (top-up, withdrawal from a broker, a bank-to-bank transfer): recorded, but not spending
+    if (MONEY_RX.ownMove.test(text)) return { ok: true, reason: 'money moved into or out of your own account', kind: 'self-transfer' };
+    if (MONEY_RX.transfer.test(subject)) return { ok: true, reason: 'bank transfer', kind: 'transfer' };
+    if (!MONEY_RX.txn.test(text)) return { ok: false, reason: 'no transaction wording', kind: null };
+    if (MONEY_RX.paid.test(text)) return { ok: true, reason: 'payment confirmation', kind: 'paid' };
+    // "Hi Jana, … You sent CZK 1,986 to JANA NOVÁKOVÁ" or "Note to self": money moved between the user's own accounts
+    const greet = /\b(?:hi|hello|dear|ahoj|dobrý den,?)\s+([A-Za-zÀ-ž]+)/i.exec(text), sentTo = /you sent [^\n]{1,30}? to ([A-Za-zÀ-ž]+)/i.exec(text);
+    if (/note to self|own account|vlastní účet|mezi (svými|vlastními) účty/i.test(text) || (greet && sentTo && greet[1].toLowerCase() === sentTo[1].toLowerCase())) return { ok: true, reason: 'transfer between your own accounts', kind: 'self-transfer' };
+    return { ok: true, reason: 'transaction wording', kind: null };
+  }
+  const MONEY_CAT = new Set(['bill', 'payment', 'refund', 'receipt', 'subscription', 'food']);
+
   function nearestDue(input, now) {
     const D = root.DaylightMailDates || (typeof require === 'function' ? (() => { try { return require('../mail-dates.js'); } catch { return null; } })() : null);
     const times = [];
@@ -67,7 +104,14 @@
     if (rule && rule.set?.type) { type = rule.set.type; reasons.push(`your rule: ${rule.label}`); }
 
     // 2. deterministic type from what the pipeline found
+    let cat2 = cat;
+    if (!type && MONEY_CAT.has(cat)) {
+      const ev = moneyEvidence({ subject: input.subject, snippet: input.snippet, labels, facts: input.facts });
+      if (!ev.ok) { cat2 = labels.includes('CATEGORY_PROMOTIONS') ? 'promotion' : 'other'; reasons.push(`not a transaction: ${ev.reason}`); }
+      else if (ev.kind === 'paid' || ev.kind === 'self-transfer') { cat2 = 'payment'; reasons.push(ev.reason); }
+    }
     if (!type) {
+      const cat = cat2;
       if (input.isSent) type = 'follow_up';
       else if (cat === 'security' || RX.security.test(input.subject || '')) type = 'urgent_action';
       else if (cat === 'bill') type = 'invoice';
@@ -117,7 +161,7 @@
     return { type, importance: score, band, reasons, ruleId: rule ? rule.id : null, action, dueAt: due ? due.ms : null, identity: RX.identity.test(input.subject || ''), automated };
   }
 
-  const api = { classify, TYPES, LOW, RX };
+  const api = { classify, moneyEvidence, TYPES, LOW, RX, MONEY_RX };
   root.DaylightClassifier = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -45,7 +45,7 @@
       classification: p.classification || null,
       privacyClass: p.privacyClass || 'normal', aiExclude: !!p.aiExclude,
       userCorrections: p.userCorrections || [], actionHistory: p.actionHistory || [],
-      meta: p.meta || {}
+      meta: p.datedBySource ? Object.assign({}, p.meta || {}, { datedBySource: true }) : (p.meta || {})
     };
   }
 
@@ -54,7 +54,8 @@
     if (!prev) return next;
     const out = Object.assign({}, prev, next);
     USER_OWNED.forEach((k) => { if (prev[k] !== undefined) out[k] = prev[k]; });
-    out.createdAt = prev.createdAt;
+    // an Item derived from emails is dated by its earliest email (v107: older Items were dated by the first ingest)
+    out.createdAt = next.meta && next.meta.datedBySource && next.createdAt ? Math.min(prev.createdAt || next.createdAt, next.createdAt) : prev.createdAt;
     const sk = (s) => `${s.app}|${s.accountId}|${s.itemId}`;
     const srcs = new Map(); [...(prev.sources || []), ...(next.sources || [])].forEach((s) => srcs.set(sk(s), Object.assign({}, srcs.get(sk(s)) || {}, s)));
     out.sources = [...srcs.values()];
