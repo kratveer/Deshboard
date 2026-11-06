@@ -2,7 +2,8 @@
  * Daylight account inventory (Phase 0 of the multi-account plan): which accounts have data on this device, and is each
  * one still reachable? Nothing here deletes data by itself — it decides; the app deletes (privacy/data-reset.js).
  *
- *   active       the signed-in Google login, or the Microsoft account it links         → shown
+ *   active       the signed-in Google login, the Microsoft account it links, or (connections_v1) any connection of
+ *                the signed-in Daylight identity (o.connected())                                   → shown
  *   other-login  another Google login on this device, or a Microsoft account it links  → hidden, deletable, kept
  *   orphan       a Microsoft account no login on this device links any more            → hidden immediately,
  *                (replaced, disconnected elsewhere, server session lost)                   30-day retention with warning
@@ -47,6 +48,7 @@
       const counts = {};
       items.forEach((it) => { const a = it.accountId; if (NOT_ACCOUNTS.has(a)) return; const c = counts[a] || (counts[a] = { items: 0, emails: 0, files: 0, apps: new Set() }); c.items++; if (it.type === 'email') c.emails++; if (it.type === 'file') c.files++; (it.sources || []).forEach((s) => c.apps.add(s.app)); });
       let cacheIds = []; try { cacheIds = o.mailCache && o.mailCache.accountIds ? await o.mailCache.accountIds() : []; } catch {}
+      const connected = new Set((o.connected && o.connected()) || []);
       const lk = links(); const linkedBy = {}; Object.entries(lk).forEach(([owner, v]) => { linkedBy[v.account] = { owner, email: v.email, name: v.name }; });
       const names = readJ('daylight-v2-account-names', {});
       const known = [].concat(readJ('daylight-gmail-accounts', []) || [], Object.keys(names || {}));
@@ -58,12 +60,14 @@
         const provider = providerOf(key, L);
         const hasData = !!counts[key] || cacheIds.includes(key);
         let status;
-        if (provider === 'google') status = key === login ? 'active' : 'other-login';
+        if (connected.has(key)) status = 'active'; // a connection of the signed-in Daylight identity (connections_v1)
+        else if (provider === 'google') status = key === login ? 'active' : 'other-login';
         else { const by = linkedBy[key]; status = by ? (by.owner === login ? 'active' : 'other-login') : 'orphan'; }
         const email = (linkedBy[key] && linkedBy[key].email) || (provider === 'google' ? names[key] : null) || L.email || '';
         // bookkeeping
         const next = Object.assign({}, L, { provider, email: email || L.email || '' });
         if (linkedBy[key]) next.owner = linkedBy[key].owner;
+        else if (connected.has(key) && login) next.owner = login;
         if (status === 'active') { next.lastConnected = now(); delete next.orphanedAt; delete next.warnedAt; delete next.reason; delete next.deletedAt; }
         if (status === 'orphan' && hasData && !next.orphanedAt) { next.orphanedAt = now(); next.reason = next.reason || 'no longer linked'; }
         if (status === 'orphan' && !hasData) { delete next.orphanedAt; delete next.warnedAt; } // nothing left to protect

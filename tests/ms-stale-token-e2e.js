@@ -108,7 +108,12 @@ function mailbox(tag) {
     await tabB.evaluate(() => { try { window.DaylightAI.setConsent(true); window.DaylightAI.setEnabled(true); } catch {} window.DaylightV2Host.ai.setEnabled(true); window.DaylightV2UI.openAsk(); });
     await tabB.waitForTimeout(300); await tabB.fill('[data-askform] input', 'MARK slides'); await tabB.press('[data-askform] input', 'Enter'); await tabB.waitForTimeout(700);
     const aiBtn = await tabB.$('[data-askai]'); if (aiBtn) { await aiBtn.click(); await tabB.waitForTimeout(1500); }
-    check('6: the Ask AI request that left the device has B data and no A data', ws.gemini.length >= 1 && ws.gemini.every((b) => !/AAAMARK|LATEMARK/.test(b)) && ws.gemini.some((b) => /BBBMARK/.test(b)), { n: ws.gemini.length, aiBtn: !!aiBtn });
+    // v113: an added (non-sign-in) account goes into Ask AI only after the user switches it on for that account
+    check('6: before B is switched on for Ask AI, the request holds none of B\'s (or A\'s) items', ws.gemini.length >= 1 && ws.gemini.every((b) => !/AAAMARK|LATEMARK|BBBMARK/.test(b)), { n: ws.gemini.length, aiBtn: !!aiBtn });
+    await tabB.evaluate(() => window.DaylightV2Host.setAiAccount('ms-bbb', true)); const n6 = ws.gemini.length;
+    await tabB.press('[data-askform] input', 'Enter'); await tabB.waitForTimeout(700);
+    { const b2 = await tabB.$('[data-askai]'); if (b2) { await b2.click(); await tabB.waitForTimeout(1500); } }
+    check('6: the Ask AI request that left the device has B data and no A data', ws.gemini.length > n6 && ws.gemini.every((b) => !/AAAMARK|LATEMARK/.test(b)) && /BBBMARK/.test(ws.gemini[ws.gemini.length - 1]), { n: ws.gemini.length, aiBtn: !!aiBtn });
     await tabB.keyboard.press('Escape');
     // user state on B (for the export check)
     await tabB.evaluate(async () => { const V = window.DaylightV2; const e = (await V.graph.query({ accountId: 'ms-bbb', type: 'email' }))[0]; await V.actions.applyAction(e.id, 'pin', {}); await V.actions.applyAction(e.id, 'correct_type', { type: 'newsletter' }); window.DaylightPrivacyLog.add({ kind: 'ai', dest: 'test', what: 'BBBMARK log', accountId: 'ms-bbb' }); });

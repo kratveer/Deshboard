@@ -126,7 +126,9 @@ const ALLOWED_HOSTS = new Set(['127.0.0.1', new URL(WORKER).hostname, 'gmail.goo
     const inner = gm.flatMap((r) => (r.body.match(/^(GET|POST|PUT|PATCH|DELETE) [^\s]+/gm) || []));
     check('network: Gmail is only read (GET requests, and GETs inside HTTP batches; no send, modify, trash or draft)', gm.length > 0 && gm.every((r) => r.method === 'GET' || (r.method === 'POST' && /\/batch\/gmail\/v1$/.test(new URL(r.url).pathname))) && inner.every((l) => l.startsWith('GET ')) && !gm.some((r) => /\/send|\/modify|\/trash|\/drafts|\/import|\/insert/.test(r.url + r.body)), { methods: [...new Set(gm.map((r) => r.method))], inner: [...new Set(inner.map((l) => l.split(' ')[0]))] });
     const wk = ext.filter((r) => r.url.startsWith(WORKER)).map((r) => new URL(r.url).pathname);
-    check('network: the Worker sees only token, health/logout and the AI relay — no mail', wk.every((p) => ['/api/google/token', '/health', '/auth/logout', '/api/gemini/analyse'].includes(p)) && ext.filter((r) => r.url.startsWith(WORKER) && !r.url.endsWith('/api/gemini/analyse')).every((r) => !r.body), [...new Set(wk)]);
+    // (v113: the connection list /api/connections and per-connection tokens are allowed; their bodies carry only ids)
+    const idOnly = (b) => { try { return Object.keys(JSON.parse(b)).every((k) => ['connId', 'pending', 'provider', 'return', 'reconnect'].includes(k)); } catch { return false; } };
+    check('network: the Worker sees only token, connections, health/logout and the AI relay — no mail', wk.every((p) => ['/api/google/token', '/health', '/auth/logout', '/api/gemini/analyse', '/api/connections', '/api/connections/token'].includes(p)) && ext.filter((r) => r.url.startsWith(WORKER) && !r.url.endsWith('/api/gemini/analyse')).every((r) => !r.body || (/\/api\/connections/.test(r.url) && idOnly(r.body))), [...new Set(wk)]);
     check('network: the session token never appears in a URL (sent only in the Authorization header)', !reqs.some((r) => r.url.includes(SESSION)) && ext.filter((r) => r.url.startsWith(WORKER)).every((r) => r.auth.startsWith('Bearer ')));
 
     // ---- CSP ----

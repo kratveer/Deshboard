@@ -25,6 +25,7 @@
 
   // ---- Daylight server session (the only sign-in path) ----
   const SERVER_ERRORS={account_not_allowed:'That Google account is not allowed on your Daylight server.',access_denied:'Google sign-in was cancelled.',no_refresh_token:'Google did not grant offline access. Try signing in again.',token_exchange_failed:'Google sign-in could not be completed. Try again in a moment.',gmail_readonly_required:'Google did not grant permission to read Gmail. Sign in again and allow mail reading.'};
+  const CONN_ERRORS={access_denied:'Adding the account was cancelled.',limit_reached:'Daylight connects at most 2 Google and 2 Microsoft accounts. Disconnect one first.',account_in_another_daylight:'That Google account signs in to another Daylight. Sign out there, or use that Daylight.',already_used:'That sign-in link was already used · try again.',sign_in_too_slow:'Adding the account took too long · try again.',gmail_readonly_required:'Daylight needs permission to read Gmail (read-only) for that account.',not_your_connection:'That account was added from another Daylight sign-in and was not attached.',expired:'Adding the account took too long · try again.',account_not_allowed:'That account is not allowed on your Daylight server.',consent_required:'The organisation must approve Daylight before this account can be connected.'};
   const MS_ERRORS={access_denied:'Microsoft sign-in was cancelled.',consent_required:'Your organisation must approve Daylight before you can connect this account.',account_not_allowed:'That Microsoft account is not allowed on your Daylight server.',mail_read_required:'Daylight needs permission to read your mail. Try connecting again and allow it.',no_refresh_token:'Microsoft did not allow Daylight to stay connected. Try again.',token_exchange_failed:'Microsoft sign-in could not be completed. Try again.',daylight_session_ended:'Your Daylight session ended. Sign in again, then connect Microsoft.',microsoft_not_configured:'Microsoft is not set up on your Daylight server yet.',sign_in_too_slow:'Microsoft sign-in took longer than 15 minutes. Try again.',already_used:'That Microsoft sign-in was already used. If Microsoft is not connected, try again.'};
   let serverUrl=(getLS('daylight-api')||(location.hostname==='kratveer.github.io'?'https://daylight-api.kratveer050.workers.dev':'')).replace(/\/+$/,''),serverSession=getLS('daylight-session'),serverEmail='',serverRenew=null,serverTokenPromise=null;
   let lastSyncOk=0,lastSyncErr='',syncBusy=false,lastRefreshStart=0;
@@ -43,6 +44,9 @@
       setTimeout(()=>toast('Signed in · Daylight will keep you connected'),600);
     }
     if(h.get('daylight_ms')==='connected'){setLS('daylight-ms-pending','1');setTimeout(()=>toast('Microsoft connected · reading Outlook and OneDrive'),600)}
+    // connections_v1: a consent result waits on the server until THIS app (same identity) confirms it
+    if(h.get('daylight_conn_pending'))setLS('daylight-conn-pending',h.get('daylight_conn_pending'));
+    if(h.get('daylight_conn_error')){const e=h.get('daylight_conn_error');setTimeout(()=>toast(CONN_ERRORS[e]||('Could not add the account: '+e)),600)}
     if(h.get('daylight_ms_error')){setLS('daylight-ms-pending','');const e=h.get('daylight_ms_error');const msg=MS_ERRORS[e]||'Microsoft sign-in failed: '+e;setTimeout(()=>toast(msg),600)}
     if(h.get('daylight_error')){const msg=SERVER_ERRORS[h.get('daylight_error')]||'Sign-in failed: '+h.get('daylight_error');lastSyncErr=msg;setTimeout(()=>toast(msg),600)}
     history.replaceState(null,'',location.pathname+location.search)})();
@@ -213,6 +217,7 @@
   }
   function clearServerSession(msg){
     serverSession='';setLS('daylight-session','');token=null;rememberGoogleScopes('');resetGmailEngine();clearTimeout(serverRenew);
+    try{connsApi()?.clear()}catch{}
     try{invalidateIdentity('signed-out',false)}catch{}
     if(msg)lastSyncErr=msg;
   }
@@ -251,7 +256,9 @@
   }
   // ---- Microsoft: an extra connection of this Daylight session (Outlook mail + OneDrive files), read-only ----
   const msKey=()=>'daylight-ms-link:'+v2AccountKey();
-  function msLink(){try{return identityVerified?JSON.parse(localStorage.getItem(msKey())||'null'):null}catch{return null}}
+  function msLink(){
+    if(connsOn()){const c=identityVerified?connMs()[0]:null;return c?{account:c.accountKey,email:c.email,name:c.name,mailRead:!!c.mail_read,filesRead:c.files_read!==false,needsReconnect:c.status==='needs_reconnect',connId:c.id}:null}
+    try{return identityVerified?JSON.parse(localStorage.getItem(msKey())||'null'):null}catch{return null}}
   // F1 (v112): a cached Microsoft access token is bound to the account it was issued for and to the account generation.
   // The generation (daylight-ms-gen:<google login>) changes whenever the linked Microsoft account changes, is lost or is
   // disconnected — in any tab. A sync captures (account, generation) at the start and re-checks both before every write.
@@ -263,7 +270,7 @@
   addEventListener('storage',e=>{if(!e.key||e.key.startsWith('daylight-ms-link:')||e.key.startsWith('daylight-ms-gen:'))msTok=null});
   // ---- Account inventory (Phase 0): data of accounts no longer linked is hidden at once, listed in Settings, kept 30 days with a warning ----
   let invObj=null;
-  function inventory(){if(invObj)return invObj;if(!W.DaylightAccountInventory)return null;let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{};invObj=W.DaylightAccountInventory.createInventory({graph:v2Core()?.graph,mailCache:mc});return invObj}
+  function inventory(){if(invObj)return invObj;if(!W.DaylightAccountInventory)return null;let mc=null;try{mc=v2Enabled()?getMailV2().cache:null}catch{};invObj=W.DaylightAccountInventory.createInventory({graph:v2Core()?.graph,mailCache:mc,connected:()=>connsOn()&&identityVerified?connsApi().list().map(c=>c.accountKey):[]});return invObj}
   const replacedKey=()=>'daylight-ms-replaced:'+v2AccountKey();
   /** Delete one account's data from this device safely: never the signed-in account; the Microsoft link goes first (no new
    *  syncs), deletion runs under that account's sync lock (a sync in another tab finishes first), then a local tombstone. */
@@ -382,6 +389,174 @@
     return report;
   }
 
+  // ---- Connections (connections_v1, Phase B): up to 2 Google + 2 Microsoft accounts of one Daylight identity ----
+  // The Google account this device signed in with keeps today's engine (token from /api/google/token). Every OTHER
+  // connection gets its own engine here: its own token (per connection, bound to account + generation), its own sync
+  // lock, watermarks, checkpoint, status and backoff. Accounts sync one after another; one failing never stops the rest.
+  var connsObj=null,connsFeature=null,connsBusy=false; // var: functions above may run before this line
+  function connsApi(){if(connsObj)return connsObj;if(!W.DaylightConnections)return null;connsObj=W.DaylightConnections.createConnections({serverUrl:()=>serverUrl,session:()=>serverSession,sessionTag});return connsObj}
+  /** Does the Daylight server support connections_v1? (checked once per page; remembered for the next start) */
+  function connsOn(){if(connsFeature===null)connsFeature=getLS('daylight-server-connections')==='1';return !!(connsFeature&&serverSession&&connsApi())}
+  async function connsProbe(){
+    if(!serverUrl||!serverSession||!connsApi())return false;
+    if(connsProbe.done)return connsOn();
+    // the connection list itself is the probe (authenticated; an older Worker answers 404)
+    try{connsFeature=true;await connsApi().refresh();setLS('daylight-server-connections','1');connsProbe.done=true}
+    catch(e){if(e.status===404){connsFeature=false;setLS('daylight-server-connections','');connsProbe.done=true}else connsFeature=getLS('daylight-server-connections')==='1'}
+    return connsOn();
+  }
+  const loginConnId=()=>(connsApi()?.mirror()||{}).login||null;
+  const otherConns=()=>connsOn()?connsApi().list().filter(c=>c.id!==loginConnId()):[];
+  function connMs(){return connsOn()?connsApi().list().filter(c=>c.provider==='microsoft'):[]}
+  /** A cache whose every write first checks that the account is still connected (same generation, not deleted). */
+  function guardedCache(cache,guard){
+    const g=Object.create(cache);
+    ['putMany','putFacts','setCheckpoint','markDeleted','updateLabels','addMetrics','putThreads','recordDomainCategory'].forEach(m=>{if(typeof cache[m]==='function')g[m]=async(...a)=>{if(!guard()){const e=new Error('account changed during sync · results discarded');e.aborted=true;throw e}return cache[m](...a)}});
+    return g;
+  }
+  /** One Gmail engine per secondary Google connection (quota, concurrency and backoff are per mailbox). */
+  function gmailFetcherFor(state){
+    const tok=f=>connsApi().token(state.conn,state.gen,!!f);
+    const send=async(url,init,tk,ms)=>{const ctrl=new AbortController();const tm=setTimeout(()=>ctrl.abort(),ms);try{return await fetch(url,{...(init||{}),headers:{...((init&&init.headers)||{}),Authorization:'Bearer '+tk},signal:ctrl.signal})}finally{clearTimeout(tm)}};
+    async function request(url){
+      let t;try{t=await tok(false)}catch(e){return {ok:false,status:401,reason:e.aborted?'aborted':'no_token',message:String(e.message||e)}}
+      let r=await send(url,null,t,20000);
+      if(r.status===401){try{r=await send(url,null,await tok(true),20000)}catch(e){return {ok:false,status:401,reason:'no_token',message:String(e.message||e)}}}
+      let data=null;try{const text=await r.text();data=text?JSON.parse(text):null}catch{}
+      if(r.ok)return {ok:true,status:r.status,data};
+      return {ok:false,status:r.status,data,reason:data?.error?.errors?.[0]?.reason||data?.error?.status||'',message:data?.error?.message||`Gmail API error (${r.status})`,retryAfterMs:retryAfterMsFrom(r)};
+    }
+    async function batchPost(url,init){let t;try{t=await tok(false)}catch{return {ok:false,status:401,text:async()=>'',headers:{get:()=>''}}}let r=await send(url,init,t,30000);if(r.status===401){try{r=await send(url,init,await tok(true),30000)}catch{}}return r}
+    return {request,batchPost};
+  }
+  var gStacks=new Map();
+  function gmailStackFor(conn,gen){
+    const key=conn.accountKey;let st=gStacks.get(key);
+    if(!st){
+      const v=getMailV2(),state={conn,gen},f=gmailFetcherFor(state);
+      let qcfg={};try{qcfg={limitPerMinute:window.DaylightGmailConfig?.load?.().quota?.limitPerMinute||undefined}}catch{}
+      const engine=W.DaylightGmailSync.createGmailSync({request:f.request,config:qcfg.limitPerMinute?qcfg:undefined});
+      st={state,engine,f,lock:W.DaylightSyncScheduler.createLock({name:v.config.schedule.lockName+':'+key,leaseMs:v.config.schedule.lockLeaseMs})};
+      gStacks.set(key,st);
+    }
+    st.state.conn=conn;st.state.gen=gen;return st;
+  }
+  /** One secondary Gmail account: discovery + metadata + selective bodies (its own checkpoint), then its Items. */
+  async function syncGmailConn(conn,force){
+    const C=connsApi(),acct=conn.accountKey,gen=C.ensureGen(acct),v=getMailV2(),S=W.DaylightSyncScheduler,c=v2Core();
+    const mine=()=>C.stillMine(conn.id,acct,gen)&&!(inventory()&&inventory().isDeleted(acct));
+    const lastKey='daylight-gmail-last-sync:'+acct,last=Number(getLS(lastKey))||0;
+    const d=S.decide({trigger:force?'manual':'open',now:Date.now(),lastSyncAt:last,schedule:v.config.schedule});
+    if(!d.run&&!force)return {skipped:d.reason};
+    const st=gmailStackFor(conn,gen),cache=guardedCache(v.cache,mine);
+    const pipe=W.DaylightMailPipeline.createMailPipeline({engine:st.engine,cache,rules:W.DaylightGmailRules,config:v.config,batch:W.DaylightGmailBatch,batchSend:W.DaylightGmailBatch.createSender(st.f.batchPost),derive:v2Derive,fullFields:W.DaylightGmailSync.FULL_FIELDS});
+    const lk=await st.lock.withLock(async()=>{
+      if(!mine())return {aborted:true};
+      const out=await pipe.run({accountId:acct,label:d.label||'manual',aiEnabled:false}); // Ask AI / AI extraction stays off for added accounts (per-account AI consent comes with the account settings)
+      if(!mine())return {aborted:true};
+      if(out.report.fatal)throw new Error(out.report.summary||'Gmail sync failed');
+      const key='daylight-graph-ingest:x5:'+acct,fbKey='daylight-graph-ingest-fb1:'+acct,since=getLS(fbKey)?(Number(getLS(key))||0):0,t0=Date.now();
+      const ing=await c.gmail.ingest(acct,{since,guard:mine});if(!mine())return {aborted:true};
+      setLS(key,String(t0));setLS(fbKey,String(t0));setLS(lastKey,String(Date.now()));
+      return {mail:out.report,ingest:ing};
+    });
+    if(!lk.ran)return {skipped:'another tab is syncing'};
+    return lk.result;
+  }
+  /** One Microsoft connection: Outlook, its Items, then OneDrive (F1 guards per account and generation). */
+  async function syncMsConn(conn,force){
+    const C=connsApi(),acct=conn.accountKey,gen=C.ensureGen(acct),v=getMsV2(),c=v2Core();
+    const mine=()=>C.stillMine(conn.id,acct,gen)&&!(inventory()&&inventory().isDeleted(acct));
+    const last=Number(getLS('daylight-ms-last-sync:'+acct))||0;
+    if(!force&&Date.now()-last<15*60000)return {skipped:'recent'};
+    await C.token(conn,gen,false); // fails closed before any work (wrong account, disconnected, reconnect needed)
+    const getToken=f=>C.token(conn,gen,!!f);
+    const lock=W.DaylightSyncScheduler.createLock({name:'daylight-ms-sync:'+acct,leaseMs:v.config.schedule.lockLeaseMs});
+    const lk=await lock.withLock(async()=>{
+      if(!mine())return {aborted:true};
+      const pipe=W.DaylightOutlookPipeline.createOutlookPipeline({getToken,guard:mine,cache:v.cache,rules:W.DaylightGmailRules,config:v.config,derive:v2Derive});
+      const mail=(await pipe.run({accountId:acct})).report;
+      if(!mine())return {aborted:true};
+      if(mail.fatal)throw new Error(mail.summary||'Outlook sync failed');
+      const key='daylight-graph-ingest:ms1:'+acct,fbKey='daylight-graph-ingest-fb1:'+acct,since=getLS(fbKey)?(Number(getLS(key))||0):0,t0=Date.now();
+      const ingest=await c.outlook.ingest(acct,{since,guard:mine});if(!mine())return {aborted:true};setLS(key,String(t0));setLS(fbKey,String(t0));
+      let files=null;const fl=Number(getLS('daylight-onedrive-last:'+acct))||0;
+      if(conn.files_read!==false&&W.DaylightOneDrive&&(force||Date.now()-fl>60*60000)){
+        if(!mine())return {aborted:true};
+        const od=W.DaylightOneDrive.createOneDrive({getToken,guard:mine,graph:c.graph,store:{get:getLS,set:setLS},rules:W.DaylightGmailRules,mailHelper:v.helper,pipelineConfig:v.config.pipeline,config:{readContents:msReadFiles()}});
+        files=await od.sync(acct);if(files.ok)setLS('daylight-onedrive-last:'+acct,String(Date.now()));
+      }
+      setLS('daylight-ms-last-sync:'+acct,String(Date.now()));
+      return {mail,ingest,files};
+    });
+    if(!lk.ran)return {skipped:'another tab is syncing'};
+    return lk.result;
+  }
+  /** The v112.1 single Microsoft link of this login, if it names this account (it would keep the account "linked"). */
+  function clearLegacyLink(acct){try{const l=JSON.parse(getLS(msKey())||'null');if(l&&l.account===acct){setLS(msKey(),'');bumpMsGen()}}catch{}}
+  /** Deleted on another device (server tombstone) → delete here too, unless the account is connected again. */
+  async function applyTombstones(){
+    const C=connsApi(),m=C&&C.mirror();if(!m)return [];
+    const live=new Set(m.connections.map(c=>c.accountKey)),done=[];
+    const inv=inventory();if(!inv)return [];
+    const rows=await inv.scan(v2AccountKey());
+    for(const [key,t] of Object.entries(m.tombstones||{})){
+      if(live.has(key)||key===v2AccountKey())continue;
+      const row=rows.find(r=>r.key===key);if(!row)continue;
+      const L=inv.read()[key];if(L&&L.deletedAt&&L.deletedAt>=t.deletedAt)continue; // already done here
+      try{C.bumpGen(key);clearLegacyLink(key);await deleteDeviceAccount(key);done.push(key)}catch(e){console.warn('tombstone delete',e)}
+    }
+    return done;
+  }
+  async function confirmPendingConnection(){
+    const p=getLS('daylight-conn-pending');if(!p)return null;setLS('daylight-conn-pending','');
+    try{const r=await connsApi().confirm(p);const c=r.connection||{};
+      // connected again on purpose: a local deletion record for it ends (its data may sync back in)
+      if(c.accountKey){try{inventory()?.connected(c.accountKey,{provider:c.provider,email:c.email||'',owner:v2AccountKey()})}catch{}connsApi().bumpGen(c.accountKey)}toast((r.result==='reconnected'?'Reconnected ':r.result==='updated'?'Already connected · ':r.result==='added_different_account'?'Added (a different account than the one you reconnected) · ':'Connected ')+(c.email||''));return r}
+    catch(e){toast(CONN_ERRORS[e.code]||('Could not add the account: '+(e.code||e.message)));return null}
+  }
+  /** Sync every connection of this identity except the one this device signed in with (that ran just before). */
+  async function syncConnections(force){
+    const C=connsApi();if(!C||connsBusy)return [];
+    connsBusy=true;const out=[];
+    try{
+      try{await C.refresh()}catch(e){if(e.status===401){clearServerSession('Daylight sign-in expired · sign in again');return out}console.warn('connections',e)}
+      await confirmPendingConnection();
+      try{await applyTombstones()}catch(e){console.warn('tombstones',e)}
+      const login=v2AccountKey();try{C.record(login,!lastSyncErr,lastSyncErr)}catch{}
+      for(const conn of otherConns()){
+        if(conn.status!=='active'){out.push({account:conn.accountKey,skipped:conn.status});continue}
+        {const inv=inventory(),L=inv&&inv.read()[conn.accountKey];if(L&&L.deletedAt&&conn.connectedAt&&conn.connectedAt>L.deletedAt)inv.connected(conn.accountKey,{provider:conn.provider,email:conn.email||'',owner:v2AccountKey()})} // reconnected on another device after it was deleted here
+        if(!C.due(conn.accountKey,0,force?'now':true)){out.push({account:conn.accountKey,skipped:'backoff'});continue}
+        C.setStatus(conn.accountKey,{running:true,startedAt:Date.now()});
+        try{const r=conn.provider==='google'?await syncGmailConn(conn,force):await syncMsConn(conn,force);
+          if(r&&r.aborted){C.setStatus(conn.accountKey,{running:false});out.push({account:conn.accountKey,aborted:true});continue}
+          if(r&&r.skipped){C.setStatus(conn.accountKey,{running:false});out.push({account:conn.accountKey,skipped:r.skipped});continue}
+          C.record(conn.accountKey,true);out.push({account:conn.accountKey,ok:true,result:r})}
+        catch(e){if(e&&e.aborted){C.setStatus(conn.accountKey,{running:false});out.push({account:conn.accountKey,aborted:true});continue}
+          console.warn('connection sync',conn.provider,e);C.record(conn.accountKey,false,e);out.push({account:conn.accountKey,error:String(e&&e.message||e)})}
+      }
+      syncConnections.last={at:Date.now(),out};
+      return out;
+    }finally{connsBusy=false}
+  }
+  /** Disconnect one added account: the server deletes its token (Google: revoked) and records a tombstone; this device
+   *  deletes its data (under its sync lock). The account this device signed in with uses Disconnect (sign out) instead. */
+  async function disconnectConnection(connId){
+    const C=connsApi(),conn=C&&C.byId(connId);if(!conn)throw new Error('not connected');
+    if(conn.id===loginConnId())throw new Error('This is the account you signed in with · use Disconnect in Gmail settings');
+    const r=await C.disconnect(connId); // its generation changes first: running syncs stop before their next write
+    clearLegacyLink(conn.accountKey);
+    inventory()?.markOrphan(conn.accountKey,'disconnected',{owner:v2AccountKey(),email:conn.email||'',provider:conn.provider});
+    let report=null;try{report=await deleteDeviceAccount(conn.accountKey)}catch(e){console.warn('delete account data',e)}
+    return Object.assign({ok:true,account:conn.accountKey,provider:conn.provider},report||{});
+  }
+  async function startConnection(provider,reconnect){
+    const C=connsApi();if(!C||!connsOn())throw new Error('Adding accounts needs the updated Daylight server');
+    const url=await C.start(provider,location.origin+location.pathname,reconnect).catch(e=>{throw new Error(CONN_ERRORS[e.code]||e.message)});
+    location.assign(url);
+  }
+
   // ---- One refresh: confirm the account, run the Gmail V2 engine, then bring the Item Graph up to date ----
 
   async function refreshAll(){
@@ -400,7 +575,8 @@
         out.report.at=Date.now();lastGmailReport=out.report;
         try{localStorage.removeItem('daylight-v2-engine-error:'+v2AccountKey())}catch{}
         await v2IngestGmail();
-        await v2MicrosoftSync(trigger==='manual');
+        if(await connsProbe())await syncConnections(trigger==='manual');
+        else await v2MicrosoftSync(trigger==='manual');
         try{await accountHousekeeping()}catch(e){console.warn('account housekeeping',e)}
         if(out.report.partial&&out.report.summary)lastSyncErr=out.report.summary;
       }catch(e){
@@ -466,7 +642,21 @@
       async disconnect(){await disconnectGoogle();return disconnectGoogle.lastReport||null},
       async syncNow(){refreshAll.force=true;await refreshAll()},
       syncState:()=>({busy:syncBusy,lastAt:lastSyncOk||0,error:lastSyncErr||'',runs:refreshAll.runs||0}),
-      linkedAccounts:()=>{const l=msLink();return l&&l.account&&!(inventory()&&inventory().isDeleted(l.account))?[l.account]:[]},
+      linkedAccounts:()=>{
+        if(connsOn()&&identityVerified)return otherConns().map(c=>c.accountKey).filter(k=>!(inventory()&&inventory().isDeleted(k)));
+        const l=msLink();return l&&l.account&&!(inventory()&&inventory().isDeleted(l.account))?[l.account]:[]},
+      /** connections_v1: every account of this Daylight identity with its own sync status (no tokens). */
+      connectionsEnabled:()=>connsOn(),
+      connections:()=>{if(!connsOn()||!identityVerified)return [];const C=connsApi(),login=loginConnId();return C.list().map(c=>Object.assign({},c,{isLogin:c.id===login,sync:c.id===login?{lastOk:lastSyncOk||0,lastError:lastSyncErr||'',running:syncBusy}:C.status(c.accountKey)}))},
+      connectionCaps:()=>((connsApi()&&connsApi().mirror())||{}).caps||{google:2,microsoft:2},
+      async addAccount(provider){return startConnection(provider)},
+      async reconnectAccount(connId){const c=connsApi()?.byId(connId);if(!c)throw new Error('not connected');return startConnection(c.provider,connId)},
+      async disconnectAccount(connId){return disconnectConnection(connId)},
+      async syncAccounts(){return syncConnections(true)},
+      /** Accounts whose Items may go into an Ask AI request: the signed-in account, this device's own items, and added
+       *  accounts only after the user turned AI on for them (per-account opt-in, off by default). */
+      aiAccounts:()=>{const a=[v2AccountKey(),'local'];if(connsOn())otherConns().forEach(c=>{if(getLS('daylight-ai-include:'+c.accountKey)==='1')a.push(c.accountKey)});else{const l=msLink();if(l&&l.account&&getLS('daylight-ai-include:'+l.account)==='1')a.push(l.account)}return a},
+      setAiAccount(acct,on){setLS('daylight-ai-include:'+acct,on?'1':'')},
       /** Accounts with data on this device. shown=true: the user is looking at warnings now (starts the 7-day notice). */
       async accountInventory(opts){const inv=inventory();if(!inv)return [];const rows=await inv.scan(identityVerified?v2AccountKey():null);if(opts&&opts.shown){const w=rows.filter(r=>r.status==='orphan'&&r.warn&&!r.warnedAt).map(r=>r.key);if(w.length&&inv.markWarned(w))return inv.scan(identityVerified?v2AccountKey():null)}return rows},
       replacedPrompt:()=>{try{return identityVerified?JSON.parse(getLS(replacedKey())||'null'):null}catch{return null}},
@@ -476,13 +666,14 @@
       microsoft:()=>{const l=msLink();return {available:Boolean(serverUrl&&serverSession&&identityVerified),link:l,busy:msBusy,error:msErr,last:msLast,lastAt:l&&l.account?Number(getLS('daylight-ms-last-sync:'+l.account))||0:0,readFiles:msReadFiles()}},
       async connectMicrosoft(){
         if(!serverUrl||!serverSession)throw new Error('Sign in with Google first');
+        if(await connsProbe()){const m=connMs()[0];return startConnection('microsoft',m&&m.status==='needs_reconnect'?m.id:undefined)}
         const r=await fetch(serverUrl+'/api/microsoft/start',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+serverSession},body:JSON.stringify({return:location.origin+location.pathname})});
         const d=await r.json().catch(()=>({}));if(!r.ok||!d.url)throw new Error(MS_ERRORS[d.error]||d.error||('HTTP '+r.status));
         setLS('daylight-ms-pending','1');location.assign(d.url);
       },
-      async disconnectMicrosoft(){return disconnectMicrosoft()},
+      async disconnectMicrosoft(){if(connsOn()){const m=connMs()[0];return m?disconnectConnection(m.id):null}return disconnectMicrosoft()},
       setReadFiles(on){setLS('daylight-ms-read-files',on?'':'0')},
-      async syncMicrosoft(){return v2MicrosoftSync(true)},
+      async syncMicrosoft(){if(await connsProbe())return syncConnections(true);return v2MicrosoftSync(true)},
       theme:{get:themePref,set:m=>applyThemePref(m)},
       openScanner:()=>{
         if(!W.DaylightV2Scan){toast('The scanner did not load · reload Daylight');return}

@@ -8,7 +8,8 @@ const kv = new Map(), ttl = new Map();
 const env = { TOKEN_KEY: Buffer.from(new Uint8Array(32).fill(7)).toString('base64'), GOOGLE_CLIENT_ID: 'cid', GOOGLE_CLIENT_SECRET: 'sec', ALLOWED_ORIGINS: 'https://kratveer.github.io', ALLOWED_EMAILS: '',
   SESSIONS: { async get(k, t) { const v = kv.get(k); return v == null ? null : t === 'json' ? JSON.parse(v) : v; }, async put(k, v, o) { kv.set(k, v); ttl.set(k, o && o.expirationTtl); }, async delete(k) { kv.delete(k); } } };
 const calls = [], gemini = [];
-const idTok = (email) => 'x.' + Buffer.from(JSON.stringify({ email })).toString('base64url') + '.y';
+// Google ID tokens always carry the account's subject id (sub); v112.2 identities are keyed by it
+const idTok = (email) => 'x.' + Buffer.from(JSON.stringify({ sub: 'sub-' + email.split('@')[0], email })).toString('base64url') + '.y';
 globalThis.fetch = async (url, init) => {
   const u = String(url); calls.push(u);
   const body = new URLSearchParams(init?.body || '');

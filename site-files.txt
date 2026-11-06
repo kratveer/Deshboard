@@ -29,6 +29,7 @@ onedrive-sync.js
 outlook-sync.js
 privacy.html
 privacy/account-inventory.js
+connections/connections-client.js
 privacy/data-reset.js
 privacy/processing-log.js
 scan-pipeline.js

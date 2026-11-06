@@ -14,7 +14,7 @@ const challenges = new Map();
 globalThis.fetch = async (url, init) => {
   const u = String(url); const body = new URLSearchParams(init?.body || '');
   if (u.startsWith('https://oauth2.googleapis.com/token')) {
-    if (body.get('grant_type') === 'authorization_code') { const who = body.get('code'); return new Response(JSON.stringify({ access_token: 'g-at', refresh_token: 'g-rt-' + who, id_token: 'x.' + b64u({ email: who + '@gmail.com' }) + '.y', scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly' })); }
+    if (body.get('grant_type') === 'authorization_code') { const who = body.get('code'); return new Response(JSON.stringify({ access_token: 'g-at', refresh_token: 'g-rt-' + who, id_token: 'x.' + b64u({ sub: 'sub-' + who, email: who + '@gmail.com' }) + '.y', scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly' })); }
     return new Response(JSON.stringify({ access_token: 'g-fresh', expires_in: 3600, scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly' }));
   }
   if (u === 'https://login.microsoftonline.com/common/oauth2/v2.0/token') {
@@ -58,7 +58,8 @@ ok('consent screen: common authority, read-only scopes (Mail.Read, Files.Read, o
 ok('no write, send or all-files scopes are ever asked', !/ReadWrite|Send|Files\.Read\.All|Mail\.ReadWrite|Sites\./i.test(sc.get('scope')));
 ok('PKCE S256 is used and the redirect is the Worker callback', sc.get('code_challenge_method') === 'S256' && sc.get('code_challenge').length >= 43 && sc.get('redirect_uri') === 'https://w.test/auth/microsoft/callback');
 ok('the session id never appears in the Microsoft URL', !la.authUrl.toString().includes(A));
-ok('callback returns to Daylight with daylight_ms=connected', la.back.hash === '#daylight_ms=connected', la.back.toString());
+// (connections_v1 adds daylight_conn=… next to daylight_ms=connected; older apps read only daylight_ms)
+ok('callback returns to Daylight with daylight_ms=connected', new URLSearchParams(la.back.hash.slice(1)).get('daylight_ms') === 'connected' && !/[?#&](daylight_session|rt|code)=/.test(la.back.hash), la.back.toString());
 const ta = await msTok(A);
 ok('token: session A gets an access token for its Microsoft account', ta.status === 200 && /^m-fresh-m-rt-alice/.test(ta.body.access_token) && ta.body.email === 'alice@outlook.com' && ta.body.mail_read && ta.body.files_read && /^ms-/.test(ta.body.account), ta.body);
 ok('the response never contains the refresh token', !JSON.stringify(ta.body).includes('m-rt-alice-') || ta.body.access_token.startsWith('m-fresh-'));
