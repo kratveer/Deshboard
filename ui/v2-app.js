@@ -71,7 +71,7 @@
     if (cs.length) cs.slice().sort((a, b) => (b.isLogin ? 1 : 0) - (a.isLogin ? 1 : 0) || (a.provider === b.provider ? 0 : a.provider === 'google' ? -1 : 1)).forEach((c) => out.push({ key: c.isLogin ? (S.account || c.accountKey) : c.accountKey, provider: c.provider, email: c.email || '', name: c.name || '', isLogin: !!c.isLogin, status: c.status, sync: c.sync || {}, connId: c.id, mailRead: c.mail_read, filesRead: c.files_read }));
     else {
       const p = (S.host.profile && S.host.profile()) || {};
-      if (S.account) out.push({ key: S.account, provider: 'google', email: p.email || '', name: p.name || '', isLogin: true, status: 'active', sync: {} });
+      if (S.account) { const st = (S.host.syncState && S.host.syncState()) || {}; out.push({ key: S.account, provider: 'google', email: p.email || '', name: p.name || '', isLogin: true, status: 'active', sync: { lastOk: st.lastAt || 0, lastError: st.error || '', running: !!st.busy } }); }
       const ms = S.host.microsoft && S.host.microsoft(); const l = ms && ms.link;
       if (l && l.account) out.push({ key: l.account, provider: 'microsoft', email: l.email || '', name: l.name || '', isLogin: false, status: l.needsReconnect ? 'needs_reconnect' : 'active', sync: { lastOk: ms.lastAt || 0, lastError: ms.error || '', running: !!ms.busy }, legacy: true });
     }
@@ -622,6 +622,7 @@
     const sh = doc.createElement('div'); sh.className = 'v-sheet' + (o.full ? ' full' : ''); sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.setAttribute('aria-label', o.title || 'Details');
     sh.innerHTML = `<div class="grab"></div><div class="hd">${o.back ? `<button class="v-close" type="button" data-sheet-back aria-label="Back">${ic('left', 16)}</button>` : ''}<h2>${esc(o.title || '')}</h2><button class="v-close" type="button" data-close aria-label="Close">${ic('x', 16)}</button></div><div class="bd"></div>`;
     $('.bd', sh).innerHTML = o.html || '';
+    if (o.back && !o.onBack && S.nextBack) o.onBack = S.nextBack; S.nextBack = null;
     const host = $('#v2'); host.append(scrim, sh);
     S.sheets = [{ el: sh, scrim, o }]; host.classList.add('has-sheet');
     if (!o.noHistory) try { if (replacing && history.state && history.state.v2sheet) history.replaceState({ v2sheet: 1 }, ''); else history.pushState({ v2sheet: 1 }, ''); } catch {}
@@ -866,56 +867,108 @@
     ['slack', 'Slack', '#4A154B', '#', 'Mentions, DMs and promises'], ['spotify', 'Spotify', '#1DB954', '♪', 'Focus playlists and subscription use']
   ];
   function openSettings() {
-    openSheet({ title: 'Settings', full: true, html: settingsHtml(), refresh: settingsHtml });
+    openSheet({ title: 'Settings', full: true, html: settingsHtml(), refresh: settingsHtml, reopen: openSettings });
   }
+  // ---------- settings: one grouped list; details live one level down (back returns here) ----------
+  const grow = (o) => `<${o.tag || 'button'} class="v-gr${o.cls ? ' ' + o.cls : ''}"${o.tag === 'label' || o.tag === 'div' ? '' : ' type="button"'}${o.attrs ? ' ' + o.attrs : ''}>${o.icon ? `<span class="gi" style="--gc:${o.color || 'var(--v-ink-3)'}">${o.icon}</span>` : ''}<span class="tx"><b>${o.title}</b>${o.sub ? `<small>${o.sub}</small>` : ''}</span>${o.right !== undefined ? `<span class="r">${o.right}</span>` : ''}${o.chev ? `<span class="chev">${ic('right', 16)}</span>` : ''}</${o.tag || 'button'}>`;
+  const plogo = (provider, color) => `<span class="gi lg ${provider}" style="--gc:${color || (provider === 'microsoft' ? '#0078D4' : '#EA4335')}">${provider === 'microsoft' ? 'M' : 'G'}</span>`;
+  const needsAttention = (a) => a.status === 'needs_reconnect' || !!(a.sync && a.sync.lastError);
   function settingsHtml() {
     const p = (S.host.profile && S.host.profile()) || {};
     const r = rhythm();
     const theme = (S.host.theme && S.host.theme.get && S.host.theme.get()) || 'system';
     const motion = LS.get('daylight-v2-motion', 'full');
-    const on = connected();
-    let h = `<div style="display:flex;gap:12px;align-items:center;margin:4px 0 6px"><span class="v-avatar" style="width:48px;height:48px;font-size:18px">${S.sample ? 'S' : p.picture ? `<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">` : esc(initials(p.name || p.email || 'You'))}</span><div><b style="font-size:17px">${esc(S.sample ? 'Sample account' : p.name || 'Not signed in')}</b><div class="v-muted" style="font-size:13.5px">${esc(S.sample ? 'Nothing here is real' : p.email || 'Connect Gmail to start')}</div></div></div>`;
-    if (!S.sample && connected()) h += accountsMgmt();
-    h += `<div class="v-section"><h4>Connections</h4><div class="v-conns">${CONNS.map(([id, name, col, glyph]) => { const ms = id === 'outlook' && !S.sample && S.host.microsoft ? S.host.microsoft() : null; const live = id === 'gmail' || !!(ms && ms.available); const mon = id === 'gmail' ? on : !!(ms && ms.link); const st = live ? (ms && ms.link && ms.link.needsReconnect ? 'Reconnect' : mon ? 'Connected' : 'Not connected') : 'Planned'; return `<button class="v-conn${live ? '' : ' planned'}" type="button" data-conn="${id}"><span class="lg" style="background:${col}">${esc(glyph)}</span>${esc(name)}<span class="st">${st}</span>${live && mon ? '<i class="gd"></i>' : ''}</button>`; }).join('')}</div><p class="v-muted" style="font-size:12.5px">Each app is read-only by default and launches only after its platform review.</p></div>`;
-    const accts = Object.entries(S.accountCounts || {});
+    const on = connected(), now = nowMs();
+    const accts = S.sample ? [] : (S.accts || []);
+    const st = (S.host.syncState && S.host.syncState()) || {};
+    const bad = accts.filter(needsAttention);
+    const summary = S.sample ? 'Nothing here is real' : !on ? 'Connect Gmail to start' : `${accts.length || 1} ${(accts.length || 1) === 1 ? 'account' : 'accounts'} · ${st.busy ? 'syncing…' : bad.length ? `${bad.length} ${bad.length === 1 ? 'needs' : 'need'} attention` : 'all synced'}`;
+    let h = `<div class="v-sethead"><span class="v-avatar" style="width:52px;height:52px;font-size:19px">${S.sample ? 'S' : p.picture ? `<img src="${esc(p.picture)}" alt="" referrerpolicy="no-referrer">` : esc(initials(p.name || p.email || 'You'))}</span><div class="tx"><b>${esc(S.sample ? 'Sample account' : p.name || 'Not signed in')}</b>${!S.sample && p.email ? `<span class="v-muted">${esc(p.email)}</span>` : ''}<span class="v-sum${bad.length ? ' warn' : ''}" data-set-summary>${esc(summary)}</span></div>${on && !S.sample ? `<button class="v-close v-syncbtn" type="button" data-sync-all aria-label="Sync all accounts" title="Sync all accounts">${ic('sync', 18)}</button>` : ''}</div>`;
+    // Accounts
+    const rows = [];
+    if (S.sample) rows.push(grow({ attrs: 'data-conn="gmail"', icon: 'G', color: '#EA4335', title: 'Gmail', sub: 'Sample data', chev: true }));
+    else if (!accts.length) rows.push(grow({ attrs: 'data-conn="gmail"', icon: 'G', color: '#EA4335', title: 'Gmail', sub: on ? 'Connected' : 'Not connected', chev: true }));
+    accts.forEach((a) => {
+      const cs = connStatus(a, now);
+      const attrs = `data-acct-row="${esc(a.key)}" data-acct-status="${esc(a.status)}" ${a.isLogin ? 'data-conn="gmail"' : a.legacy ? 'data-conn="outlook"' : `data-acct-open="${esc(a.key)}"`}`;
+      rows.push(grow({ attrs, icon: '', title: esc(a.email || a.label), sub: `${a.provider === 'microsoft' ? 'Microsoft' : 'Google'}${a.isLogin ? ' · this device' : ''} · <span class="v-cst ${cs.cls}" data-acct-state>${esc(cs.label)}</span>`, chev: true }).replace('<span class="tx">', plogo(a.provider, a.color) + '<span class="tx">'));
+    });
+    const ms = !S.sample && S.host.microsoft ? S.host.microsoft() : null;
+    // the multi-account flow only once the server listed this identity's connections; otherwise the v112 Microsoft page
+    const connsOn = !!(S.host.connectionsEnabled && S.host.connectionsEnabled()) && !!(S.host.connections && S.host.connections().length);
+    if (!S.sample && !connsOn && ms && ms.available && !accts.some((a) => a.provider === 'microsoft')) rows.push(grow({ attrs: 'data-conn="outlook"', icon: 'M', color: '#0078D4', title: 'Microsoft', sub: 'Not connected · Outlook mail and OneDrive files', chev: true }));
+    if (!S.sample && on && connsOn) rows.push(grow({ attrs: 'data-acct-addopen', icon: ic('plus', 18), color: 'var(--v-accent)', cls: 'add', title: 'Add account', sub: 'Google or Microsoft, read-only', chev: true }));
+    h += `<div class="v-section" data-accounts-mgmt><h4>Accounts</h4><div class="v-grp">${rows.join('')}</div></div>`;
     if (!S.sample) h += accountsSection();
-    h += `<div class="v-section"><h4>Daily rhythm</h4>
-      <label class="v-setrow">Day starts<span class="r"><select class="v-input" style="height:36px;width:auto" data-rhythm="dayStart">${[6, 7, 8, 9, 10].map((x) => `<option value="${x}"${r.dayStart === x ? ' selected' : ''}>${x}:00</option>`).join('')}</select></span></label>
-      <label class="v-setrow">Focus hours<span class="r"><select class="v-input" style="height:36px;width:auto" data-rhythm="focusStart">${[7, 8, 9, 10, 13, 14].map((x) => `<option value="${x}"${r.focusStart === x ? ' selected' : ''}>${x}:00–${x + 3}:00</option>`).join('')}</select></span></label>
-      <label class="v-setrow">Day ends<span class="r"><select class="v-input" style="height:36px;width:auto" data-rhythm="dayEnd">${[16, 17, 18, 19, 20, 21].map((x) => `<option value="${x}"${r.dayEnd === x ? ' selected' : ''}>${x}:00</option>`).join('')}</select></span></label>
-      <p class="v-muted" style="font-size:12.5px">Used by Suggest a plan, free time and the evening wrap.</p></div>`;
-    h += `<div class="v-section"><h4>Your rules</h4>${S.rules.length ? `<div class="v-mini">${S.rules.map((x) => `<div style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--v-line)"><span style="flex:1;min-width:0"><b style="font-weight:600;font-size:14px">${esc(x.label)}</b><br><span class="v-muted" style="font-size:12.5px">${x.hits ? `Used ${x.hits}×` : 'Applies to new mail'}${x.enabled === false ? ' · off' : ''}</span></span><button class="v-switch" type="button" role="switch" aria-checked="${x.enabled !== false}" data-ruletoggle="${x.id}" aria-label="Rule on"></button><button class="v-close" type="button" data-ruledel="${x.id}" aria-label="Delete rule">${ic('trash', 15)}</button></div>`).join('')}</div>` : '<p class="v-muted" style="font-size:14px">No rules yet. When you change an email\'s type, Daylight remembers it for that sender and lists the rule here.</p>'}</div>`;
-    h += `<div class="v-section"><h4>Appearance</h4><div class="v-seg" style="margin:0 0 8px">${['system', 'light', 'dark'].map((t) => `<button type="button" class="${theme === t ? 'on' : ''}" data-theme="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div><div class="v-seg" style="margin:0">${[['full', 'Full motion'], ['reduced', 'Reduced motion']].map(([k, l]) => `<button type="button" class="${motion === k ? 'on' : ''}" data-motion="${k}">${l}</button>`).join('')}</div></div>`;
-    h += `<div class="v-section"><h4>Privacy</h4><button class="v-setrow" type="button" data-privacy>${ic('shield', 20)} Privacy Centre<span class="r">${ic('right', 18)}</span></button>
-      ${S.sample ? `<button class="v-setrow" type="button" data-exit-sample>${ic('x', 20)} Leave sample data<span class="r"></span></button>` : ''}</div>`;
-    h += `<div class="v-section"><h4>Developer</h4><button class="v-setrow" type="button" data-diag>${ic('gear', 20)} Intelligence Diagnostics<span class="r">${ic('right', 18)}</span></button><button class="v-setrow" type="button" data-label>${ic('check', 20)} Review emails (validation)<span class="r">${ic('right', 18)}</span></button></div>`;
-    h += `<p class="v-muted" style="font-size:12px;text-align:center;margin-top:24px">Daylight V2 · read-only Gmail release</p>`;
+    // Your day
+    const sel = (k, opts, cur, fmt) => `<select class="v-input v-sel" data-rhythm="${k}" aria-label="${k}">${opts.map((x) => `<option value="${x}"${cur === x ? ' selected' : ''}>${fmt(x)}</option>`).join('')}</select>`;
+    h += `<div class="v-section"><h4>Your day</h4><div class="v-grp">
+      ${grow({ tag: 'label', title: 'Day starts', right: sel('dayStart', [6, 7, 8, 9, 10], r.dayStart, (x) => x + ':00') })}
+      ${grow({ tag: 'label', title: 'Focus hours', right: sel('focusStart', [7, 8, 9, 10, 13, 14], r.focusStart, (x) => `${x}:00–${x + 3}:00`) })}
+      ${grow({ tag: 'label', title: 'Day ends', right: sel('dayEnd', [16, 17, 18, 19, 20, 21], r.dayEnd, (x) => x + ':00') })}
+    </div><p class="v-grcap">Used for plan suggestions, free time and the evening wrap.</p></div>`;
+    // Appearance
+    h += `<div class="v-section"><h4>Appearance</h4><div class="v-grp"><div class="v-gr"><div class="v-seg" style="margin:0;flex:1">${['system', 'light', 'dark'].map((t) => `<button type="button" class="${theme === t ? 'on' : ''}" data-theme="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
+      ${grow({ tag: 'div', title: 'Reduce motion', right: `<button class="v-switch" type="button" role="switch" aria-checked="${motion === 'reduced'}" data-motion="${motion === 'reduced' ? 'full' : 'reduced'}" aria-label="Reduce motion"></button>` })}</div></div>`;
+    // Privacy & AI
+    const aiOn = !!(S.host.ai && S.host.ai.enabled && S.host.ai.enabled());
+    const pr = [];
+    if (!S.sample) pr.push(grow({ tag: 'div', icon: ic('spark', 17), color: 'var(--v-accent)', title: 'Ask AI', sub: 'Your question and matching item titles go to Gemini', right: `<button class="v-switch" type="button" role="switch" aria-checked="${aiOn}" data-aitoggle aria-label="AI processing"></button>` }));
+    pr.push(grow({ attrs: 'data-rules', icon: ic('sort', 17), title: 'Sorting rules', right: String(S.rules.length), chev: true }));
+    pr.push(grow({ attrs: 'data-privacy', icon: ic('shield', 17), color: 'var(--v-good)', title: 'Privacy Centre', sub: 'What is stored, what left this device, export, delete', chev: true }));
+    if (S.sample) pr.push(grow({ attrs: 'data-exit-sample', icon: ic('x', 17), title: 'Leave sample data' }));
+    h += `<div class="v-section"><h4>Privacy &amp; AI</h4><div class="v-grp">${pr.join('')}</div></div>`;
+    // More
+    const soon = CONNS.filter(([id]) => id !== 'gmail' && id !== 'outlook').map((c) => c[1]);
+    h += `<div class="v-section"><div class="v-grp">${grow({ attrs: 'data-soon', title: 'Coming soon', sub: esc(soon.slice(0, 4).join(', ') + ' and more'), chev: true })}${grow({ attrs: 'data-advanced', icon: ic('gear', 17), title: 'Advanced', sub: 'Diagnostics and validation tools', chev: true })}</div></div>`;
+    h += `<p class="v-muted" style="font-size:12px;text-align:center;margin-top:22px">Daylight v113 · read-only</p>`;
     return h;
   }
-  /** Settings → Your accounts: every connection with its status, last sync, reconnect / disconnect and Ask AI choice. */
-  function accountsMgmt() {
-    const now = nowMs(), accts = S.accts || [];
-    const on = !!(S.host.connectionsEnabled && S.host.connectionsEnabled());
-    const caps = (S.host.connectionCaps && S.host.connectionCaps()) || { google: 2, microsoft: 2 };
-    const count = (p) => accts.filter((a) => a.provider === p).length;
-    const aiOn = !!(S.host.ai && S.host.ai.enabled && S.host.ai.enabled());
-    const aiSet = new Set((S.host.aiAccounts && S.host.aiAccounts()) || []);
-    const row = (a) => {
-      const st = connStatus(a, now);
-      const ai = a.isLogin ? `<span class="v-muted" style="font-size:12px">Ask AI: ${aiOn ? 'on' : 'off'} (Privacy)</span>` : `<label class="v-aisw" title="Include this account in Ask AI"><span class="v-muted" style="font-size:12px">Ask AI</span><button class="v-switch" type="button" role="switch" aria-checked="${aiSet.has(a.key)}" data-acct-ai="${esc(a.key)}" aria-label="Include ${esc(a.email)} in Ask AI"${on || a.legacy ? '' : ' disabled'}></button></label>`;
-      const acts = a.isLogin ? `<button class="v-pbtn" type="button" data-acct-manage="gmail">Manage</button>` : a.legacy ? `<button class="v-pbtn" type="button" data-acct-manage="outlook">Manage</button>`
-        : `${a.status === 'needs_reconnect' ? `<button class="v-pbtn solid" type="button" data-acct-reconnect="${esc(a.connId)}">Reconnect</button>` : ''}<button class="v-pbtn danger" type="button" data-acct-disc="${esc(a.connId)}" data-acct-email="${esc(a.email)}">Disconnect</button>`;
-      return `<div class="v-acctrow" data-acct-row="${esc(a.key)}" data-acct-status="${esc(a.status)}">
-        <span class="lg ${a.provider}" style="--ac:${a.color}">${a.provider === 'microsoft' ? 'M' : 'G'}</span>
-        <span class="v-main"><b>${esc(a.name || a.label)}</b><span class="v-muted em">${esc(a.email)}</span>
-          <span class="v-meta"><span>${a.provider === 'microsoft' ? 'Microsoft' : 'Google'}${a.isLogin ? ' · signed in on this device' : ''}</span><span class="sep">·</span><span class="v-cst ${st.cls}" data-acct-state>${esc(st.label)}</span>${(a.sync && a.sync.lastOk && st.cls !== 'ok') ? `<span class="sep">·</span><span>last OK ${esc(M.ago(a.sync.lastOk, now))} ago</span>` : ''}</span>
-          <span class="v-acctacts">${ai}${acts}</span></span></div>`;
+  /** One added account: status, what it reads, Ask AI, reconnect, disconnect. */
+  function openAccount(key) {
+    const html = () => {
+      const a = (S.accts || []).find((x) => x.key === key);
+      if (!a) return '<p class="v-muted">This account is no longer connected.</p>';
+      const now = nowMs(), cs = connStatus(a, now), ms = a.provider === 'microsoft';
+      const mine = (S.allItems || S.items).filter((x) => x.accountId === a.key);
+      const mail = mine.filter((x) => x.type === 'email').length, files = mine.filter((x) => x.type === 'file').length;
+      const aiSet = new Set((S.host.aiAccounts && S.host.aiAccounts()) || []);
+      let h = `<div class="v-sethead">${plogo(a.provider, a.color).replace('class="gi', 'class="gi big')}<div class="tx"><b>${esc(a.email || a.label)}</b><span class="v-muted">${ms ? 'Microsoft account · Outlook and OneDrive' : 'Google account · Gmail'}</span></div></div>`;
+      if (a.status === 'needs_reconnect') h += `<div class="v-banner" style="background:var(--v-warn-soft);flex-wrap:wrap">${ic('urgent', 18)}<span style="flex:1;min-width:180px">Access to this account expired or was removed. Its items stay here.</span><button class="v-pbtn solid" type="button" data-acct-reconnect="${esc(a.connId)}">Reconnect</button></div>`;
+      h += `<div class="v-section"><h4>Status</h4><div class="v-grp">
+        ${grow({ tag: 'div', title: 'Sync', right: `<span class="v-cst ${cs.cls}" data-acct-state>${esc(cs.label)}</span>` })}
+        ${a.sync && a.sync.lastOk && cs.cls !== 'ok' ? grow({ tag: 'div', title: 'Last successful sync', right: esc(M.ago(a.sync.lastOk, now)) + ' ago' }) : ''}
+        ${grow({ tag: 'div', title: ms ? 'Outlook emails' : 'Emails', right: String(mail) })}
+        ${ms ? grow({ attrs: `data-acct-files="${esc(a.key)}"`, title: 'OneDrive files', right: String(files), chev: true }) : ''}
+        ${grow({ tag: 'div', title: 'Bills, bookings and other items', right: String(mine.length - mail - files) })}
+      </div></div>`;
+      h += `<div class="v-section"><h4>Ask AI</h4><div class="v-grp">${grow({ tag: 'div', title: 'Use this account in Ask AI', sub: 'Off until you switch it on', right: `<button class="v-switch" type="button" role="switch" aria-checked="${aiSet.has(a.key)}" data-acct-ai="${esc(a.key)}" aria-label="Include ${esc(a.email)} in Ask AI"></button>` })}</div></div>`;
+      h += `<div class="v-section"><h4>What Daylight reads</h4><p style="font-size:14px;margin:0">${ms ? 'Outlook mail and your OneDrive file list, read-only (Mail.Read, Files.Read).' : 'All Gmail categories, read-only (gmail.readonly).'} Daylight cannot send, delete or change anything.</p></div>`;
+      h += `<div class="v-section"><button class="v-pbtn danger" type="button" data-acct-disc="${esc(a.connId)}" data-acct-email="${esc(a.email)}" style="width:100%;justify-content:center">${ic('trash', 16)} Disconnect this account</button><div data-confirm></div><p class="v-grcap">Deletes its ${mine.length} items, rules and cached mail from this device. Your other accounts are not affected.</p></div>`;
+      return h;
     };
-    let h = `<div class="v-section" data-accounts-mgmt><h4>Your accounts</h4><div class="v-mini v-accts">${accts.map(row).join('')}</div><div data-confirm></div>`;
-    if (on) h += `<div class="v-actions" style="margin-top:10px"><button class="v-pbtn" type="button" data-acct-add="google"${count('google') >= caps.google ? ' disabled' : ''}>${ic('plus', 16)} Add Google account</button><button class="v-pbtn" type="button" data-acct-add="microsoft"${count('microsoft') >= caps.microsoft ? ' disabled' : ''}>${ic('plus', 16)} Add Microsoft account</button><button class="v-pbtn" type="button" data-sync-all>${ic('sync', 16)} Sync all</button></div>
-      <p class="v-muted" style="font-size:12.5px">Up to ${caps.google} Google and ${caps.microsoft} Microsoft accounts, all read-only. Each account syncs on its own; one with a problem never stops the others. Ask AI includes an added account only when you switch it on.</p>`;
-    else h += `<p class="v-muted" style="font-size:12.5px">Adding more accounts needs the updated Daylight server.</p>`;
-    return h + '</div>';
+    openSheet({ title: 'Account', back: true, html: html(), refresh: html, acctKey: key });
+  }
+  function openAddAccount() {
+    const html = () => {
+      const accts = S.accts || [];
+      const caps = (S.host.connectionCaps && S.host.connectionCaps()) || { google: 2, microsoft: 2 };
+      const row = (p, name, sub) => { const n = accts.filter((a) => a.provider === p).length, full = n >= caps[p]; return grow({ attrs: `data-acct-add="${p}"${full ? ' disabled' : ''}`, title: name, sub: `${sub} · ${n} of ${caps[p]} connected${full ? ' (limit reached)' : ''}`, chev: !full }).replace('<span class="tx">', plogo(p) + '<span class="tx">'); };
+      return `<div class="v-grp">${row('google', 'Google', 'Gmail')}${row('microsoft', 'Microsoft', 'Outlook.com, Hotmail or Microsoft 365')}</div>
+        <p class="v-grcap">Every account is read-only and syncs on its own: one with a problem never stops the others. A work or school account may need your organisation's approval.</p>`;
+    };
+    openSheet({ title: 'Add account', back: true, html: html(), refresh: html });
+  }
+  function openRules() {
+    const html = () => S.rules.length ? `<div class="v-grp">${S.rules.map((x) => `<div class="v-gr"><span class="tx"><b>${esc(x.label)}</b><small>${x.hits ? `Used ${x.hits}×` : 'Applies to new mail'}${x.enabled === false ? ' · off' : ''}</small></span><button class="v-switch" type="button" role="switch" aria-checked="${x.enabled !== false}" data-ruletoggle="${x.id}" aria-label="Rule on"></button><button class="v-close" type="button" data-ruledel="${x.id}" aria-label="Delete rule">${ic('trash', 15)}</button></div>`).join('')}</div>` : '<p class="v-muted" style="font-size:14px">No rules yet. When you change an email\'s type, Daylight remembers it for that sender and lists the rule here.</p>';
+    openSheet({ title: 'Sorting rules', back: true, html: html(), refresh: html });
+  }
+  function openAdvanced() {
+    openSheet({ title: 'Advanced', back: true, reopen: openAdvanced, html: `<div class="v-grp">${grow({ attrs: 'data-diag', icon: ic('gear', 17), title: 'Intelligence Diagnostics', sub: 'How items were found and sorted', chev: true })}${grow({ attrs: 'data-label', icon: ic('check', 17), title: 'Review emails', sub: 'Validation: mark what Daylight got right or wrong', chev: true })}</div>` });
+  }
+  function openSoon() {
+    const ms = !S.sample && S.host.microsoft ? S.host.microsoft() : null;
+    openSheet({ title: 'Coming soon', back: true, reopen: openSoon, html: `<p class="v-muted" style="font-size:13.5px;margin:0 0 12px">These apps are planned. Each will be read-only and launches only after its platform review. Daylight never shows sample data as if it came from an app you haven't connected.</p><div class="v-conns">${CONNS.map(([id, name, col, glyph]) => { const live = id === 'gmail' || (id === 'outlook' && !!(ms && ms.available)); return live ? '' : `<button class="v-conn planned" type="button" data-conn="${id}"><span class="lg" style="background:${col}">${esc(glyph)}</span>${esc(name)}<span class="st">Planned</span></button>`; }).join('')}</div>` });
   }
   async function openConnection(id) {
     const c = CONNS.find((x) => x[0] === id); if (!c) return;
@@ -993,8 +1046,8 @@
     };
     openSheet({ title: 'Microsoft', back: true, html: html(), refresh: html });
   }
-  function openFiles() {
-    const st = { q: '', app: 'all', acct: S.acctBy && S.acctBy.has(S.filter) && S.acctBy.get(S.filter).provider === 'microsoft' ? S.filter : 'all' };
+  function openFiles(acct) {
+    const st = { q: '', app: 'all', acct: acct && S.acctBy && S.acctBy.has(acct) ? acct : S.acctBy && S.acctBy.has(S.filter) && S.acctBy.get(S.filter).provider === 'microsoft' ? S.filter : 'all' };
     const APPS = ['all', 'PDF', 'Word', 'Excel', 'PowerPoint', 'Other'];
     const html = () => {
       const now = nowMs();
@@ -1250,6 +1303,8 @@
     if (suppressClick) { e.preventDefault(); e.stopPropagation(); return; }
     const t = e.target.closest('button, [data-act], [data-open], a'); if (!t) return;
     const d = t.dataset;
+    // a page opened from Settings (or another hub page) goes back to it, not out of Settings
+    { const top = S.sheets[S.sheets.length - 1]; S.nextBack = top && top.o.reopen && top.el.contains(t) ? top.o.reopen : null; }
     if (t.tagName === 'A' && d.brief === undefined) return;
     if (d.tab) return setTab(d.tab);
     if (d.act) { e.stopPropagation(); const id = d.id; const it = S.byId.get(id);
@@ -1260,7 +1315,8 @@
     if (d.open) return openItem(d.open, t.closest('.v-card,.v-row,.v-now,.v-pass,.v-dayrow') || t);
     if (d.person) return openPerson(d.person, t);
     if (d.undo !== undefined) { const u = $('.v-toast')._undo; $('.v-toast').classList.remove('on'); if (u) { await u(); await load(); } return; }
-    if (d.close !== undefined || d.sheetBack !== undefined) return closeSheet();
+    if (d.sheetBack !== undefined) { const top = S.sheets[S.sheets.length - 1]; if (top && top.o.onBack) return top.o.onBack(); return closeSheet(); }
+    if (d.close !== undefined) return closeSheet();
     if (d.ask !== undefined) return openAsk();
     if (d.asksug) { const i = $('[data-askform] input'); if (i) i.value = d.asksug; return runAsk(d.asksug); }
     if (d.askai) return runAsk(d.askai, true);
@@ -1330,6 +1386,12 @@
     if (d.msConnect !== undefined) { try { await S.host.connectMicrosoft(); } catch (e) { toast(String(e && e.message || e)); } return; }
     if (d.msSync !== undefined) { toast('Syncing Outlook and OneDrive…'); try { await S.host.syncMicrosoft(); } catch {} await load(); const ms = S.host.microsoft(); toast(ms.error ? ms.error : 'Microsoft synced'); return; }
     if (d.msFiles !== undefined) return openFiles();
+    if (d.acctOpen) return openAccount(d.acctOpen);
+    if (d.acctAddopen !== undefined) return openAddAccount();
+    if (d.acctFiles) return openFiles(d.acctFiles);
+    if (d.rules !== undefined) return openRules();
+    if (d.advanced !== undefined) return openAdvanced();
+    if (d.soon !== undefined) return openSoon();
     if (d.invDel) { const r = (S.inventory || []).find((x) => x.key === d.invDel) || {}; return confirmIn(t, `Delete everything Daylight stored on this device for ${r.email || 'this account'} (${r.items || 0} items, its mail index, file list and sync state)? Other accounts and your own tasks and passes stay.`, 'Delete', async () => { try { const rep = await S.host.deleteDeviceAccount(d.invDel); toast(`Deleted · ${rep.graphItems || 0} items`); } catch (e) { toast(String(e && e.message || e)); } await load(); refreshOpenSheet(); }); }
     if (d.invKeep) { S.host.keepAccountData(d.invKeep); toast('Kept for 30 more days'); await load(); refreshOpenSheet(); return; }
     if (d.replacedKeep !== undefined) { S.host.dismissReplaced(); toast('Kept for now · it stays hidden and is listed in Settings'); await load(); return; }
@@ -1342,7 +1404,7 @@
     if (d.acctReconnect) { try { if (S.host.reconnectAccount) await S.host.reconnectAccount(d.acctReconnect); } catch (err) { toast(String(err && err.message || err)); } return; }
     if (d.acctAi) { const on = t.getAttribute('aria-checked') !== 'true'; S.host.setAiAccount(d.acctAi, on); t.setAttribute('aria-checked', String(on)); toast(on ? 'Ask AI may now use this account\'s items' : 'This account is left out of Ask AI'); return; }
     if (d.syncAll !== undefined) { toast('Syncing every account…'); await S.host.syncNow(); await load(); refreshOpenSheet(); return; }
-    if (d.acctDisc) return confirmIn(t, `Disconnect ${d.acctEmail || 'this account'}? Daylight forgets its access and deletes its items, rules, history and cached mail from this device. Your other accounts are not affected.`, 'Disconnect and delete', async () => { try { const r = await S.host.disconnectAccount(d.acctDisc); toast(`Disconnected · ${r.graphItems || 0} items deleted`); } catch (err) { toast(String(err && err.message || err)); } await load(); refreshOpenSheet(); });
+    if (d.acctDisc) return confirmIn(t, `Disconnect ${d.acctEmail || 'this account'}? Daylight forgets its access and deletes its items, rules, history and cached mail from this device. Your other accounts are not affected.`, 'Disconnect and delete', async () => { try { const r = await S.host.disconnectAccount(d.acctDisc); toast(`Disconnected · ${r.graphItems || 0} items deleted`); } catch (err) { toast(String(err && err.message || err)); } await load(); const top = S.sheets[S.sheets.length - 1]; if (top && top.o.acctKey && !(S.accts || []).some((a) => a.key === top.o.acctKey)) openSettings(); else refreshOpenSheet(); });
     if (d.filesApp) { if (S.filesState) { S.filesState.st.app = d.filesApp; refreshOpenSheet(); } return; }
     if (d.msDisconnect) return confirmIn(t, `Disconnect Microsoft and delete its ${d.msDisconnect} items, cached mail index and file list from this device? Gmail and your own tasks and passes stay.`, 'Disconnect and delete', async () => { closeSheet(); const r = await S.host.disconnectMicrosoft(); toast(`Microsoft disconnected${r ? ` · ${r.graphItems} items deleted` : ''}`); await load(); });
     if (d.switchacct !== undefined) return S.host.switchAccount();

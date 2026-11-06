@@ -138,12 +138,19 @@ function secondGmail() {
     const KEYS = ['42', 'S-77', 'ms-aaa', 'ms-bbb'];
     // ---- A: Settings → Your accounts ----
     await tab.evaluate(() => window.DaylightV2UI.openSettings()); await tab.waitForTimeout(400);
-    const A = await tab.evaluate(() => { const rows = [...document.querySelectorAll('.v-sheet [data-acct-row]')]; return { keys: rows.map((r) => r.dataset.acctRow), states: rows.map((r) => r.querySelector('[data-acct-state]').textContent), text: rows.map((r) => r.textContent), discLogin: !!rows[0].querySelector('[data-acct-disc]'), disc: rows.slice(1).map((r) => r.querySelector('[data-acct-disc]') && r.querySelector('[data-acct-disc]').dataset.acctDisc), addG: document.querySelector('.v-sheet [data-acct-add="google"]').disabled, addM: document.querySelector('.v-sheet [data-acct-add="microsoft"]').disabled, syncAll: !!document.querySelector('.v-sheet [data-sync-all]'), ai: [...document.querySelectorAll('.v-sheet [data-acct-ai]')].map((b) => b.dataset.acctAi + ':' + b.getAttribute('aria-checked')) }; });
-    check('A: one row per connected account, the signed-in one first', JSON.stringify(A.keys) === JSON.stringify(KEYS), A.keys);
+    const A = await tab.evaluate(() => { const rows = [...document.querySelectorAll('.v-sheet [data-acct-row]')]; return { keys: rows.map((r) => r.dataset.acctRow), states: rows.map((r) => r.querySelector('[data-acct-state]').textContent), text: rows.map((r) => r.textContent), open: rows.map((r) => r.dataset.acctOpen || ('conn:' + r.dataset.conn)), disc: document.querySelectorAll('.v-sheet [data-acct-disc]').length, syncAll: !!document.querySelector('.v-sheet [data-sync-all]'), summary: (document.querySelector('.v-sheet [data-set-summary]') || {}).textContent, add: !!document.querySelector('.v-sheet [data-acct-addopen]'), oldGrid: document.querySelectorAll('.v-sheet .v-conn').length }; });
+    check('A: one row per connected account, the signed-in one first; header summary', JSON.stringify(A.keys) === JSON.stringify(KEYS) && A.summary === '4 accounts · all synced', A);
     check('A: each row shows provider type, email and status with the last sync', A.text[1].includes('two@gmail.com') && A.text[1].includes('Google') && A.text[2].includes('Microsoft') && A.text[3].includes('b@work.example') && A.states.every((s) => /^Synced /.test(s)), A.states);
-    check('A: added accounts can be disconnected one by one; the signed-in account cannot be removed there', !A.discLogin && JSON.stringify(A.disc) === JSON.stringify(['c2', 'c3', 'c4']), A);
-    check('A: at 2 Google + 2 Microsoft, Add Google / Add Microsoft are disabled; Sync all is offered', A.addG && A.addM && A.syncAll, A);
-    check('A: per-account Ask AI switches for added accounts, off by default', JSON.stringify(A.ai) === JSON.stringify(['S-77:false', 'ms-aaa:false', 'ms-bbb:false']), A.ai);
+    check('A: no duplicate Connections grid and no Disconnect buttons on the main page; Sync all and Add account offered', A.oldGrid === 0 && A.disc === 0 && A.syncAll && A.add && JSON.stringify(A.open) === JSON.stringify(['conn:gmail', 'S-77', 'ms-aaa', 'ms-bbb']), A);
+    await tab.click('.v-sheet [data-acct-addopen]'); await tab.waitForTimeout(300);
+    const AA = await tab.evaluate(() => ({ g: document.querySelector('.v-sheet [data-acct-add="google"]').disabled, m: document.querySelector('.v-sheet [data-acct-add="microsoft"]').disabled, text: document.querySelector('.v-sheet .bd').textContent }));
+    check('A: Add account → Google / Microsoft, both disabled at 2 of 2', AA.g && AA.m && /2 of 2 connected \(limit reached\)/.test(AA.text), AA);
+    await tab.click('.v-sheet [data-sheet-back]'); await tab.waitForTimeout(300);
+    await tab.click('.v-sheet [data-acct-open="S-77"]'); await tab.waitForTimeout(300);
+    const AP = await tab.evaluate(() => ({ title: [...document.querySelectorAll('.v-sheet')].pop().getAttribute('aria-label'), disc: (document.querySelector('.v-sheet [data-acct-disc]') || {}).dataset, ai: (document.querySelector('.v-sheet [data-acct-ai]') || { getAttribute: () => null }).getAttribute('aria-checked'), state: (document.querySelector('.v-sheet [data-acct-state]') || {}).textContent }));
+    await tab.click('.v-sheet [data-sheet-back]'); await tab.waitForTimeout(300);
+    const back = await tab.evaluate(() => [...document.querySelectorAll('.v-sheet')].pop().getAttribute('aria-label'));
+    check('A: an added account\'s page: status, Ask AI switch (off by default), Disconnect for that connection; Back returns to Settings', AP.title === 'Account' && AP.disc && AP.disc.acctDisc === 'c2' && AP.ai === 'false' && /^Synced/.test(AP.state || '') && back === 'Settings', { AP, back });
     if (process.env.SHOT) await tab.screenshot({ path: process.env.SHOT + '/settings.png', fullPage: false });
     await tab.keyboard.press('Escape'); await tab.waitForTimeout(300);
     if (process.env.SHOT) { await tab.evaluate(() => window.DaylightV2UI.setTab('inbox')); await tab.waitForTimeout(400); await tab.screenshot({ path: process.env.SHOT + '/inbox.png' }); await tab.evaluate(() => window.DaylightV2UI.setTab('wallet')); await tab.waitForTimeout(400); await tab.screenshot({ path: process.env.SHOT + '/wallet.png' }); }
@@ -212,9 +219,11 @@ function secondGmail() {
     const D3 = await tab.evaluate(() => { const b = document.querySelector('[data-reconnect-banner]'); return { banner: b && b.textContent, btn: b && b.querySelector('[data-acct-reconnect]') && b.querySelector('[data-acct-reconnect]').dataset.acctReconnect, bbb: window.DaylightV2UI.state.allItems.filter((x) => x.accountId === 'ms-bbb').length }; });
     check('D: needs reconnect → a banner names that account with a Reconnect button; its data stays', D3.btn === 'c4' && /b@work\.example|b\b/.test(D3.banner || '') && D3.bbb > 0, D3);
     await tab.evaluate(() => window.DaylightV2UI.openSettings()); await tab.waitForTimeout(400);
-    const D4 = await tab.evaluate(() => { const r = document.querySelector('.v-sheet [data-acct-row="ms-bbb"]'); return { st: r.querySelector('[data-acct-state]').textContent, btn: !!r.querySelector('[data-acct-reconnect="c4"]') }; });
+    const D4 = await tab.evaluate(() => { const r = document.querySelector('.v-sheet [data-acct-row="ms-bbb"]'); return { st: r.querySelector('[data-acct-state]').textContent, summary: document.querySelector('.v-sheet [data-set-summary]').textContent }; });
+    await tab.click('.v-sheet [data-acct-open="ms-bbb"]'); await tab.waitForTimeout(300);
+    D4.btn = await tab.evaluate(() => !!document.querySelector('.v-sheet [data-acct-reconnect="c4"]'));
     await tab.click('.v-sheet [data-acct-reconnect="c4"]'); await tab.waitForTimeout(600);
-    check('D: Settings row says "Needs reconnect"; Reconnect starts consent for exactly that connection', D4.st === 'Needs reconnect' && D4.btn && ws.starts.length === 1 && ws.starts[0].provider === 'microsoft' && ws.starts[0].reconnect === 'c4', { D4, starts: ws.starts });
+    check('D: Settings row says "Needs reconnect" (header: 1 needs attention); its page has Reconnect, which starts consent for exactly that connection', D4.st === 'Needs reconnect' && /1 needs attention/.test(D4.summary) && D4.btn && ws.starts.length === 1 && ws.starts[0].provider === 'microsoft' && ws.starts[0].reconnect === 'c4', { D4, starts: ws.starts });
     ws.conns.find((c) => c.id === 'c4').status = 'active';
     await tab.evaluate(async () => { location.hash = ''; await window.DaylightV2Host.syncAccounts(); await window.DaylightV2UI.load(); });
     await tab.keyboard.press('Escape'); await tab.waitForTimeout(300);
@@ -226,6 +235,7 @@ function secondGmail() {
     check('E: AI on: the request holds only the signed-in account and this device (no added account\'s items)', aiOn && E1.sent && E1.marks.length === 0 && E1.accts.every((a) => a === '42' || a === 'local'), E1);
     check('E: the answer shows which accounts Ask AI used and how many were left out', /Ask AI uses: test@example\.com, this device · 3 accounts left out/.test(E1.scope), E1.scope);
     await tab.evaluate(() => window.DaylightV2UI.openSettings()); await tab.waitForTimeout(400);
+    await tab.click('.v-sheet [data-acct-open="ms-aaa"]'); await tab.waitForTimeout(300);
     await tab.click('.v-sheet [data-acct-ai="ms-aaa"]'); await tab.waitForTimeout(200);
     const sw = await tab.evaluate(() => ({ aria: document.querySelector('.v-sheet [data-acct-ai="ms-aaa"]').getAttribute('aria-checked'), ls: localStorage.getItem('daylight-ai-include:ms-aaa'), set: window.DaylightV2Host.aiAccounts() }));
     await tab.keyboard.press('Escape'); await tab.waitForTimeout(300);
@@ -236,15 +246,18 @@ function secondGmail() {
     await tab.evaluate(() => { window.DaylightV2UI.setTab('inbox'); }); await tab.waitForTimeout(200);
     await tab.click('.v-screen:not([hidden]) [data-acctf="S-77"]'); await tab.waitForTimeout(200);
     await tab.evaluate(() => window.DaylightV2UI.openSettings()); await tab.waitForTimeout(400);
+    await tab.click('.v-sheet [data-acct-open="S-77"]'); await tab.waitForTimeout(300);
     await tab.click('.v-sheet [data-acct-disc="c2"]'); await tab.waitForTimeout(300);
     const F1c = { asked: await tab.evaluate(() => { const b = document.querySelector('.v-sheet [data-confirm] .v-banner'); return b ? b.textContent : ''; }), calls: ws.disconnects.length, still: await tab.evaluate(() => window.DaylightV2UI.state.allItems.filter((x) => x.accountId === 'S-77').length) };
     check('F: Disconnect asks first (names the account), nothing happens before the confirmation', /two@gmail\.com/.test(F1c.asked) && F1c.calls === 0 && F1c.still > 0, F1c);
     await tab.click('.v-sheet [data-confirm] [data-ok]');
     for (let i = 0; i < 50 && !ws.disconnects.length; i++) await tab.waitForTimeout(100);
     await tab.waitForTimeout(1500);
-    const F2c = await tab.evaluate(() => { const s = window.DaylightV2UI.state; const by = {}; s.allItems.forEach((x) => { by[x.accountId] = (by[x.accountId] || 0) + 1; }); return { by, filter: s.filter, rows: [...document.querySelectorAll('.v-sheet [data-acct-row]')].map((r) => r.dataset.acctRow), addG: (document.querySelector('.v-sheet [data-acct-add="google"]') || {}).disabled }; });
+    const F2c = await tab.evaluate(() => { const s = window.DaylightV2UI.state; const by = {}; s.allItems.forEach((x) => { by[x.accountId] = (by[x.accountId] || 0) + 1; }); return { by, filter: s.filter, rows: [...document.querySelectorAll('.v-sheet [data-acct-row]')].map((r) => r.dataset.acctRow), title: [...document.querySelectorAll('.v-sheet')].pop().getAttribute('aria-label') }; });
     check('F: after confirming, only that account is removed (server told about c2 only); its items are gone, the others stay', ws.disconnects.join() === 'c2' && !F2c.by['S-77'] && F2c.by['42'] > 0 && F2c.by['ms-aaa'] > 0 && F2c.by['ms-bbb'] > 0 && F2c.by.local > 0, { d: ws.disconnects, F2c });
-    check('F: a filter set to the removed account falls back to All; its row is gone; Add Google is available again', F2c.filter === 'all' && !F2c.rows.includes('S-77') && F2c.addG === false, F2c);
+        await tab.click('.v-sheet [data-acct-addopen]'); await tab.waitForTimeout(300);
+    F2c.addG = await tab.evaluate(() => document.querySelector('.v-sheet [data-acct-add="google"]').disabled);
+    check('F: back on Settings after the disconnect; a filter set to the removed account falls back to All; its row is gone; Add Google is available again', F2c.title === 'Settings' && F2c.filter === 'all' && !F2c.rows.includes('S-77') && F2c.addG === false, F2c);
     const nStarts = ws.starts.length;
     await tab.click('.v-sheet [data-acct-add="google"]'); await tab.waitForTimeout(500);
     check('F: Add Google starts a new Google consent (no reconnect id)', ws.starts.length === nStarts + 1 && ws.starts[nStarts].provider === 'google' && !ws.starts[nStarts].reconnect, ws.starts);

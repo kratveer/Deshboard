@@ -109,7 +109,7 @@ const waitIngest = (page, sub) => page.waitForFunction((s) => { const U = window
     await page.evaluate(async () => { const U = window.DaylightV2UI; const S = U.state; const bill = S.items.find((x) => x.type === 'bill' && x.status === 'open'); await U.act(bill.id, 'done', {}, { silent: true }); const em = S.items.find((x) => x.type === 'email'); await U.act(em.id, 'correct_type', { type: 'newsletter' }, { silent: true }); });
     await page.click('[data-quickadd]'); await page.fill('[data-quickform] [name=title]', 'SAMPLE-ONLY task'); await page.click('[data-quickform] [type=submit]'); await page.waitForTimeout(600);
     await page.click('.v-tab[data-tab=wallet]'); await page.click('.v-screen[data-screen=wallet] [data-addpass]'); await page.fill('[data-passform] [name=title]', 'SAMPLE-ONLY pass'); await page.click('[data-passform] [type=submit]'); await page.waitForTimeout(600);
-    await page.click('[data-open-settings]'); await page.click('.v-sheet [data-label]'); await page.waitForTimeout(300); await page.click('.v-sheet [data-lok] >> nth=0'); await page.waitForTimeout(300);
+    await page.click('[data-open-settings]'); await page.click('.v-sheet [data-advanced]'); await page.click('.v-sheet [data-label]'); await page.waitForTimeout(300); await page.click('.v-sheet [data-lok] >> nth=0'); await page.waitForTimeout(300);
     const aiOff = await page.evaluate(() => !document.querySelector('[data-askai]'));
     const during = await snap();
     const SAMPLE_RX = /SAMPLE-ONLY|Dental Clinic Vinohrady|Hotel Am Stephansplatz|Petra Nov|ABX42K|sample1\b/;

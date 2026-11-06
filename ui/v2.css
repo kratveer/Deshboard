@@ -482,18 +482,36 @@ body.dark .v-toast button{color:#2B52D4}
 .v-acctbar{margin:2px -16px 10px}
 .v-acctbar .v-chip{height:30px;font-size:13px}
 .v-acctbar .dotc{width:8px;height:8px;border-radius:50%;flex:none;box-shadow:0 0 0 2px color-mix(in srgb,currentColor 12%,transparent)}
-.v-accts .v-acctrow{display:flex;gap:12px;align-items:flex-start;padding:12px;border-top:1px solid var(--v-line)}
-.v-accts .v-acctrow:first-child{border-top:0}
-.v-acctrow .lg{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex:none;font-weight:800;font-size:13px;color:#fff;background:var(--ac,var(--v-accent));box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 8px color-mix(in srgb,var(--ac,var(--v-accent)) 30%,transparent)}
-.v-acctrow .v-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.v-acctrow .em{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.v-acctrow .v-meta{font-size:12px}
 .v-cst{font-weight:650}
 .v-cst.ok{color:var(--v-good)}.v-cst.warn{color:var(--v-warn)}.v-cst.bad{color:var(--v-bad)}.v-cst.busy{color:var(--v-accent)}
-.v-acctacts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
-.v-acctacts .v-pbtn{height:30px;font-size:12.5px}
-.v-aisw{display:inline-flex;align-items:center;gap:6px;margin-right:auto}
 .v-aiscope{display:block;margin-top:8px;font-size:12px;color:var(--v-ink-3)}
 .v-acctline{display:flex;align-items:center;gap:6px;margin:4px 0 2px}
 .v-ring.warn .arc{stroke:var(--v-warn)}
 .v-pbtn:disabled,.v-switch:disabled{opacity:.45;cursor:not-allowed}
+/* v113 Settings: one grouped list (iOS-style), details one level down */
+.v-sethead{display:flex;gap:14px;align-items:center;padding:14px;margin:2px 0 4px;border-radius:18px;background:var(--v-surface);border:1px solid var(--v-line);box-shadow:var(--v-shadow)}
+.v-sethead .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.v-sethead .tx b{font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v-sethead .tx .v-muted{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v-sum{font-size:12.5px;font-weight:650;color:var(--v-good);margin-top:3px}.v-sum.warn{color:var(--v-warn)}
+.v-syncbtn{width:38px;height:38px;flex:none}
+.v-grp{background:var(--v-surface);border:1px solid var(--v-line);border-radius:16px;overflow:hidden}
+.v-gr{display:flex;align-items:center;gap:12px;padding:11px 14px;min-height:52px;width:100%;text-align:left;font-size:15px;color:var(--v-ink);background:none;transition:background var(--v-fast)}
+button.v-gr:active,button.v-gr:hover{background:var(--v-surface-2)}
+button.v-gr:disabled{opacity:.5;cursor:not-allowed;background:none}
+.v-gr+.v-gr{border-top:1px solid var(--v-line)}
+.v-gr .gi{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:none;font-weight:800;font-size:13.5px;color:#fff;background:var(--gc,var(--v-ink-3))}
+.v-gr .gi svg{width:17px;height:17px}
+.v-gr .gi.lg{border-radius:50%;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+.v-gr.add .gi{background:var(--v-accent-soft);color:var(--v-accent)}
+.v-gr .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.v-gr .tx b{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v-gr .tx small{font-size:12.5px;color:var(--v-ink-3);line-height:1.35}
+.v-gr .r{margin-left:auto;color:var(--v-ink-3);font-size:14px;display:flex;align-items:center;gap:8px;flex:none;text-align:right}
+.v-gr .chev{color:var(--v-ink-3);display:grid;place-items:center;flex:none;margin-right:-4px}
+.v-gr .v-seg button{height:32px}
+.v-sel{height:34px;width:auto;padding:0 8px;font-size:14px;border-radius:10px;background:var(--v-surface-2)}
+.v-grcap{font-size:12.5px;color:var(--v-ink-3);margin:7px 4px 0}
+.v-sethead .gi.big{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;flex:none;font-weight:800;font-size:18px;color:#fff;background:var(--gc)}
+.v-cst::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px;opacity:.9}
+.v-cst:not(.ok):not(.warn):not(.bad):not(.busy){color:var(--v-ink-3)}
